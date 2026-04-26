@@ -3,57 +3,26 @@ package com.legal.feedback.entity;
 import com.baomidou.mybatisplus.annotation.IdType;
 import com.baomidou.mybatisplus.annotation.TableId;
 import com.baomidou.mybatisplus.annotation.TableName;
+import lombok.Data;
 
 import java.time.LocalDateTime;
 
+/**
+ * 问答反馈表实体。
+ */
+@Data
 @TableName("qa_feedback")
 public class QaFeedbackEntity {
 
+    /** 反馈主键ID。 */
     @TableId(value = "feedback_id", type = IdType.AUTO)
     private Long feedbackId;
-
+    /** 消息ID。 */
     private Long messageId;
+    /** 是否有帮助。 */
     private Boolean helpful;
+    /** 反馈补充说明。 */
     private String comment;
+    /** 创建时间。 */
     private LocalDateTime createdAt;
-
-    public Long getFeedbackId() {
-        return feedbackId;
-    }
-
-    public void setFeedbackId(Long feedbackId) {
-        this.feedbackId = feedbackId;
-    }
-
-    public Long getMessageId() {
-        return messageId;
-    }
-
-    public void setMessageId(Long messageId) {
-        this.messageId = messageId;
-    }
-
-    public Boolean getHelpful() {
-        return helpful;
-    }
-
-    public void setHelpful(Boolean helpful) {
-        this.helpful = helpful;
-    }
-
-    public String getComment() {
-        return comment;
-    }
-
-    public void setComment(String comment) {
-        this.comment = comment;
-    }
-
-    public LocalDateTime getCreatedAt() {
-        return createdAt;
-    }
-
-    public void setCreatedAt(LocalDateTime createdAt) {
-        this.createdAt = createdAt;
-    }
 }

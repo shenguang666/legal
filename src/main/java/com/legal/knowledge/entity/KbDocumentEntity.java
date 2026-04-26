@@ -3,102 +3,36 @@ package com.legal.knowledge.entity;
 import com.baomidou.mybatisplus.annotation.IdType;
 import com.baomidou.mybatisplus.annotation.TableId;
 import com.baomidou.mybatisplus.annotation.TableName;
+import lombok.Data;
 
 import java.time.LocalDateTime;
 
+/**
+ * 知识库文档表实体。
+ */
+@Data
 @TableName("kb_document")
 public class KbDocumentEntity {
 
+    /** 文档主键ID。 */
     @TableId(value = "document_id", type = IdType.AUTO)
     private Long documentId;
-
+    /** 租户ID。 */
     private Long tenantId;
+    /** 所属用户ID。 */
     private Long ownerUserId;
+    /** 文档标题。 */
     private String title;
+    /** 文档来源。 */
     private String source;
+    /** 文档状态（PENDING/PROCESSING/DELETED）。 */
     private String status;
+    /** 文档版本号。 */
     private Integer docVersion;
+    /** 索引状态（PENDING/PROCESSING/COMPLETED）。 */
     private String indexStatus;
+    /** 创建时间。 */
     private LocalDateTime createdAt;
+    /** 更新时间。 */
     private LocalDateTime updatedAt;
-
-    public Long getDocumentId() {
-        return documentId;
-    }
-
-    public void setDocumentId(Long documentId) {
-        this.documentId = documentId;
-    }
-
-    public Long getTenantId() {
-        return tenantId;
-    }
-
-    public void setTenantId(Long tenantId) {
-        this.tenantId = tenantId;
-    }
-
-    public Long getOwnerUserId() {
-        return ownerUserId;
-    }
-
-    public void setOwnerUserId(Long ownerUserId) {
-        this.ownerUserId = ownerUserId;
-    }
-
-    public String getTitle() {
-        return title;
-    }
-
-    public void setTitle(String title) {
-        this.title = title;
-    }
-
-    public String getSource() {
-        return source;
-    }
-
-    public void setSource(String source) {
-        this.source = source;
-    }
-
-    public String getStatus() {
-        return status;
-    }
-
-    public void setStatus(String status) {
-        this.status = status;
-    }
-
-    public Integer getDocVersion() {
-        return docVersion;
-    }
-
-    public void setDocVersion(Integer docVersion) {
-        this.docVersion = docVersion;
-    }
-
-    public String getIndexStatus() {
-        return indexStatus;
-    }
-
-    public void setIndexStatus(String indexStatus) {
-        this.indexStatus = indexStatus;
-    }
-
-    public LocalDateTime getCreatedAt() {
-        return createdAt;
-    }
-
-    public void setCreatedAt(LocalDateTime createdAt) {
-        this.createdAt = createdAt;
-    }
-
-    public LocalDateTime getUpdatedAt() {
-        return updatedAt;
-    }
-
-    public void setUpdatedAt(LocalDateTime updatedAt) {
-        this.updatedAt = updatedAt;
-    }
 }

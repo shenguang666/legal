@@ -3,84 +3,32 @@ package com.legal.chat.entity;
 import com.baomidou.mybatisplus.annotation.IdType;
 import com.baomidou.mybatisplus.annotation.TableId;
 import com.baomidou.mybatisplus.annotation.TableName;
+import lombok.Data;
 
 import java.time.LocalDateTime;
 
+/**
+ * 问答消息表实体。
+ */
+@Data
 @TableName("chat_message")
 public class ChatMessageEntity {
 
+    /** 消息主键ID。 */
     @TableId(value = "message_id", type = IdType.AUTO)
     private Long messageId;
-
+    /** 会话ID。 */
     private String sessionId;
+    /** 消息角色（user/assistant）。 */
     private String role;
+    /** 消息内容。 */
     private String content;
+    /** 本次消息消耗的Token数。 */
     private Integer tokenUsage;
+    /** 本次消息耗时（毫秒）。 */
     private Integer latencyMs;
+    /** 链路追踪ID。 */
     private String traceId;
+    /** 创建时间。 */
     private LocalDateTime createdAt;
-
-    public Long getMessageId() {
-        return messageId;
-    }
-
-    public void setMessageId(Long messageId) {
-        this.messageId = messageId;
-    }
-
-    public String getSessionId() {
-        return sessionId;
-    }
-
-    public void setSessionId(String sessionId) {
-        this.sessionId = sessionId;
-    }
-
-    public String getRole() {
-        return role;
-    }
-
-    public void setRole(String role) {
-        this.role = role;
-    }
-
-    public String getContent() {
-        return content;
-    }
-
-    public void setContent(String content) {
-        this.content = content;
-    }
-
-    public Integer getTokenUsage() {
-        return tokenUsage;
-    }
-
-    public void setTokenUsage(Integer tokenUsage) {
-        this.tokenUsage = tokenUsage;
-    }
-
-    public Integer getLatencyMs() {
-        return latencyMs;
-    }
-
-    public void setLatencyMs(Integer latencyMs) {
-        this.latencyMs = latencyMs;
-    }
-
-    public String getTraceId() {
-        return traceId;
-    }
-
-    public void setTraceId(String traceId) {
-        this.traceId = traceId;
-    }
-
-    public LocalDateTime getCreatedAt() {
-        return createdAt;
-    }
-
-    public void setCreatedAt(LocalDateTime createdAt) {
-        this.createdAt = createdAt;
-    }
 }

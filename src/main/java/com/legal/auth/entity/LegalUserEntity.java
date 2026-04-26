@@ -3,101 +3,36 @@ package com.legal.auth.entity;
 import com.baomidou.mybatisplus.annotation.IdType;
 import com.baomidou.mybatisplus.annotation.TableId;
 import com.baomidou.mybatisplus.annotation.TableName;
+import lombok.Data;
 
 import java.time.LocalDateTime;
 
+/**
+ * 系统用户表实体。
+ */
+@Data
 @TableName("legal_user")
 public class LegalUserEntity {
 
+    /** 用户主键ID。 */
     @TableId(value = "user_id", type = IdType.AUTO)
     private Long userId;
+    /** 租户ID。 */
     private Long tenantId;
+    /** 登录用户名。 */
     private String username;
+    /** 密码摘要（SHA-256）。 */
     private String passwordHash;
+    /** 显示名称。 */
     private String displayName;
+    /** 角色编码（ADMIN/USER）。 */
     private String roleCode;
+    /** 用户状态（ACTIVE/INACTIVE）。 */
     private String status;
+    /** 最后登录时间。 */
     private LocalDateTime lastLoginAt;
+    /** 创建时间。 */
     private LocalDateTime createdAt;
+    /** 更新时间。 */
     private LocalDateTime updatedAt;
-
-    public Long getUserId() {
-        return userId;
-    }
-
-    public void setUserId(Long userId) {
-        this.userId = userId;
-    }
-
-    public Long getTenantId() {
-        return tenantId;
-    }
-
-    public void setTenantId(Long tenantId) {
-        this.tenantId = tenantId;
-    }
-
-    public String getUsername() {
-        return username;
-    }
-
-    public void setUsername(String username) {
-        this.username = username;
-    }
-
-    public String getPasswordHash() {
-        return passwordHash;
-    }
-
-    public void setPasswordHash(String passwordHash) {
-        this.passwordHash = passwordHash;
-    }
-
-    public String getDisplayName() {
-        return displayName;
-    }
-
-    public void setDisplayName(String displayName) {
-        this.displayName = displayName;
-    }
-
-    public String getRoleCode() {
-        return roleCode;
-    }
-
-    public void setRoleCode(String roleCode) {
-        this.roleCode = roleCode;
-    }
-
-    public String getStatus() {
-        return status;
-    }
-
-    public void setStatus(String status) {
-        this.status = status;
-    }
-
-    public LocalDateTime getLastLoginAt() {
-        return lastLoginAt;
-    }
-
-    public void setLastLoginAt(LocalDateTime lastLoginAt) {
-        this.lastLoginAt = lastLoginAt;
-    }
-
-    public LocalDateTime getCreatedAt() {
-        return createdAt;
-    }
-
-    public void setCreatedAt(LocalDateTime createdAt) {
-        this.createdAt = createdAt;
-    }
-
-    public LocalDateTime getUpdatedAt() {
-        return updatedAt;
-    }
-
-    public void setUpdatedAt(LocalDateTime updatedAt) {
-        this.updatedAt = updatedAt;
-    }
 }
