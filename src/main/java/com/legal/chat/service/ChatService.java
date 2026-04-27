@@ -5,13 +5,14 @@ import com.legal.chat.dto.AskRequest;
 import com.legal.chat.dto.AskResponse;
 import com.legal.chat.dto.ChatMessageDto;
 import com.legal.chat.dto.ChatSessionDto;
-import com.legal.chat.dto.CitationDto;
 import com.legal.chat.dto.CreateSessionRequest;
 import com.legal.chat.dto.CreateSessionResponse;
 import com.legal.chat.entity.ChatMessageEntity;
 import com.legal.chat.entity.ChatSessionEntity;
 import com.legal.chat.mapper.ChatMessageMapper;
 import com.legal.chat.mapper.ChatSessionMapper;
+import com.legal.chat.rag.RagAnswer;
+import com.legal.chat.rag.RagAnswerService;
 import com.legal.common.AppException;
 import com.legal.retrieval.entity.RetrievalLogEntity;
 import com.legal.retrieval.mapper.RetrievalLogMapper;
@@ -25,6 +26,7 @@ import java.math.BigDecimal;
 import java.time.LocalDateTime;
 import java.util.List;
 import java.util.UUID;
+import java.util.stream.Collectors;
 
 @Service
 public class ChatService {
@@ -33,15 +35,18 @@ public class ChatService {
     private final ChatMessageMapper chatMessageMapper;
     private final RetrievalLogMapper retrievalLogMapper;
     private final IdempotencyService idempotencyService;
+    private final RagAnswerService ragAnswerService;
 
     public ChatService(ChatSessionMapper chatSessionMapper,
                        ChatMessageMapper chatMessageMapper,
                        RetrievalLogMapper retrievalLogMapper,
-                       IdempotencyService idempotencyService) {
+                       IdempotencyService idempotencyService,
+                       RagAnswerService ragAnswerService) {
         this.chatSessionMapper = chatSessionMapper;
         this.chatMessageMapper = chatMessageMapper;
         this.retrievalLogMapper = retrievalLogMapper;
         this.idempotencyService = idempotencyService;
+        this.ragAnswerService = ragAnswerService;
     }
 
     @Transactional
@@ -103,15 +108,14 @@ public class ChatService {
         userMessage.setCreatedAt(LocalDateTime.now());
         chatMessageMapper.insert(userMessage);
 
-        String answer = "基础版本回复：已收到你的问题“" + request.getQuestion() + "”。"
-                + "当前环境已打通会话、审计与接口链路，下一步可接入向量检索与大模型生成。"
-                + "【免责声明】本系统仅提供法律知识参考，不构成法律意见。";
+        RagAnswer ragAnswer = ragAnswerService.answer(principal.tenantId(), session.getSessionId(), request.getQuestion());
+        String answer = ragAnswer.getAnswer();
 
         ChatMessageEntity assistantMessage = new ChatMessageEntity();
         assistantMessage.setSessionId(session.getSessionId());
         assistantMessage.setRole("assistant");
         assistantMessage.setContent(answer);
-        assistantMessage.setTokenUsage(0);
+        assistantMessage.setTokenUsage(ragAnswer.getTokenUsage());
         assistantMessage.setTraceId(traceId);
         assistantMessage.setCreatedAt(LocalDateTime.now());
         chatMessageMapper.insert(assistantMessage);
@@ -124,9 +128,11 @@ public class ChatService {
         retrievalLog.setTraceId(traceId);
         retrievalLog.setTenantId(principal.tenantId());
         retrievalLog.setQueryText(request.getQuestion());
-        retrievalLog.setHitChunkIds(null);
+        retrievalLog.setHitChunkIds(ragAnswer.getRetrievedChunks().stream()
+                .map(chunk -> String.valueOf(chunk.getChunkId()))
+                .collect(Collectors.joining(",")));
         retrievalLog.setRerankScore(BigDecimal.ZERO);
-        retrievalLog.setModelName("baseline-mock");
+        retrievalLog.setModelName(ragAnswer.getModelName());
         retrievalLog.setLatencyMs(latency);
         retrievalLog.setCreatedAt(LocalDateTime.now());
         retrievalLogMapper.insert(retrievalLog);
@@ -136,11 +142,9 @@ public class ChatService {
 
         AskResponse response = new AskResponse();
         response.setAnswer(answer);
-        response.setCitations(List.of(
-                new CitationDto(0L, "基础知识库（占位）", "当前基础版本尚未接入真实检索片段")
-        ));
-        response.setConfidence(0.42);
-        response.setWarning("该回答来自基础版本占位逻辑，请勿直接用于法律决策");
+        response.setCitations(ragAnswer.getCitations());
+        response.setConfidence(ragAnswer.isKnowledgeHit() ? 0.81 : 0.45);
+        response.setWarning("本回答基于知识库检索与大模型生成，仅供法律知识参考，不构成正式法律意见");
         return response;
     }
 

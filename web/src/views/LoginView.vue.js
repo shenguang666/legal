@@ -11,7 +11,10 @@ if (hasToken()) {
     router.replace('/chat');
 }
 async function login() {
-    if (!tenantId.value.trim() || !username.value.trim() || !password.value.trim()) {
+    const tenantIdValue = String(tenantId.value ?? '').trim();
+    const usernameValue = username.value.trim();
+    const passwordValue = password.value.trim();
+    if (!tenantIdValue || !usernameValue || !passwordValue) {
         notice.value = '请完整填写租户、用户名和密码';
         return;
     }
@@ -19,9 +22,9 @@ async function login() {
     notice.value = '';
     try {
         await apiLogin({
-            tenantId: Number(tenantId.value),
-            username: username.value.trim(),
-            password: password.value,
+            tenantId: Number(tenantIdValue),
+            username: usernameValue,
+            password: passwordValue,
         });
         router.push('/chat');
     }
@@ -89,6 +92,12 @@ __VLS_asFunctionalElement(__VLS_intrinsicElements.button, __VLS_intrinsicElement
 __VLS_asFunctionalElement(__VLS_intrinsicElements.p, __VLS_intrinsicElements.p)({
     ...{ class: "note" },
 });
+__VLS_asFunctionalElement(__VLS_intrinsicElements.p, __VLS_intrinsicElements.p)({
+    ...{ class: "note" },
+});
+__VLS_asFunctionalElement(__VLS_intrinsicElements.p, __VLS_intrinsicElements.p)({
+    ...{ class: "note" },
+});
 if (__VLS_ctx.notice) {
     __VLS_asFunctionalElement(__VLS_intrinsicElements.p, __VLS_intrinsicElements.p)({
         ...{ class: "notice" },
@@ -105,6 +114,8 @@ if (__VLS_ctx.notice) {
 /** @type {__VLS_StyleScopedClasses['form-grid']} */ ;
 /** @type {__VLS_StyleScopedClasses['actions']} */ ;
 /** @type {__VLS_StyleScopedClasses['primary-btn']} */ ;
+/** @type {__VLS_StyleScopedClasses['note']} */ ;
+/** @type {__VLS_StyleScopedClasses['note']} */ ;
 /** @type {__VLS_StyleScopedClasses['note']} */ ;
 /** @type {__VLS_StyleScopedClasses['notice']} */ ;
 var __VLS_dollars;

@@ -33,6 +33,120 @@ sa-token:
   is-read-header: true
   is-log: false
 
+logging:
+  pattern:
+    console: "%d{yyyy-MM-dd HH:mm:ss.SSS} %-5level [%thread] [%X{traceId:-no-trace}] %logger{36} - %msg%n"
+  level:
+    root: info
+    com.legal: info
+
+# LangChain4j 与基础 RAG 配置。
+# 当前先接基础版：大模型生成 + MySQL 切片检索 + 会话记忆。
+langchain4j:
+  # OpenAI 兼容接口配置。
+  # 如果后续接通义千问兼容网关、DeepSeek 兼容网关或其他兼容服务，通常改 base-url 和 api-key 即可。
+  open-ai:
+    chat-model:
+      # OpenAI 兼容接口地址。
+      # 官方 OpenAI 可使用 https://api.openai.com/v1。
+      base-url: ${LEGAL_LLM_BASE_URL:https://dashscope.aliyuncs.com/compatible-mode/v1}
+      # 模型访问密钥。
+      api-key: ${LEGAL_LLM_API_KEY:sk-8f14b342380c4e1ea5bbf457709c5f12}
+      # 具体聊天模型名称。
+      model-name: ${LEGAL_LLM_MODEL:qwen3.6-plus}
+      # 温度越低越稳定，法律问答场景建议保持较低值。
+      temperature: ${LEGAL_LLM_TEMPERATURE:0.2}
+      # 单次回答最大输出 token 数。
+      max-output-tokens: ${LEGAL_LLM_MAX_OUTPUT_TOKENS:2048}
+      # 模型调用超时时间。
+      timeout: ${LEGAL_LLM_TIMEOUT:60s}
+      # 是否打印模型请求日志。
+      log-requests: ${LEGAL_LLM_LOG_REQUESTS:false}
+      # 是否打印模型响应日志。
+      log-responses: ${LEGAL_LLM_LOG_RESPONSES:false}
+
+# RAG 运行参数。
+rag:
+  # 是否启用基础 RAG。
+  enabled: ${LEGAL_RAG_ENABLED:true}
+  # 检索返回的最大切片数。
+  top-k: ${LEGAL_RAG_TOP_K:5}
+  # 会话记忆最多保留多少条消息。
+  max-memory-messages: ${LEGAL_RAG_MAX_MEMORY_MESSAGES:12}
+  # 无检索结果时返回的提示语。
+  empty-hit-warning: ${LEGAL_RAG_EMPTY_HIT_WARNING:当前知识库暂无直接相关内容，以下回答仅基于通用法律知识整理，请谨慎核对。}
+
+# Elasticsearch 基础配置。
+# 当前项目代码里还没有真正接入 ES 客户端，这里先把配置模板预留好，后续接入时直接读取即可。
+elasticsearch:
+  # 是否启用 Elasticsearch 功能开关。
+  # 如果后续某些环境暂时不接 ES，可以改成 false。
+  enabled: ${LEGAL_ES_ENABLED:true}
+  # Elasticsearch 服务地址列表。
+  # 单节点可以只写一个地址；如果后续接入多节点，可以继续在这里追加。
+  # 示例：
+  #   - http://127.0.0.1:9200
+  #   - http://127.0.0.1:9201
+  uris:
+    - ${LEGAL_ES_URIS:http://159.75.84.229:9200}
+  # 用户名。
+  # 如果你的 Elasticsearch 关闭了安全认证，可以留空。
+  username: ${LEGAL_ES_USERNAME:}
+  # 密码。
+  # 如果你的 Elasticsearch 关闭了安全认证，可以留空。
+  password: ${LEGAL_ES_PASSWORD:}
+  # 连接协议方案，仅作为说明性预留字段。
+  # 常见值为 http 或 https。
+  scheme: ${LEGAL_ES_SCHEME:http}
+  # 连接超时时间。
+  # 应用在建立 TCP / HTTP 连接时使用，单位支持 ms、s、m。
+  connect-timeout: ${LEGAL_ES_CONNECT_TIMEOUT:3s}
+  # 读取超时时间。
+  # 查询较大索引或服务器压力较大时可以适当调高。
+  socket-timeout: ${LEGAL_ES_SOCKET_TIMEOUT:10s}
+  # 获取连接池连接的超时时间。
+  connection-request-timeout: ${LEGAL_ES_CONNECTION_REQUEST_TIMEOUT:2s}
+  # 最大连接数。
+  # 单体服务通常几十到几百已经够用，具体看并发量。
+  max-connections: ${LEGAL_ES_MAX_CONNECTIONS:100}
+  # 每个路由的最大连接数。
+  # 如果所有请求都只打到一个 ES 地址，这个值不宜太小。
+  max-connections-per-route: ${LEGAL_ES_MAX_CONNECTIONS_PER_ROUTE:100}
+  # 是否打印 Elasticsearch 请求日志。
+  # 线上环境如果日志量敏感，建议关闭。
+  log-requests: ${LEGAL_ES_LOG_REQUESTS:false}
+
+  # 默认索引配置。
+  index:
+    # 知识库切片索引名称。
+    # 结合现有方案，默认预留为 legal_kb_chunks_v1。
+    kb-chunks: ${LEGAL_ES_INDEX_KB_CHUNKS:legal_kb_chunks_v1}
+    # 如果后续需要单独存检索日志索引，可以在这里配置。
+    retrieval-log: ${LEGAL_ES_INDEX_RETRIEVAL_LOG:legal_retrieval_log_v1}
+
+  # 检索参数预留配置。
+  # 当前还没有真正切换到 ES 向量检索，这里先把建议参数写上，后续可按需要调整。
+  search:
+    # 向量召回数量。
+    vector-top-k: ${LEGAL_ES_VECTOR_TOP_K:80}
+    # BM25 召回数量。
+    bm25-top-k: ${LEGAL_ES_BM25_TOP_K:80}
+    # RRF 融合参数。
+    rrf-k: ${LEGAL_ES_RRF_K:60}
+    # 可选重排数量。
+    rerank-top-n: ${LEGAL_ES_RERANK_TOP_N:20}
+
+  # 快照仓库配置预留。
+  # 如果后续要做 ES 索引备份恢复，可以把这里补完整。
+  snapshot:
+    # 是否启用快照功能。
+    enabled: ${LEGAL_ES_SNAPSHOT_ENABLED:false}
+    # 快照仓库名称。
+    repository: ${LEGAL_ES_SNAPSHOT_REPOSITORY:legal_backup_repo}
+    # 快照仓库在 Elasticsearch 容器内部看到的路径。
+    # 需要和你部署容器时的 path.repo / volume 挂载保持一致。
+    location: ${LEGAL_ES_SNAPSHOT_LOCATION:/usr/share/elasticsearch/snapshots}
+
 ---
 spring:
   config:

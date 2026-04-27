@@ -27,7 +27,9 @@
           {{ loading ? '登录中...' : '进入系统' }}
         </button>
       </div>
-      <p class="note">默认账号：admin / Admin@123，user / User@123。</p>
+      <p class="note">默认租户：1001</p>
+      <p class="note">管理员：admin / Admin@123</p>
+      <p class="note">普通用户：user / User@123</p>
       <p v-if="notice" class="notice">{{ notice }}</p>
     </article>
   </section>
@@ -50,7 +52,10 @@ if (hasToken()) {
 }
 
 async function login() {
-  if (!tenantId.value.trim() || !username.value.trim() || !password.value.trim()) {
+  const tenantIdValue = String(tenantId.value ?? '').trim();
+  const usernameValue = username.value.trim();
+  const passwordValue = password.value.trim();
+  if (!tenantIdValue || !usernameValue || !passwordValue) {
     notice.value = '请完整填写租户、用户名和密码';
     return;
   }
@@ -58,9 +63,9 @@ async function login() {
   notice.value = '';
   try {
     await apiLogin({
-      tenantId: Number(tenantId.value),
-      username: username.value.trim(),
-      password: password.value,
+      tenantId: Number(tenantIdValue),
+      username: usernameValue,
+      password: passwordValue,
     });
     router.push('/chat');
   } catch (error) {

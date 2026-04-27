@@ -36,3 +36,8 @@ build/
 web/node_modules/
 web/dist/
 web/*.tsbuildinfo
+/elasticsearch-docker-deploy.md
+/CLAUDE.md
+/.claude/settings.local.json
+/legal.cp
+/.claude/worktrees/agent-af26122a6e0e879c6/
