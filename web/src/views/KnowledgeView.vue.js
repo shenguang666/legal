@@ -1,26 +1,37 @@
 import { onMounted, ref } from 'vue';
-import { apiDelete, apiGet, apiPost, randomRequestId } from '../api/client';
+import { apiDelete, apiGet, apiPost, apiPostForm, randomRequestId } from '../api/client';
 const title = ref('');
 const source = ref('');
+const selectedFile = ref(null);
 const documents = ref([]);
 const notice = ref('');
 onMounted(refresh);
 async function refresh() {
     documents.value = await apiGet('/api/knowledge/documents');
 }
-async function createDocument() {
-    if (!title.value.trim() || !source.value.trim()) {
-        notice.value = '请填写标题和来源';
+function onSelectFile(event) {
+    const input = event.target;
+    selectedFile.value = input.files?.[0] || null;
+}
+async function importDocument() {
+    if (!selectedFile.value) {
+        notice.value = '请先选择文件';
         return;
     }
-    await apiPost('/api/knowledge/documents', {
-        requestId: randomRequestId('kb-create'),
-        title: title.value.trim(),
-        source: source.value.trim(),
-    });
+    const formData = new FormData();
+    formData.append('requestId', randomRequestId('kb-import'));
+    formData.append('file', selectedFile.value);
+    if (title.value.trim()) {
+        formData.append('title', title.value.trim());
+    }
+    if (source.value.trim()) {
+        formData.append('source', source.value.trim());
+    }
+    await apiPostForm('/api/knowledge/documents/import', formData);
     title.value = '';
     source.value = '';
-    notice.value = '文档已创建';
+    selectedFile.value = null;
+    notice.value = '文档已导入，正在后台建立向量索引';
     await refresh();
 }
 async function triggerIndex(documentId) {
@@ -60,20 +71,27 @@ __VLS_asFunctionalElement(__VLS_intrinsicElements.div, __VLS_intrinsicElements.d
 __VLS_asFunctionalElement(__VLS_intrinsicElements.div, __VLS_intrinsicElements.div)({});
 __VLS_asFunctionalElement(__VLS_intrinsicElements.label, __VLS_intrinsicElements.label)({});
 __VLS_asFunctionalElement(__VLS_intrinsicElements.input)({
-    placeholder: "例如：劳动合同法-第二次修订",
+    placeholder: "可选，不填则使用文件名",
 });
 (__VLS_ctx.title);
 __VLS_asFunctionalElement(__VLS_intrinsicElements.div, __VLS_intrinsicElements.div)({});
 __VLS_asFunctionalElement(__VLS_intrinsicElements.label, __VLS_intrinsicElements.label)({});
 __VLS_asFunctionalElement(__VLS_intrinsicElements.input)({
-    placeholder: "例如：国家法规库",
+    placeholder: "可选，例如：国家法规库",
 });
 (__VLS_ctx.source);
+__VLS_asFunctionalElement(__VLS_intrinsicElements.div, __VLS_intrinsicElements.div)({});
+__VLS_asFunctionalElement(__VLS_intrinsicElements.label, __VLS_intrinsicElements.label)({});
+__VLS_asFunctionalElement(__VLS_intrinsicElements.input)({
+    ...{ onChange: (__VLS_ctx.onSelectFile) },
+    type: "file",
+    accept: ".pdf,.doc,.docx,.txt,.md",
+});
 __VLS_asFunctionalElement(__VLS_intrinsicElements.div, __VLS_intrinsicElements.div)({
     ...{ class: "actions" },
 });
 __VLS_asFunctionalElement(__VLS_intrinsicElements.button, __VLS_intrinsicElements.button)({
-    ...{ onClick: (__VLS_ctx.createDocument) },
+    ...{ onClick: (__VLS_ctx.importDocument) },
     ...{ class: "primary-btn" },
 });
 __VLS_asFunctionalElement(__VLS_intrinsicElements.p, __VLS_intrinsicElements.p)({
@@ -162,7 +180,8 @@ const __VLS_self = (await import('vue')).defineComponent({
             documents: documents,
             notice: notice,
             refresh: refresh,
-            createDocument: createDocument,
+            onSelectFile: onSelectFile,
+            importDocument: importDocument,
             triggerIndex: triggerIndex,
             remove: remove,
         };

@@ -4,7 +4,9 @@ import com.legal.chat.mapper.ChatMessageMapper;
 import com.legal.chat.memory.ChatMemoryFactory;
 import com.legal.chat.memory.ChatMemoryStoreImpl;
 import dev.langchain4j.model.chat.ChatModel;
+import dev.langchain4j.model.chat.StreamingChatModel;
 import dev.langchain4j.model.openai.OpenAiChatModel;
+import dev.langchain4j.model.openai.OpenAiStreamingChatModel;
 import org.springframework.boot.context.properties.EnableConfigurationProperties;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
@@ -14,6 +16,7 @@ import org.springframework.util.StringUtils;
 @EnableConfigurationProperties({
         RagProperties.class,
         OpenAiChatModelProperties.class,
+        OpenAiStreamingChatModelProperties.class,
         OpenAiEmbeddingProperties.class,
         ElasticsearchProperties.class
 })
@@ -33,6 +36,23 @@ public class LangChain4jConfig {
                 .timeout(properties.getTimeout())
                 .logRequests(properties.isLogRequests())
                 .logResponses(properties.isLogResponses())
+                .build();
+    }
+
+    @Bean
+    public StreamingChatModel streamingChatModel(OpenAiStreamingChatModelProperties properties) {
+        if (!StringUtils.hasText(properties.getApiKey())) {
+            return null;
+        }
+        return OpenAiStreamingChatModel.builder()
+                .baseUrl(properties.getBaseUrl())
+                .apiKey(properties.getApiKey())
+                .modelName(properties.getModelName())
+                // 兼容 DeepSeek/Qwen 等 OpenAI 兼容网关的流式 tool_call id 行为
+                .accumulateToolCallId(false)
+                .temperature(properties.getTemperature())
+                .maxCompletionTokens(properties.getMaxOutputTokens())
+                .timeout(properties.getTimeout())
                 .build();
     }
 

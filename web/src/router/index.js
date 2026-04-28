@@ -7,7 +7,12 @@ import KnowledgeView from '../views/KnowledgeView.vue';
 const router = createRouter({
     history: createWebHistory(),
     routes: [
-        { path: '/', redirect: '/chat' },
+        {
+            path: '/',
+            redirect: () => {
+                return hasToken() ? '/chat' : '/login';
+            },
+        },
         { path: '/login', component: LoginView, meta: { publicOnly: true } },
         { path: '/chat', component: ChatView },
         { path: '/sessions', component: SessionsView },

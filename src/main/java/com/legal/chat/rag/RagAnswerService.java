@@ -75,6 +75,46 @@ public class RagAnswerService {
         );
     }
 
+    /**
+     * 仅执行检索与引用构建，不调用大模型。
+     */
+    public RagAnswer retrieveOnly(Long tenantId, String sessionId, String question) {
+        if (!ragProperties.isEnabled()) {
+            throw AppException.badRequest("当前环境未启用 RAG 功能");
+        }
+        List<RetrievedChunk> chunks = chunkRetriever.retrieve(tenantId, question, ragProperties.getTopK());
+        return new RagAnswer(
+                "",
+                openAiChatModelProperties.getModelName(),
+                0,
+                chunks,
+                chunks.stream()
+                        .map(chunk -> new CitationDto(chunk.getDocumentId(), chunk.getSource(), shorten(chunk.getContent())))
+                        .collect(Collectors.toList()),
+                !chunks.isEmpty()
+        );
+    }
+
+    /**
+     * 供流式接口复用：只构建 systemPrompt（包含召回上下文），不调用模型。
+     */
+    public String buildSystemPromptForStreaming(Long tenantId, String sessionId, String question) {
+        if (!ragProperties.isEnabled()) {
+            throw AppException.badRequest("当前环境未启用 RAG 功能");
+        }
+        List<RetrievedChunk> chunks = chunkRetriever.retrieve(tenantId, question, ragProperties.getTopK());
+        String context = buildContext(chunks);
+        String knowledgeWarning = chunks.isEmpty() ? ragProperties.getEmptyHitWarning() : "已命中知识库片段，请优先依据知识库内容回答。";
+        return promptTemplateService.renderSystemPrompt(context, knowledgeWarning);
+    }
+
+    /**
+     * 供流式接口复用：创建会话记忆。
+     */
+    public ChatMemory createMemoryForStreaming(String sessionId) {
+        return chatMemoryFactory.create(sessionId);
+    }
+
     private String buildContext(List<RetrievedChunk> chunks) {
         if (chunks.isEmpty()) {
             return "当前没有命中的知识库片段。";

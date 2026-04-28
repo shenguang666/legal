@@ -50,12 +50,21 @@ langchain4j:
     chat-model:
       base-url: ${LEGAL_LLM_BASE_URL:https://dashscope.aliyuncs.com/compatible-mode/v1}
       api-key: ${LEGAL_LLM_API_KEY:sk-8f14b342380c4e1ea5bbf457709c5f12}
-      model-name: ${LEGAL_LLM_MODEL:qwen-plus}
+      model-name: ${LEGAL_LLM_MODEL:deepseek-v4-pro}
       temperature: ${LEGAL_LLM_TEMPERATURE:0.2}
       max-output-tokens: ${LEGAL_LLM_MAX_OUTPUT_TOKENS:2048}
       timeout: ${LEGAL_LLM_TIMEOUT:60s}
       log-requests: ${LEGAL_LLM_LOG_REQUESTS:false}
       log-responses: ${LEGAL_LLM_LOG_RESPONSES:false}
+
+    # 流式聊天模型配置（SSE 流式问答用）。默认复用 chat-model 的 base-url/api-key/model。
+    streaming-chat-model:
+      base-url: ${LEGAL_LLM_STREAM_BASE_URL:${LEGAL_LLM_BASE_URL:https://dashscope.aliyuncs.com/compatible-mode/v1}}
+      api-key: ${LEGAL_LLM_STREAM_API_KEY:${LEGAL_LLM_API_KEY:sk-8f14b342380c4e1ea5bbf457709c5f12}}
+      model-name: ${LEGAL_LLM_STREAM_MODEL:${LEGAL_LLM_MODEL:deepseek-v4-pro}}
+      temperature: ${LEGAL_LLM_STREAM_TEMPERATURE:${LEGAL_LLM_TEMPERATURE:0.2}}
+      max-output-tokens: ${LEGAL_LLM_STREAM_MAX_OUTPUT_TOKENS:${LEGAL_LLM_MAX_OUTPUT_TOKENS:2048}}
+      timeout: ${LEGAL_LLM_STREAM_TIMEOUT:${LEGAL_LLM_TIMEOUT:60s}}
     embedding-model:
       base-url: ${LEGAL_LLM_EMBEDDING_BASE_URL:${LEGAL_LLM_BASE_URL:https://dashscope.aliyuncs.com/compatible-mode/v1}}
       api-key: ${LEGAL_LLM_EMBEDDING_API_KEY:${LEGAL_LLM_API_KEY:sk-8f14b342380c4e1ea5bbf457709c5f12}}
@@ -72,7 +81,7 @@ rag:
   # 检索返回的最大切片数。
   top-k: ${LEGAL_RAG_TOP_K:5}
   # 向量召回的最小相似度阈值（cosine similarity）。低于阈值的召回会被丢弃；不会强制补齐 topK。
-  min-vector-similarity: ${LEGAL_RAG_MIN_VECTOR_SIMILARITY:0.9}
+  min-vector-similarity: ${LEGAL_RAG_MIN_VECTOR_SIMILARITY:0.75}
   # 会话记忆最多保留多少条消息。
   max-memory-messages: ${LEGAL_RAG_MAX_MEMORY_MESSAGES:12}
   # 无检索结果时返回的提示语。

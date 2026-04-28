@@ -17,6 +17,10 @@
           :class="item.role === 'assistant' ? 'assistant' : 'user'"
         >
           <p class="meta">{{ item.role === 'assistant' ? '助手' : '用户' }} · {{ formatTime(item.createdAt) }}</p>
+          <details v-if="item.role === 'assistant' && item.thinking" class="thinking">
+            <summary>思考过程</summary>
+            <pre class="thinking-text">{{ item.thinking }}</pre>
+          </details>
           <p class="text">{{ item.content }}</p>
           <div v-if="item.role === 'assistant'" class="feedback-line">
             <button class="ghost-btn" @click="submitFeedback(item.messageId, true)">有帮助</button>
@@ -31,7 +35,7 @@
           rows="4"
           placeholder="输入你的法律问题，例如：劳动合同到期未续签是否有补偿？"
         />
-        <button class="primary-btn" :disabled="loading" @click="ask">{{ loading ? '发送中...' : '发送问题' }}</button>
+        <button class="primary-btn" :disabled="loading" @click="askStream">{{ loading ? '生成中...' : '发送问题(流式)' }}</button>
       </div>
       <p class="note">当前 sessionId：{{ sessionId || '尚未创建' }}</p>
     </div>
@@ -58,13 +62,14 @@
 <script setup lang="ts">
 import { onMounted, ref } from 'vue';
 import { useRoute } from 'vue-router';
-import { apiGet, apiPost, randomRequestId } from '../api/client';
+import { apiGet, apiPost, apiPostSse, randomRequestId } from '../api/client';
 
 interface ChatMessage {
   messageId: number;
   role: string;
   content: string;
   createdAt: string;
+  thinking?: string;
 }
 
 interface CreateSessionResponse {
@@ -93,6 +98,7 @@ const question = ref('');
 const notice = ref('');
 const loading = ref(false);
 const latestCitations = ref<Citation[]>([]);
+let cancelStream: null | (() => void) = null;
 
 onMounted(async () => {
   const querySessionId = route.query.sessionId as string | undefined;
@@ -144,6 +150,73 @@ async function ask() {
   } finally {
     loading.value = false;
   }
+}
+
+// 保留旧 ask()，新增流式按钮已指向 askStream()
+
+async function askStream() {
+  if (!question.value.trim() || !sessionId.value) {
+    return;
+  }
+  if (cancelStream) {
+    cancelStream();
+    cancelStream = null;
+  }
+  loading.value = true;
+  latestCitations.value = [];
+  notice.value = '';
+
+  const payload = {
+    sessionId: sessionId.value,
+    question: question.value.trim(),
+    requestId: randomRequestId('chat-ask-stream'),
+  };
+
+  const userMsg: ChatMessage = {
+    messageId: Date.now() - 1,
+    role: 'user',
+    content: payload.question,
+    createdAt: new Date().toISOString(),
+  };
+  const assistantMsg: ChatMessage = {
+    messageId: Date.now(),
+    role: 'assistant',
+    content: '',
+    thinking: '',
+    createdAt: new Date().toISOString(),
+  };
+  messages.value = [...messages.value, userMsg, assistantMsg];
+
+  const patchAssistant = () => {
+    messages.value = messages.value.map((item) => (item.messageId === assistantMsg.messageId ? { ...assistantMsg } : item));
+  };
+
+  cancelStream = apiPostSse('/api/chat/ask/stream', payload, (evt) => {
+    const name = evt.name;
+    const data = evt.data?.data ?? evt.data;
+    if (name === 'thinking') {
+      assistantMsg.thinking = (assistantMsg.thinking || '') + String(data || '');
+      patchAssistant();
+    } else if (name === 'answer') {
+      assistantMsg.content = (assistantMsg.content || '') + String(data || '');
+      patchAssistant();
+    } else if (name === 'citations') {
+      try {
+        latestCitations.value = typeof data === 'string' ? (JSON.parse(data) as Citation[]) : (data as Citation[]);
+      } catch {
+        // ignore
+      }
+    } else if (name === 'done') {
+      patchAssistant();
+      loading.value = false;
+      question.value = '';
+      cancelStream = null;
+    } else if (name === 'error') {
+      loading.value = false;
+      notice.value = evt.data?.message || '流式请求失败';
+      cancelStream = null;
+    }
+  });
 }
 
 async function submitFeedback(messageId: number, helpful: boolean) {
@@ -224,6 +297,22 @@ function formatTime(input: string) {
   margin-top: 0.7rem;
   display: flex;
   gap: 0.5rem;
+}
+
+.thinking {
+  margin: 0.55rem 0;
+  border: 1px dashed var(--line);
+  border-radius: 10px;
+  padding: 0.5rem 0.75rem;
+  background: rgba(0, 0, 0, 0.02);
+}
+
+.thinking-text {
+  white-space: pre-wrap;
+  margin: 0.4rem 0 0;
+  font-size: 0.9rem;
+  line-height: 1.35;
+  color: rgba(0, 0, 0, 0.72);
 }
 
 .composer {

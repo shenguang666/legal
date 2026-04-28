@@ -118,8 +118,24 @@ public class ElasticsearchChunkStore {
         return rrfMerge(vectorHits, bm25Hits, properties.getSearch().getRrfK(), topK);
     }
 
+    /**
+     * 仅向量检索（kNN）。返回的 score 为 Elasticsearch _score（通常对应 cosine similarity）。
+     */
+    public List<ChunkSearchHit> vectorSearch(Long tenantId, List<Float> questionVector, int topK) {
+        if (!isEnabled()) {
+            return List.of();
+        }
+        ensureIndex();
+        int safeTopK = Math.max(1, topK);
+        return doVectorSearch(tenantId, questionVector, safeTopK);
+    }
+
     private List<ChunkSearchHit> vectorSearch(Long tenantId, List<Float> questionVector) {
         int vectorTopK = Math.max(1, properties.getSearch().getVectorTopK());
+        return doVectorSearch(tenantId, questionVector, vectorTopK);
+    }
+
+    private List<ChunkSearchHit> doVectorSearch(Long tenantId, List<Float> questionVector, int vectorTopK) {
         int numCandidates = Math.max(vectorTopK * 2, 100);
         Map<String, Object> body = Map.of(
                 "size", vectorTopK,
