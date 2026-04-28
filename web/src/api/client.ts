@@ -18,6 +18,7 @@ export interface RequestOptions {
   method?: 'GET' | 'POST' | 'DELETE';
   body?: unknown;
   auth?: boolean;
+  formData?: boolean;
 }
 
 const API_BASE_URL = import.meta.env.VITE_API_BASE_URL || 'http://localhost:8081';
@@ -59,9 +60,10 @@ export function currentRole() {
 }
 
 async function request<T>(path: string, options: RequestOptions = {}): Promise<T> {
-  const headers: Record<string, string> = {
-    'Content-Type': 'application/json',
-  };
+  const headers: Record<string, string> = {};
+  if (!options.formData) {
+    headers['Content-Type'] = 'application/json';
+  }
   if (options.auth !== false) {
     Object.assign(headers, authHeaders());
   }
@@ -69,7 +71,11 @@ async function request<T>(path: string, options: RequestOptions = {}): Promise<T
   const response = await fetch(`${API_BASE_URL}${path}`, {
     method: options.method || 'GET',
     headers,
-    body: options.body ? JSON.stringify(options.body) : undefined,
+    body: options.body
+      ? options.formData
+        ? (options.body as BodyInit)
+        : JSON.stringify(options.body)
+      : undefined,
   });
 
   const data = (await response.json()) as ApiResponse<T>;
@@ -88,6 +94,10 @@ export function apiGet<T>(path: string): Promise<T> {
 
 export function apiPost<T>(path: string, body?: unknown, auth = true): Promise<T> {
   return request<T>(path, { method: 'POST', body, auth });
+}
+
+export function apiPostForm<T>(path: string, formData: FormData, auth = true): Promise<T> {
+  return request<T>(path, { method: 'POST', body: formData, auth, formData: true });
 }
 
 export function apiDelete<T>(path: string): Promise<T> {

@@ -2,21 +2,29 @@
   <section class="knowledge-grid">
     <article class="card panel">
       <p class="tag">知识库录入</p>
-      <h2 class="section-title">新增文档元数据</h2>
+      <h2 class="section-title">上传文档并向量化</h2>
       <div class="grid form-grid">
         <div>
           <label>标题</label>
-          <input v-model="title" placeholder="例如：劳动合同法-第二次修订" />
+          <input v-model="title" placeholder="可选，不填则使用文件名" />
         </div>
         <div>
           <label>来源</label>
-          <input v-model="source" placeholder="例如：国家法规库" />
+          <input v-model="source" placeholder="可选，例如：国家法规库" />
+        </div>
+        <div>
+          <label>文件</label>
+          <input
+            type="file"
+            accept=".pdf,.doc,.docx,.txt,.md"
+            @change="onSelectFile"
+          />
         </div>
       </div>
       <div class="actions">
-        <button class="primary-btn" @click="createDocument">创建文档</button>
+        <button class="primary-btn" @click="importDocument">导入并索引</button>
       </div>
-      <p class="note">基础版先接元数据，后续可替换为真实文件上传。</p>
+      <p class="note">支持 pdf/doc/docx/txt/md，导入后由后台异步完成向量索引。</p>
     </article>
 
     <article class="card panel">
@@ -44,7 +52,7 @@
 
 <script setup lang="ts">
 import { onMounted, ref } from 'vue';
-import { apiDelete, apiGet, apiPost, randomRequestId } from '../api/client';
+import { apiDelete, apiGet, apiPost, apiPostForm, randomRequestId } from '../api/client';
 
 interface DocumentItem {
   documentId: number;
@@ -56,6 +64,7 @@ interface DocumentItem {
 
 const title = ref('');
 const source = ref('');
+const selectedFile = ref<File | null>(null);
 const documents = ref<DocumentItem[]>([]);
 const notice = ref('');
 
@@ -65,19 +74,30 @@ async function refresh() {
   documents.value = await apiGet<DocumentItem[]>('/api/knowledge/documents');
 }
 
-async function createDocument() {
-  if (!title.value.trim() || !source.value.trim()) {
-    notice.value = '请填写标题和来源';
+function onSelectFile(event: Event) {
+  const input = event.target as HTMLInputElement;
+  selectedFile.value = input.files?.[0] || null;
+}
+
+async function importDocument() {
+  if (!selectedFile.value) {
+    notice.value = '请先选择文件';
     return;
   }
-  await apiPost('/api/knowledge/documents', {
-    requestId: randomRequestId('kb-create'),
-    title: title.value.trim(),
-    source: source.value.trim(),
-  });
+  const formData = new FormData();
+  formData.append('requestId', randomRequestId('kb-import'));
+  formData.append('file', selectedFile.value);
+  if (title.value.trim()) {
+    formData.append('title', title.value.trim());
+  }
+  if (source.value.trim()) {
+    formData.append('source', source.value.trim());
+  }
+  await apiPostForm('/api/knowledge/documents/import', formData);
   title.value = '';
   source.value = '';
-  notice.value = '文档已创建';
+  selectedFile.value = null;
+  notice.value = '文档已导入，正在后台建立向量索引';
   await refresh();
 }
 

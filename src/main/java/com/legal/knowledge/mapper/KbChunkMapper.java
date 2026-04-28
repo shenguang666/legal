@@ -1,6 +1,9 @@
 package com.legal.knowledge.mapper;
 
+import com.baomidou.mybatisplus.core.mapper.BaseMapper;
 import com.legal.knowledge.entity.KbChunkEntity;
+import org.apache.ibatis.annotations.Delete;
+import org.apache.ibatis.annotations.Insert;
 import org.apache.ibatis.annotations.Mapper;
 import org.apache.ibatis.annotations.Param;
 import org.apache.ibatis.annotations.Select;
@@ -8,7 +11,7 @@ import org.apache.ibatis.annotations.Select;
 import java.util.List;
 
 @Mapper
-public interface KbChunkMapper {
+public interface KbChunkMapper extends BaseMapper<KbChunkEntity> {
 
     @Select("""
             <script>
@@ -40,4 +43,52 @@ public interface KbChunkMapper {
     List<KbChunkEntity> searchByKeywords(@Param("tenantId") Long tenantId,
                                          @Param("keywords") List<String> keywords,
                                          @Param("limit") int limit);
+
+    @Select("""
+            SELECT chunk_id,
+                   tenant_id,
+                   document_id,
+                   doc_version,
+                   chunk_order,
+                   content,
+                   content_hash,
+                   created_at
+            FROM kb_chunk
+            WHERE tenant_id = #{tenantId}
+              AND document_id = #{documentId}
+              AND doc_version = #{docVersion}
+            ORDER BY chunk_order ASC, chunk_id ASC
+            """)
+    List<KbChunkEntity> selectByDocVersion(@Param("tenantId") Long tenantId,
+                                           @Param("documentId") Long documentId,
+                                           @Param("docVersion") int docVersion);
+
+    @Delete("""
+            DELETE FROM kb_chunk
+            WHERE tenant_id = #{tenantId}
+              AND document_id = #{documentId}
+              AND doc_version = #{docVersion}
+            """)
+    int deleteByDocVersion(@Param("tenantId") Long tenantId,
+                           @Param("documentId") Long documentId,
+                           @Param("docVersion") int docVersion);
+
+    @Insert("""
+            INSERT INTO kb_chunk (tenant_id, document_id, doc_version, chunk_order, content, content_hash, created_at)
+            SELECT tenant_id,
+                   document_id,
+                   #{toVersion},
+                   chunk_order,
+                   content,
+                   content_hash,
+                   NOW()
+            FROM kb_chunk
+            WHERE tenant_id = #{tenantId}
+              AND document_id = #{documentId}
+              AND doc_version = #{fromVersion}
+            """)
+    int copyVersion(@Param("tenantId") Long tenantId,
+                    @Param("documentId") Long documentId,
+                    @Param("fromVersion") int fromVersion,
+                    @Param("toVersion") int toVersion);
 }

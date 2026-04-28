@@ -17,6 +17,7 @@ import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.RestController;
+import org.springframework.web.multipart.MultipartFile;
 
 import java.util.List;
 
@@ -36,6 +37,15 @@ public class KnowledgeController {
     public ApiResponse<DocumentDto> create(@Valid @RequestBody CreateDocumentRequest request) {
         AuthPrincipal principal = AuthContextHolder.getRequired();
         return ApiResponse.ok(knowledgeService.createDocument(principal, request));
+    }
+
+    @PostMapping("/import")
+    public ApiResponse<DocumentDto> importFile(@RequestParam("requestId") String requestId,
+                                               @RequestParam("file") MultipartFile file,
+                                               @RequestParam(value = "title", required = false) String title,
+                                               @RequestParam(value = "source", required = false) String source) {
+        AuthPrincipal principal = AuthContextHolder.getRequired();
+        return ApiResponse.ok(knowledgeService.importDocument(principal, requestId, file, title, source));
     }
 
     @GetMapping

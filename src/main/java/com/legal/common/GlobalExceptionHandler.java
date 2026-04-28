@@ -20,21 +20,25 @@ public class GlobalExceptionHandler {
 
     @ExceptionHandler(AppException.class)
     public ResponseEntity<ApiResponse<Void>> handleAppException(AppException ex) {
+        log.error("Unhandled exception", ex);
         return ResponseEntity.status(ex.getHttpStatus()).body(ApiResponse.fail(ex.getCode(), ex.getMessage()));
     }
 
     @ExceptionHandler(NotLoginException.class)
     public ResponseEntity<ApiResponse<Void>> handleNotLogin(NotLoginException ex) {
+        log.error("Unhandled exception", ex);
         return ResponseEntity.status(401).body(ApiResponse.fail(40102, "未登录或登录已失效"));
     }
 
     @ExceptionHandler({NotRoleException.class, NotPermissionException.class})
     public ResponseEntity<ApiResponse<Void>> handleNoAuth(SaTokenException ex) {
+        log.error("Unhandled exception", ex);
         return ResponseEntity.status(403).body(ApiResponse.fail(40302, ex.getMessage()));
     }
 
     @ExceptionHandler(MethodArgumentNotValidException.class)
     public ResponseEntity<ApiResponse<Void>> handleValidationException(MethodArgumentNotValidException ex) {
+        log.error("Unhandled exception", ex);
         String msg = ex.getBindingResult().getAllErrors().stream()
                 .map(error -> {
                     if (error instanceof FieldError fieldError) {
@@ -48,6 +52,7 @@ public class GlobalExceptionHandler {
 
     @ExceptionHandler(ConstraintViolationException.class)
     public ResponseEntity<ApiResponse<Void>> handleConstraintViolation(ConstraintViolationException ex) {
+        log.error("Unhandled exception", ex);
         return ResponseEntity.badRequest().body(ApiResponse.fail(40003, ex.getMessage()));
     }
 

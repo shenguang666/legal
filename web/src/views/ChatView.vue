@@ -39,10 +39,17 @@
     <aside class="right card panel">
       <h3>系统提示</h3>
       <ul>
-        <li>基础版已接通会话、知识库、反馈接口。</li>
-        <li>当前问答结果为占位模型回复，可继续接入 LangChain4j 与向量检索。</li>
+        <li>当前问答已接入混合检索（向量 + BM25）。</li>
+        <li>答案下方可查看命中的知识库引用片段。</li>
         <li>所有写接口都带 requestId，支持幂等。</li>
       </ul>
+      <div v-if="latestCitations.length" class="citation-panel">
+        <h4>本轮引用</h4>
+        <article v-for="(item, idx) in latestCitations" :key="`${item.documentId}-${idx}`" class="citation-item">
+          <p class="citation-source">{{ item.source }}</p>
+          <p class="citation-fragment">{{ item.fragment }}</p>
+        </article>
+      </div>
       <p v-if="notice" class="notice">{{ notice }}</p>
     </aside>
   </section>
@@ -68,8 +75,15 @@ interface CreateSessionResponse {
 
 interface AskResponse {
   answer: string;
+  citations: Citation[];
   confidence: number;
   warning: string;
+}
+
+interface Citation {
+  documentId: number;
+  source: string;
+  fragment: string;
 }
 
 const route = useRoute();
@@ -78,6 +92,7 @@ const messages = ref<ChatMessage[]>([]);
 const question = ref('');
 const notice = ref('');
 const loading = ref(false);
+const latestCitations = ref<Citation[]>([]);
 
 onMounted(async () => {
   const querySessionId = route.query.sessionId as string | undefined;
@@ -122,6 +137,7 @@ async function ask() {
     const result = await apiPost<AskResponse>('/api/chat/ask', payload);
     await loadMessages();
     question.value = '';
+    latestCitations.value = result.citations || [];
     notice.value = `置信度：${result.confidence.toFixed(2)} ｜ ${result.warning}`;
   } catch (error) {
     notice.value = error instanceof Error ? error.message : '发送失败';
@@ -227,6 +243,32 @@ function formatTime(input: string) {
   border-left: 3px solid var(--brass);
   padding-left: 0.6rem;
   color: var(--ink-soft);
+}
+
+.citation-panel {
+  margin: 0.8rem 0;
+  display: grid;
+  gap: 0.55rem;
+}
+
+.citation-item {
+  border-radius: 10px;
+  border: 1px solid var(--line);
+  padding: 0.55rem;
+  background: rgba(255, 255, 255, 0.55);
+}
+
+.citation-source {
+  margin: 0 0 0.3rem;
+  font-weight: 600;
+  font-size: 0.8rem;
+}
+
+.citation-fragment {
+  margin: 0;
+  color: var(--ink-soft);
+  font-size: 0.82rem;
+  line-height: 1.5;
 }
 
 @media (max-width: 980px) {

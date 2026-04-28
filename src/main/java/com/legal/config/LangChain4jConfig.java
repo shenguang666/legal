@@ -11,7 +11,12 @@ import org.springframework.context.annotation.Configuration;
 import org.springframework.util.StringUtils;
 
 @Configuration
-@EnableConfigurationProperties({RagProperties.class, OpenAiChatModelProperties.class})
+@EnableConfigurationProperties({
+        RagProperties.class,
+        OpenAiChatModelProperties.class,
+        OpenAiEmbeddingProperties.class,
+        ElasticsearchProperties.class
+})
 public class LangChain4jConfig {
 
     @Bean

@@ -30,16 +30,21 @@ export function currentRole() {
     return localStorage.getItem('legal.role') || 'USER';
 }
 async function request(path, options = {}) {
-    const headers = {
-        'Content-Type': 'application/json',
-    };
+    const headers = {};
+    if (!options.formData) {
+        headers['Content-Type'] = 'application/json';
+    }
     if (options.auth !== false) {
         Object.assign(headers, authHeaders());
     }
     const response = await fetch(`${API_BASE_URL}${path}`, {
         method: options.method || 'GET',
         headers,
-        body: options.body ? JSON.stringify(options.body) : undefined,
+        body: options.body
+            ? options.formData
+                ? options.body
+                : JSON.stringify(options.body)
+            : undefined,
     });
     const data = (await response.json());
     if (response.status === 401) {
@@ -55,6 +60,9 @@ export function apiGet(path) {
 }
 export function apiPost(path, body, auth = true) {
     return request(path, { method: 'POST', body, auth });
+}
+export function apiPostForm(path, formData, auth = true) {
+    return request(path, { method: 'POST', body: formData, auth, formData: true });
 }
 export function apiDelete(path) {
     return request(path, { method: 'DELETE' });
