@@ -71,6 +71,8 @@ rag:
   enabled: ${LEGAL_RAG_ENABLED:true}
   # 检索返回的最大切片数。
   top-k: ${LEGAL_RAG_TOP_K:5}
+  # 向量召回的最小相似度阈值（cosine similarity）。低于阈值的召回会被丢弃；不会强制补齐 topK。
+  min-vector-similarity: ${LEGAL_RAG_MIN_VECTOR_SIMILARITY:0.9}
   # 会话记忆最多保留多少条消息。
   max-memory-messages: ${LEGAL_RAG_MAX_MEMORY_MESSAGES:12}
   # 无检索结果时返回的提示语。
