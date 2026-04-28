@@ -2,6 +2,7 @@ package com.legal.knowledge.controller;
 
 import cn.dev33.satoken.annotation.SaCheckRole;
 import com.legal.common.ApiResponse;
+import com.legal.knowledge.dto.ChunkDto;
 import com.legal.knowledge.dto.CreateDocumentRequest;
 import com.legal.knowledge.dto.DocumentDto;
 import com.legal.knowledge.service.KnowledgeService;
@@ -43,15 +44,23 @@ public class KnowledgeController {
     public ApiResponse<DocumentDto> importFile(@RequestParam("requestId") String requestId,
                                                @RequestParam("file") MultipartFile file,
                                                @RequestParam(value = "title", required = false) String title,
-                                               @RequestParam(value = "source", required = false) String source) {
+                                               @RequestParam(value = "source", required = false) String source,
+                                               @RequestParam(value = "chunkSize", required = false ) Integer chunkSize ,
+                                               @RequestParam(value = "chunkOverlap", required = false) Integer chunkOverlap) {
         AuthPrincipal principal = AuthContextHolder.getRequired();
-        return ApiResponse.ok(knowledgeService.importDocument(principal, requestId, file, title, source));
+        return ApiResponse.ok(knowledgeService.importDocument(principal, requestId, file, title, source, chunkSize, chunkOverlap));
     }
 
     @GetMapping
     public ApiResponse<List<DocumentDto>> list() {
         AuthPrincipal principal = AuthContextHolder.getRequired();
         return ApiResponse.ok(knowledgeService.listDocuments(principal));
+    }
+
+    @GetMapping("/{id}/chunks")
+    public ApiResponse<List<ChunkDto>> listChunks(@PathVariable("id") Long id) {
+        AuthPrincipal principal = AuthContextHolder.getRequired();
+        return ApiResponse.ok(knowledgeService.listChunks(principal, id));
     }
 
     @PostMapping("/{id}/index")

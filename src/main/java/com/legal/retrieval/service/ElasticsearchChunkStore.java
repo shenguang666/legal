@@ -10,6 +10,7 @@ import org.springframework.util.StringUtils;
 import org.springframework.web.client.RestClient;
 import org.springframework.web.client.RestClientResponseException;
 
+import java.nio.charset.StandardCharsets;
 import java.util.ArrayList;
 import java.util.LinkedHashMap;
 import java.util.List;
@@ -56,7 +57,7 @@ public class ElasticsearchChunkStore {
         JsonNode response = restClient.post()
                 .uri("/_bulk")
                 .contentType(NDJSON_MEDIA_TYPE)
-                .body(ndjson.toString())
+                .body(ndjson.toString().getBytes(StandardCharsets.UTF_8))
                 .retrieve()
                 .body(JsonNode.class);
         if (response != null && response.path("errors").asBoolean(false)) {
@@ -84,6 +85,23 @@ public class ElasticsearchChunkStore {
                 .body(body)
                 .retrieve()
                 .toBodilessEntity();
+    }
+
+    public void deleteKbChunksIndex() {
+        if (!isEnabled()) {
+            return;
+        }
+        try {
+            restClient.delete()
+                    .uri("/" + properties.getIndex().getKbChunks())
+                    .retrieve()
+                    .toBodilessEntity();
+        } catch (RestClientResponseException ex) {
+            if (ex.getStatusCode().value() == 404) {
+                return;
+            }
+            throw new AppException(50013, 500, "删除 Elasticsearch 索引失败: " + summarizeError(ex.getResponseBodyAsString()));
+        }
     }
 
     public List<ChunkSearchHit> hybridSearch(Long tenantId,

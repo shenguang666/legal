@@ -3,6 +3,7 @@ package com.legal.knowledge.service;
 import com.baomidou.mybatisplus.core.conditions.query.LambdaQueryWrapper;
 import com.legal.common.AppException;
 import com.legal.knowledge.dto.CreateDocumentRequest;
+import com.legal.knowledge.dto.ChunkDto;
 import com.legal.knowledge.dto.DocumentDto;
 import com.legal.knowledge.entity.KbChunkEntity;
 import com.legal.knowledge.entity.KbDocumentEntity;
@@ -23,6 +24,9 @@ import java.security.MessageDigest;
 import java.security.NoSuchAlgorithmException;
 import java.time.LocalDateTime;
 import java.util.List;
+import java.util.Map;
+
+import static java.util.stream.Collectors.toList;
 
 @Service
 public class KnowledgeService {
@@ -73,11 +77,13 @@ public class KnowledgeService {
                                       String requestId,
                                       MultipartFile file,
                                       String title,
-                                      String source) {
+                                      String source,
+                                      Integer chunkSize,
+                                      Integer chunkOverlap) {
         ensureElasticsearchEnabled();
         idempotencyService.ensureUnique(principal, "knowledge:import-document", requestId);
         String extractedText = documentTextExtractor.extract(file);
-        List<String> chunks = documentChunker.chunk(extractedText);
+        List<String> chunks = buildChunks(extractedText, chunkSize, chunkOverlap);
         if (chunks.isEmpty()) {
             throw AppException.badRequest("文档内容过短，无法生成可检索切片");
         }
@@ -104,6 +110,17 @@ public class KnowledgeService {
         return toDto(document);
     }
 
+    private List<String> buildChunks(String extractedText, Integer chunkSize, Integer chunkOverlap) {
+        if (chunkSize == null) {
+            return documentChunker.chunk(extractedText);
+        }
+        if (chunkOverlap == null) {
+            int overlap = (int) Math.round(chunkSize * 0.15d);
+            return documentChunker.chunk(extractedText, chunkSize, overlap);
+        }
+        return documentChunker.chunk(extractedText, chunkSize, chunkOverlap);
+    }
+
     public List<DocumentDto> listDocuments(AuthPrincipal principal) {
         return kbDocumentMapper.selectList(
                         new LambdaQueryWrapper<KbDocumentEntity>()
@@ -115,6 +132,50 @@ public class KnowledgeService {
                 .map(this::toDto)
                 .toList();
     }
+
+    public List<ChunkDto> listChunks(AuthPrincipal principal, Long documentId) {
+        KbDocumentEntity document = requireDocument(principal, documentId);
+        return kbChunkMapper.selectByDocVersion(principal.tenantId(), documentId, document.getDocVersion())
+                .stream()
+                .map(chunk -> {
+                    ChunkDto dto = new ChunkDto();
+                    dto.setChunkId(chunk.getChunkId());
+                    dto.setChunkOrder(chunk.getChunkOrder());
+                    dto.setContent(chunk.getContent());
+                    return dto;
+                })
+                .collect(toList());
+    }
+
+    @Transactional
+    public Map<String, Object> resetForEvaluation(AuthPrincipal principal, boolean purgeDb) {
+        ensureElasticsearchEnabled();
+        elasticsearchChunkStore.deleteKbChunksIndex();
+        if (purgeDb) {
+            int deletedOutbox = kbIndexOutboxMapper.delete(
+                    new LambdaQueryWrapper<KbIndexOutboxEntity>()
+                            .eq(KbIndexOutboxEntity::getTenantId, principal.tenantId())
+            );
+            int deletedChunks = kbChunkMapper.delete(
+                    new LambdaQueryWrapper<KbChunkEntity>()
+                            .eq(KbChunkEntity::getTenantId, principal.tenantId())
+            );
+            int deletedDocuments = kbDocumentMapper.delete(
+                    new LambdaQueryWrapper<KbDocumentEntity>()
+                            .eq(KbDocumentEntity::getTenantId, principal.tenantId())
+                            .eq(KbDocumentEntity::getOwnerUserId, principal.userId())
+            );
+            return Map.of(
+                    "indexDeleted", true,
+                    "purgeDb", true,
+                    "deletedDocuments", deletedDocuments,
+                    "deletedChunks", deletedChunks,
+                    "deletedOutbox", deletedOutbox
+            );
+        }
+        return Map.of("indexDeleted", true, "purgeDb", false);
+    }
+
 
     @Transactional
     public DocumentDto triggerIndex(AuthPrincipal principal, Long documentId, String requestId) {
