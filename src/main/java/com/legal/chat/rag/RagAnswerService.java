@@ -103,8 +103,17 @@ public class RagAnswerService {
             throw AppException.badRequest("当前环境未启用 RAG 功能");
         }
         List<RetrievedChunk> chunks = chunkRetriever.retrieve(tenantId, question, ragProperties.getTopK());
-        String context = buildContext(chunks);
-        String knowledgeWarning = chunks.isEmpty() ? ragProperties.getEmptyHitWarning() : "已命中知识库片段，请优先依据知识库内容回答。";
+        return buildSystemPromptForStreaming(question, chunks);
+    }
+
+    /**
+     * 流式接口复用：当上层已完成检索时（例如 askStream 先 retrieveOnly），
+     * 可直接复用 chunks 构建 systemPrompt，避免同一请求内重复检索导致重复日志与额外开销。
+     */
+    public String buildSystemPromptForStreaming(String question, List<RetrievedChunk> chunks) {
+        List<RetrievedChunk> safeChunks = chunks == null ? List.of() : chunks;
+        String context = buildContext(safeChunks);
+        String knowledgeWarning = safeChunks.isEmpty() ? ragProperties.getEmptyHitWarning() : "已命中知识库片段，请优先依据知识库内容回答。";
         return promptTemplateService.renderSystemPrompt(question, context, knowledgeWarning);
     }
 
