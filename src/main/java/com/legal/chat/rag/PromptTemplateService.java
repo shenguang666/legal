@@ -21,9 +21,13 @@ public class PromptTemplateService {
         }
     }
 
-    public String renderSystemPrompt(String context, String knowledgeWarning) {
+    public String renderSystemPrompt(String question, String context, String knowledgeWarning) {
+        String safeQuestion = question == null ? "" : question;
+        String safeContext = context == null ? "" : context;
+        String safeKnowledgeWarning = knowledgeWarning == null ? "" : knowledgeWarning;
         return template
-                .replace("{{context}}", context)
-                .replace("{{knowledgeWarning}}", knowledgeWarning);
+                .replace("{{question}}", safeQuestion)
+                .replace("{{context}}", safeContext)
+                .replace("{{knowledgeWarning}}", safeKnowledgeWarning);
     }
 }

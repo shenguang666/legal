@@ -53,7 +53,7 @@ public class RagAnswerService {
         List<RetrievedChunk> chunks = chunkRetriever.retrieve(tenantId, question, ragProperties.getTopK());
         String context = buildContext(chunks);
         String knowledgeWarning = chunks.isEmpty() ? ragProperties.getEmptyHitWarning() : "已命中知识库片段，请优先依据知识库内容回答。";
-        String systemPrompt = promptTemplateService.renderSystemPrompt(context, knowledgeWarning);
+        String systemPrompt = promptTemplateService.renderSystemPrompt(question, context, knowledgeWarning);
 
         ChatMemory chatMemory = chatMemoryFactory.create(sessionId);
         List<ChatMessage> messages = chatMemory.messages();
@@ -105,7 +105,7 @@ public class RagAnswerService {
         List<RetrievedChunk> chunks = chunkRetriever.retrieve(tenantId, question, ragProperties.getTopK());
         String context = buildContext(chunks);
         String knowledgeWarning = chunks.isEmpty() ? ragProperties.getEmptyHitWarning() : "已命中知识库片段，请优先依据知识库内容回答。";
-        return promptTemplateService.renderSystemPrompt(context, knowledgeWarning);
+        return promptTemplateService.renderSystemPrompt(question, context, knowledgeWarning);
     }
 
     /**
