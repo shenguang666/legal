@@ -15,7 +15,7 @@ public class RagProperties {
      * <p>当使用 Elasticsearch dense_vector + cosine 相似度时，_score 通常对应 cosineSimilarity。
      * 这里用于过滤低质量召回；如果过滤后条数不足，不会强行补齐。</p>
      */
-    private double minVectorSimilarity = 0.9d;
+    private double minVectorSimilarity = 0.75d;
     private int maxMemoryMessages = 12;
     private String emptyHitWarning = "当前知识库暂无直接相关内容，以下回答仅基于通用法律知识整理，请谨慎核对。";
 

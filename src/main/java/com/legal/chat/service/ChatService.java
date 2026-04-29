@@ -189,7 +189,7 @@ public class ChatService {
 
         ChatMessageEntity userMessage = new ChatMessageEntity();
         userMessage.setSessionId(session.getSessionId());
-	        userMessage.setRole(ChatMessageRole.USER);
+        userMessage.setRole(ChatMessageRole.USER);
         userMessage.setContent(request.getQuestion());
         userMessage.setTokenUsage(0);
         userMessage.setLatencyMs(0);
@@ -481,7 +481,7 @@ public class ChatService {
 
         ChatMessageEntity assistantMessage = new ChatMessageEntity();
         assistantMessage.setSessionId(session.getSessionId());
-	        assistantMessage.setRole(ChatMessageRole.ASSISTANT);
+        assistantMessage.setRole(ChatMessageRole.ASSISTANT);
         assistantMessage.setContent(ragAnswer.getAnswer());
         assistantMessage.setTokenUsage(ragAnswer.getTokenUsage());
         assistantMessage.setTraceId(traceId);

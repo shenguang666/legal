@@ -119,6 +119,30 @@ public class ElasticsearchChunkStore {
     }
 
     /**
+     * RRF 混合检索：向量(kNN) + 关键词(BM25)。
+     *
+     * @param minVectorSimilarity 向量召回最小相似度阈值（基于 ES _score），低于阈值的向量命中会被丢弃。
+     * @param topK 返回最多 topK 条（不会强制补齐）。
+     */
+    public List<ChunkSearchHit> hybridSearchRrf(Long tenantId,
+                                                String question,
+                                                List<Float> questionVector,
+                                                double minVectorSimilarity,
+                                                int topK) {
+        if (!isEnabled()) {
+            return List.of();
+        }
+        ensureIndex();
+
+        List<ChunkSearchHit> vectorHits = vectorSearch(tenantId, questionVector)
+                .stream()
+                .filter(hit -> hit.getScore() >= minVectorSimilarity)
+                .toList();
+        List<ChunkSearchHit> bm25Hits = bm25Search(tenantId, question);
+        return rrfMerge(vectorHits, bm25Hits, properties.getSearch().getRrfK(), topK);
+    }
+
+    /**
      * 仅向量检索（kNN）。返回的 score 为 Elasticsearch _score（通常对应 cosine similarity）。
      */
     public List<ChunkSearchHit> vectorSearch(Long tenantId, List<Float> questionVector, int topK) {
