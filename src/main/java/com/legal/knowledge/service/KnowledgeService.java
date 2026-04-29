@@ -11,6 +11,10 @@ import com.legal.knowledge.entity.KbIndexOutboxEntity;
 import com.legal.knowledge.mapper.KbChunkMapper;
 import com.legal.knowledge.mapper.KbDocumentMapper;
 import com.legal.knowledge.mapper.KbIndexOutboxMapper;
+import com.legal.enums.KbDocumentStatus;
+import com.legal.enums.KbIndexStatus;
+import com.legal.enums.KbOutboxOp;
+import com.legal.enums.KbOutboxStatus;
 import com.legal.retrieval.service.ElasticsearchChunkStore;
 import com.legal.security.AuthPrincipal;
 import com.legal.security.IdempotencyService;
@@ -63,9 +67,9 @@ public class KnowledgeService {
         entity.setOwnerUserId(principal.userId());
         entity.setTitle(request.getTitle());
         entity.setSource(request.getSource());
-        entity.setStatus("PENDING");
+        entity.setStatus(KbDocumentStatus.PENDING);
         entity.setDocVersion(1);
-        entity.setIndexStatus("PENDING");
+        entity.setIndexStatus(KbIndexStatus.PENDING);
         entity.setCreatedAt(LocalDateTime.now());
         entity.setUpdatedAt(LocalDateTime.now());
         kbDocumentMapper.insert(entity);
@@ -98,15 +102,15 @@ public class KnowledgeService {
         document.setOwnerUserId(principal.userId());
         document.setTitle(documentTitle);
         document.setSource(documentSource);
-        document.setStatus("PROCESSING");
+        document.setStatus(KbDocumentStatus.PROCESSING);
         document.setDocVersion(1);
-        document.setIndexStatus("PENDING");
+        document.setIndexStatus(KbIndexStatus.PENDING);
         document.setCreatedAt(now);
         document.setUpdatedAt(now);
         kbDocumentMapper.insert(document);
 
         persistChunks(principal.tenantId(), document.getDocumentId(), 1, chunks, now);
-        enqueueOutbox(principal.tenantId(), document.getDocumentId(), 1, "UPSERT", now);
+        enqueueOutbox(principal.tenantId(), document.getDocumentId(), 1, KbOutboxOp.UPSERT, now);
         return toDto(document);
     }
 
@@ -126,7 +130,7 @@ public class KnowledgeService {
                         new LambdaQueryWrapper<KbDocumentEntity>()
                                 .eq(KbDocumentEntity::getTenantId, principal.tenantId())
                                 .eq(KbDocumentEntity::getOwnerUserId, principal.userId())
-                                .ne(KbDocumentEntity::getStatus, "DELETED")
+                                .ne(KbDocumentEntity::getStatus, KbDocumentStatus.DELETED)
                                 .orderByDesc(KbDocumentEntity::getUpdatedAt)
                 ).stream()
                 .map(this::toDto)
@@ -182,7 +186,7 @@ public class KnowledgeService {
         ensureElasticsearchEnabled();
         idempotencyService.ensureUnique(principal, "knowledge:trigger-index", requestId);
         KbDocumentEntity document = requireDocument(principal, documentId);
-        if ("DELETED".equalsIgnoreCase(document.getStatus())) {
+        if (document.getStatus() == KbDocumentStatus.DELETED) {
             throw AppException.badRequest("已删除文档无法触发索引");
         }
 
@@ -194,12 +198,12 @@ public class KnowledgeService {
         }
 
         document.setDocVersion(nextVersion);
-        document.setStatus("PROCESSING");
-        document.setIndexStatus("PENDING");
+        document.setStatus(KbDocumentStatus.PROCESSING);
+        document.setIndexStatus(KbIndexStatus.PENDING);
         document.setUpdatedAt(LocalDateTime.now());
         kbDocumentMapper.updateById(document);
 
-        enqueueOutbox(principal.tenantId(), documentId, nextVersion, "UPSERT", LocalDateTime.now());
+        enqueueOutbox(principal.tenantId(), documentId, nextVersion, KbOutboxOp.UPSERT, LocalDateTime.now());
         return toDto(document);
     }
 
@@ -208,18 +212,18 @@ public class KnowledgeService {
         ensureElasticsearchEnabled();
         idempotencyService.ensureUnique(principal, "knowledge:delete-document", requestId);
         KbDocumentEntity document = requireDocument(principal, documentId);
-        if ("DELETED".equalsIgnoreCase(document.getStatus())) {
+        if (document.getStatus() == KbDocumentStatus.DELETED) {
             return toDto(document);
         }
 
         int nextVersion = document.getDocVersion() + 1;
         document.setDocVersion(nextVersion);
-        document.setStatus("DELETED");
-        document.setIndexStatus("PENDING");
+        document.setStatus(KbDocumentStatus.DELETED);
+        document.setIndexStatus(KbIndexStatus.PENDING);
         document.setUpdatedAt(LocalDateTime.now());
         kbDocumentMapper.updateById(document);
 
-        enqueueOutbox(principal.tenantId(), documentId, nextVersion, "DELETE", LocalDateTime.now());
+        enqueueOutbox(principal.tenantId(), documentId, nextVersion, KbOutboxOp.DELETE, LocalDateTime.now());
         return toDto(document);
     }
 
@@ -245,14 +249,14 @@ public class KnowledgeService {
     private void enqueueOutbox(Long tenantId,
                                Long documentId,
                                int docVersion,
-                               String op,
+                               KbOutboxOp op,
                                LocalDateTime now) {
         KbIndexOutboxEntity outbox = new KbIndexOutboxEntity();
         outbox.setTenantId(tenantId);
         outbox.setDocumentId(documentId);
         outbox.setDocVersion(docVersion);
         outbox.setOp(op);
-        outbox.setStatus("PENDING");
+        outbox.setStatus(KbOutboxStatus.PENDING);
         outbox.setRetryCount(0);
         outbox.setNextRetryAt(null);
         outbox.setCreatedAt(now);
@@ -317,8 +321,8 @@ public class KnowledgeService {
         dto.setDocumentId(entity.getDocumentId());
         dto.setTitle(entity.getTitle());
         dto.setSource(entity.getSource());
-        dto.setStatus(entity.getStatus());
-        dto.setIndexStatus(entity.getIndexStatus());
+        dto.setStatus(entity.getStatus() == null ? null : entity.getStatus().getCode());
+        dto.setIndexStatus(entity.getIndexStatus() == null ? null : entity.getIndexStatus().getCode());
         dto.setCreatedAt(entity.getCreatedAt());
         dto.setUpdatedAt(entity.getUpdatedAt());
         return dto;

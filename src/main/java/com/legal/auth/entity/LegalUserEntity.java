@@ -3,6 +3,8 @@ package com.legal.auth.entity;
 import com.baomidou.mybatisplus.annotation.IdType;
 import com.baomidou.mybatisplus.annotation.TableId;
 import com.baomidou.mybatisplus.annotation.TableName;
+import com.legal.enums.UserRole;
+import com.legal.enums.UserStatus;
 import lombok.Data;
 
 import java.time.LocalDateTime;
@@ -26,9 +28,9 @@ public class LegalUserEntity {
     /** 显示名称。 */
     private String displayName;
     /** 角色编码（ADMIN/USER）。 */
-    private String roleCode;
+	private UserRole roleCode;
     /** 用户状态（ACTIVE/INACTIVE）。 */
-    private String status;
+	private UserStatus status;
     /** 最后登录时间。 */
     private LocalDateTime lastLoginAt;
     /** 创建时间。 */

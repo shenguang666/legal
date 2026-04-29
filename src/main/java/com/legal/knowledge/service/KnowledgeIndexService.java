@@ -3,6 +3,9 @@ package com.legal.knowledge.service;
 import com.baomidou.mybatisplus.core.conditions.query.LambdaQueryWrapper;
 import com.legal.common.AppException;
 import com.legal.config.ElasticsearchProperties;
+import com.legal.enums.KbDocumentStatus;
+import com.legal.enums.KbIndexStatus;
+import com.legal.enums.KbOutboxOp;
 import com.legal.knowledge.entity.KbChunkEntity;
 import com.legal.knowledge.entity.KbDocumentEntity;
 import com.legal.knowledge.entity.KbIndexOutboxEntity;
@@ -39,10 +42,10 @@ public class KnowledgeIndexService {
     }
 
     public boolean processTask(KbIndexOutboxEntity task) {
-        if ("UPSERT".equalsIgnoreCase(task.getOp())) {
+        if (task.getOp() == KbOutboxOp.UPSERT) {
             return processUpsert(task);
         }
-        if ("DELETE".equalsIgnoreCase(task.getOp())) {
+        if (task.getOp() == KbOutboxOp.DELETE) {
             processDelete(task);
             return true;
         }
@@ -54,7 +57,7 @@ public class KnowledgeIndexService {
         if (document == null) {
             return;
         }
-        document.setIndexStatus("FAILED");
+        document.setIndexStatus(KbIndexStatus.FAILED);
         document.setUpdatedAt(LocalDateTime.now());
         kbDocumentMapper.updateById(document);
     }
@@ -97,8 +100,8 @@ public class KnowledgeIndexService {
 
         elasticsearchChunkStore.deleteByDocument(task.getTenantId(), task.getDocumentId());
         elasticsearchChunkStore.upsertChunks(payloads);
-        document.setStatus("ACTIVE");
-        document.setIndexStatus("COMPLETED");
+        document.setStatus(KbDocumentStatus.ACTIVE);
+        document.setIndexStatus(KbIndexStatus.COMPLETED);
         document.setUpdatedAt(LocalDateTime.now());
         kbDocumentMapper.updateById(document);
         return true;
@@ -111,7 +114,7 @@ public class KnowledgeIndexService {
             return;
         }
         if (document.getDocVersion() <= task.getDocVersion()) {
-            document.setIndexStatus("COMPLETED");
+            document.setIndexStatus(KbIndexStatus.COMPLETED);
             document.setUpdatedAt(LocalDateTime.now());
             kbDocumentMapper.updateById(document);
         }

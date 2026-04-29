@@ -27,6 +27,7 @@ import com.legal.retrieval.entity.RetrievalLogEntity;
 import com.legal.retrieval.mapper.RetrievalLogMapper;
 import com.legal.security.AuthPrincipal;
 import com.legal.security.IdempotencyService;
+import com.legal.enums.ChatMessageRole;
 import dev.langchain4j.data.message.ChatMessage;
 import dev.langchain4j.data.message.SystemMessage;
 import dev.langchain4j.data.message.UserMessage;
@@ -188,7 +189,7 @@ public class ChatService {
 
         ChatMessageEntity userMessage = new ChatMessageEntity();
         userMessage.setSessionId(session.getSessionId());
-        userMessage.setRole("user");
+	        userMessage.setRole(ChatMessageRole.USER);
         userMessage.setContent(request.getQuestion());
         userMessage.setTokenUsage(0);
         userMessage.setLatencyMs(0);
@@ -222,7 +223,7 @@ public class ChatService {
                 // 落库 assistant 消息（内容来自缓存）
                 ChatMessageEntity assistantMessage = new ChatMessageEntity();
                 assistantMessage.setSessionId(session.getSessionId());
-                assistantMessage.setRole("assistant");
+	            assistantMessage.setRole(ChatMessageRole.ASSISTANT);
                 assistantMessage.setContent(payload.getAnswer());
                 assistantMessage.setTokenUsage(0);
                 assistantMessage.setTraceId(traceId);
@@ -290,7 +291,7 @@ public class ChatService {
                 // 落库 assistant 消息
                 ChatMessageEntity assistantMessage = new ChatMessageEntity();
                 assistantMessage.setSessionId(session.getSessionId());
-                assistantMessage.setRole("assistant");
+	        assistantMessage.setRole(ChatMessageRole.ASSISTANT);
                 assistantMessage.setContent(answerBuf.toString());
                 assistantMessage.setTokenUsage(response.tokenUsage() == null ? 0 : response.tokenUsage().totalTokenCount());
                 assistantMessage.setTraceId(traceId);
@@ -424,7 +425,7 @@ public class ChatService {
 
         ChatMessageEntity userMessage = new ChatMessageEntity();
         userMessage.setSessionId(session.getSessionId());
-        userMessage.setRole("user");
+	        userMessage.setRole(ChatMessageRole.USER);
         userMessage.setContent(question);
         userMessage.setTokenUsage(0);
         userMessage.setLatencyMs(0);
@@ -456,7 +457,7 @@ public class ChatService {
 
                 ChatMessageEntity assistantMessage = new ChatMessageEntity();
                 assistantMessage.setSessionId(session.getSessionId());
-                assistantMessage.setRole("assistant");
+	                assistantMessage.setRole(ChatMessageRole.ASSISTANT);
                 assistantMessage.setContent(payload.getAnswer());
                 assistantMessage.setTokenUsage(0);
                 assistantMessage.setTraceId(traceId);
@@ -480,7 +481,7 @@ public class ChatService {
 
         ChatMessageEntity assistantMessage = new ChatMessageEntity();
         assistantMessage.setSessionId(session.getSessionId());
-        assistantMessage.setRole("assistant");
+	        assistantMessage.setRole(ChatMessageRole.ASSISTANT);
         assistantMessage.setContent(ragAnswer.getAnswer());
         assistantMessage.setTokenUsage(ragAnswer.getTokenUsage());
         assistantMessage.setTraceId(traceId);
@@ -532,7 +533,7 @@ public class ChatService {
     private ChatMessageDto toMessageDto(ChatMessageEntity entity) {
         ChatMessageDto dto = new ChatMessageDto();
         dto.setMessageId(entity.getMessageId());
-        dto.setRole(entity.getRole());
+        dto.setRole(entity.getRole() == null ? null : entity.getRole().getCode());
         dto.setContent(entity.getContent());
         dto.setCreatedAt(entity.getCreatedAt());
         return dto;

@@ -3,6 +3,8 @@ package com.legal.knowledge.entity;
 import com.baomidou.mybatisplus.annotation.IdType;
 import com.baomidou.mybatisplus.annotation.TableId;
 import com.baomidou.mybatisplus.annotation.TableName;
+import com.legal.enums.KbOutboxOp;
+import com.legal.enums.KbOutboxStatus;
 import lombok.Data;
 
 import java.time.LocalDateTime;
@@ -24,9 +26,9 @@ public class KbIndexOutboxEntity {
     /** 文档版本号。 */
     private Integer docVersion;
     /** 索引操作类型（UPSERT/DELETE）。 */
-    private String op;
+	private KbOutboxOp op;
     /** 出站任务状态（PENDING/PROCESSING/DONE/FAILED）。 */
-    private String status;
+	private KbOutboxStatus status;
     /** 重试次数。 */
     private Integer retryCount;
     /** 下次重试时间。 */

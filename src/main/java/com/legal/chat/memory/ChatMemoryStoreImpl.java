@@ -3,6 +3,7 @@ package com.legal.chat.memory;
 import com.baomidou.mybatisplus.core.conditions.query.LambdaQueryWrapper;
 import com.legal.chat.entity.ChatMessageEntity;
 import com.legal.chat.mapper.ChatMessageMapper;
+import com.legal.enums.ChatMessageRole;
 import dev.langchain4j.data.message.AiMessage;
 import dev.langchain4j.data.message.ChatMessage;
 import dev.langchain4j.data.message.SystemMessage;
@@ -43,11 +44,8 @@ public class ChatMemoryStoreImpl implements ChatMemoryStore {
     }
 
     private ChatMessage toChatMessage(ChatMessageEntity entity) {
-        if ("assistant".equalsIgnoreCase(entity.getRole())) {
+        if (entity.getRole() == ChatMessageRole.ASSISTANT) {
             return AiMessage.from(entity.getContent());
-        }
-        if ("system".equalsIgnoreCase(entity.getRole())) {
-            return SystemMessage.from(entity.getContent());
         }
         return UserMessage.from(entity.getContent());
     }

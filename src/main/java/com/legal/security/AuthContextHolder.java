@@ -3,6 +3,7 @@ package com.legal.security;
 import cn.dev33.satoken.session.SaSession;
 import cn.dev33.satoken.stp.StpUtil;
 import com.legal.common.AppException;
+import com.legal.enums.UserRole;
 
 public final class AuthContextHolder {
 
@@ -14,9 +15,9 @@ public final class AuthContextHolder {
         SaSession session = StpUtil.getSession();
         Long tenantId = parseLong(session.get("tenantId"), "tenantId");
         Long userId = parseLong(session.get("userId"), "userId");
-        Object roleValue = session.get("roleCode");
-        String roleCode = roleValue == null ? "USER" : String.valueOf(roleValue);
-        return new AuthPrincipal(tenantId, userId, roleCode);
+	        Object roleValue = session.get("roleCode");
+	        String roleCode = roleValue == null ? UserRole.USER.getCode() : String.valueOf(roleValue);
+	        return new AuthPrincipal(tenantId, userId, roleCode);
     }
 
     public static void clear() {

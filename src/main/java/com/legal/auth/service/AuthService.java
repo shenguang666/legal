@@ -7,6 +7,7 @@ import com.legal.auth.dto.LoginResponse;
 import com.legal.auth.entity.LegalUserEntity;
 import com.legal.auth.mapper.LegalUserMapper;
 import com.legal.common.AppException;
+import com.legal.enums.UserStatus;
 import com.legal.security.PasswordCodec;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
@@ -40,7 +41,7 @@ public class AuthService {
         StpUtil.getSession().set("userId", user.getUserId());
         StpUtil.getSession().set("username", user.getUsername());
         StpUtil.getSession().set("displayName", user.getDisplayName());
-        StpUtil.getSession().set("roleCode", user.getRoleCode());
+	        StpUtil.getSession().set("roleCode", user.getRoleCode() == null ? null : user.getRoleCode().getCode());
 
         user.setLastLoginAt(LocalDateTime.now());
         legalUserMapper.updateById(user);
@@ -52,7 +53,7 @@ public class AuthService {
         LegalUserEntity user = legalUserMapper.selectOne(
                 new LambdaQueryWrapper<LegalUserEntity>()
                         .eq(LegalUserEntity::getUserId, StpUtil.getLoginIdAsLong())
-                        .eq(LegalUserEntity::getStatus, "ACTIVE")
+	                        .eq(LegalUserEntity::getStatus, UserStatus.ACTIVE)
                         .last("limit 1")
         );
         if (user == null) {
@@ -73,7 +74,7 @@ public class AuthService {
         response.setTenantId(user.getTenantId());
         response.setUsername(user.getUsername());
         response.setDisplayName(user.getDisplayName());
-        response.setRoleCode(user.getRoleCode());
+	        response.setRoleCode(user.getRoleCode() == null ? null : user.getRoleCode().getCode());
         response.setToken(token);
         return response;
     }

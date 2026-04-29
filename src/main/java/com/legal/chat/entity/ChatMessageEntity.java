@@ -3,6 +3,7 @@ package com.legal.chat.entity;
 import com.baomidou.mybatisplus.annotation.IdType;
 import com.baomidou.mybatisplus.annotation.TableId;
 import com.baomidou.mybatisplus.annotation.TableName;
+import com.legal.enums.ChatMessageRole;
 import lombok.Data;
 
 import java.time.LocalDateTime;
@@ -20,7 +21,7 @@ public class ChatMessageEntity {
     /** 会话ID。 */
     private String sessionId;
     /** 消息角色（user/assistant）。 */
-    private String role;
+	private ChatMessageRole role;
     /** 消息内容。 */
     private String content;
     /** 本次消息消耗的Token数。 */

@@ -24,7 +24,7 @@ public interface KbIndexOutboxMapper extends BaseMapper<KbIndexOutboxEntity> {
                    created_at,
                    updated_at
             FROM kb_index_outbox
-            WHERE (status = 'PENDING' OR status = 'FAILED')
+	        WHERE (status = 'PENDING' OR status = 'FAILED')
               AND retry_count < #{maxRetries}
               AND (next_retry_at IS NULL OR next_retry_at <= NOW())
             ORDER BY id ASC

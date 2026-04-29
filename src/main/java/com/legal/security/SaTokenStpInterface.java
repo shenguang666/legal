@@ -4,6 +4,7 @@ import cn.dev33.satoken.stp.StpInterface;
 import com.baomidou.mybatisplus.core.conditions.query.LambdaQueryWrapper;
 import com.legal.auth.entity.LegalUserEntity;
 import com.legal.auth.mapper.LegalUserMapper;
+import com.legal.enums.UserStatus;
 import org.springframework.stereotype.Component;
 
 import java.util.List;
@@ -27,9 +28,9 @@ public class SaTokenStpInterface implements StpInterface {
         LegalUserEntity user = legalUserMapper.selectOne(
                 new LambdaQueryWrapper<LegalUserEntity>()
                         .eq(LegalUserEntity::getUserId, Long.parseLong(String.valueOf(loginId)))
-                        .eq(LegalUserEntity::getStatus, "ACTIVE")
+	                        .eq(LegalUserEntity::getStatus, UserStatus.ACTIVE)
                         .last("limit 1")
         );
-        return user == null ? List.of() : List.of(user.getRoleCode());
+	        return user == null || user.getRoleCode() == null ? List.of() : List.of(user.getRoleCode().getCode());
     }
 }
