@@ -45,3 +45,5 @@ web/*.tsbuildinfo
 /src/main/resources/result/
 /tools/
 
+/.claude/
+/openspec/

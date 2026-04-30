@@ -7,6 +7,11 @@ import com.legal.chat.cache.CacheHit;
 import com.legal.chat.cache.CacheSafetyGuard;
 import com.legal.chat.cache.HighRiskGuard;
 import com.legal.chat.cache.KbSnapshotService;
+import com.legal.chat.cache.ChatMessageCacheService;
+import com.legal.config.LegalMemoryProperties;
+import com.legal.memory.service.MemoryContextService;
+import com.legal.memory.service.MemoryTaskService;
+
 import com.legal.chat.dto.AskRequest;
 import com.legal.chat.dto.AskResponse;
 import com.legal.chat.dto.AskStreamEvent;
@@ -62,6 +67,12 @@ public class ChatService {
     private final RagAnswerService ragAnswerService;
     private final StreamingChatModel streamingChatModel;
 
+
+    private final LegalMemoryProperties legalMemoryProperties;
+    private final ChatMessageCacheService chatMessageCacheService;
+    private final MemoryContextService memoryContextService;
+    private final MemoryTaskService memoryTaskService;
+
     private final AnswerCacheService answerCacheService;
     private final CacheSafetyGuard cacheSafetyGuard;
     private final HighRiskGuard highRiskGuard;
@@ -73,6 +84,10 @@ public class ChatService {
                        IdempotencyService idempotencyService,
                        RagAnswerService ragAnswerService,
                        StreamingChatModel streamingChatModel,
+                       LegalMemoryProperties legalMemoryProperties,
+                       ChatMessageCacheService chatMessageCacheService,
+                       MemoryContextService memoryContextService,
+                       MemoryTaskService memoryTaskService,
                        AnswerCacheService answerCacheService,
                        CacheSafetyGuard cacheSafetyGuard,
                        HighRiskGuard highRiskGuard,
@@ -83,6 +98,12 @@ public class ChatService {
         this.idempotencyService = idempotencyService;
         this.ragAnswerService = ragAnswerService;
         this.streamingChatModel = streamingChatModel;
+
+        this.legalMemoryProperties = legalMemoryProperties;
+        this.chatMessageCacheService = chatMessageCacheService;
+        this.memoryContextService = memoryContextService;
+        this.memoryTaskService = memoryTaskService;
+
         this.answerCacheService = answerCacheService;
         this.cacheSafetyGuard = cacheSafetyGuard;
         this.highRiskGuard = highRiskGuard;
@@ -196,6 +217,9 @@ public class ChatService {
         userMessage.setTraceId(traceId);
         userMessage.setCreatedAt(LocalDateTime.now());
         chatMessageMapper.insert(userMessage);
+        // 写入消息缓存（若缓存已建立）
+        java.time.Duration msgTtl = java.time.Duration.ofDays(Math.max(1, legalMemoryProperties.getCache().getMessagesTtlDays()));
+        chatMessageCacheService.appendIfPresent(principal.tenantId(), principal.userId(), session.getSessionId(), userMessage, msgTtl);
 
         String kbSnapshotVersion = kbSnapshotService.getSnapshotVersion(principal.tenantId());
         String question = request.getQuestion();
@@ -229,6 +253,8 @@ public class ChatService {
                 assistantMessage.setTraceId(traceId);
                 assistantMessage.setCreatedAt(LocalDateTime.now());
                 chatMessageMapper.insert(assistantMessage);
+                // 写入消息缓存（若缓存已建立）
+                chatMessageCacheService.appendIfPresent(principal.tenantId(), principal.userId(), session.getSessionId(), assistantMessage, msgTtl);
 
                 int latency = (int) (System.currentTimeMillis() - start);
                 assistantMessage.setLatencyMs(latency);
@@ -243,6 +269,21 @@ public class ChatService {
                 chatSessionMapper.updateById(session);
 
                 // 按前端约定推送
+
+                // 摘要任务入队（异步，不阻塞主流程）
+                memoryTaskService.enqueueSummaryIfNeeded(principal.tenantId(), principal.userId(), session.getSessionId());
+                // 自动入队：长期记忆抽取 + 用户外挂知识索引
+                memoryTaskService.enqueuePostAskTasks(
+                        principal.tenantId(),
+                        principal.userId(),
+                        session.getSessionId(),
+                        userMessage.getMessageId(),
+                        assistantMessage.getMessageId(),
+                        question,
+                        payload.getAnswer()
+                );
+
+
                 try {
                     emitter.send(SseEmitter.event().name("answer").data(new AskStreamEvent("answer", payload.getAnswer())));
                     emitter.send(SseEmitter.event().name("citations").data(new AskStreamEvent("citations", JsonUtils.toJson(payload.getCitations()))));
@@ -260,10 +301,15 @@ public class ChatService {
         // 复用已检索的 chunks 构建 systemPrompt，避免一次请求内重复检索导致重复日志
         String systemPrompt = ragAnswerService.buildSystemPromptForStreaming(question, ragAnswer.getRetrievedChunks());
 
-        ChatMemory chatMemory = ragAnswerService.createMemoryForStreaming(session.getSessionId());
-        List<ChatMessage> messages = chatMemory.messages();
-        messages.add(SystemMessage.from(systemPrompt));
-        messages.add(UserMessage.from(question));
+        // 构建 agent 上下文（短期历史/摘要/长期记忆）
+        List<ChatMessage> messages = memoryContextService.buildMessages(
+                principal.tenantId(),
+                principal.userId(),
+                session.getSessionId(),
+                userMessage.getMessageId(),
+                systemPrompt,
+                question
+        );
 
         StringBuilder thinkingBuf = new StringBuilder();
         StringBuilder answerBuf = new StringBuilder();
@@ -297,8 +343,24 @@ public class ChatService {
                 assistantMessage.setTraceId(traceId);
                 assistantMessage.setCreatedAt(LocalDateTime.now());
                 chatMessageMapper.insert(assistantMessage);
+                memoryTaskService.enqueuePostAskTasks(
+                        principal.tenantId(),
+                        principal.userId(),
+                        session.getSessionId(),
+                        userMessage.getMessageId(),
+                        assistantMessage.getMessageId(),
+                        question,
+                        answerBuf.toString()
+                );
 
                 int latency = (int) (System.currentTimeMillis() - start);
+
+                // 写入消息缓存（若缓存已建立）
+                chatMessageCacheService.appendIfPresent(principal.tenantId(), principal.userId(), session.getSessionId(), assistantMessage, msgTtl);
+
+                // 摘要任务入队（异步，不阻塞主流程）
+                memoryTaskService.enqueueSummaryIfNeeded(principal.tenantId(), principal.userId(), session.getSessionId());
+
                 assistantMessage.setLatencyMs(latency);
                 chatMessageMapper.updateById(assistantMessage);
 
@@ -395,13 +457,8 @@ public class ChatService {
 
     public List<ChatMessageDto> listMessages(AuthPrincipal principal, String sessionId) {
         requireSession(principal, sessionId);
-        return chatMessageMapper.selectList(
-                        new LambdaQueryWrapper<ChatMessageEntity>()
-                                .eq(ChatMessageEntity::getSessionId, sessionId)
-                                .orderByAsc(ChatMessageEntity::getCreatedAt)
-                ).stream()
-                .map(this::toMessageDto)
-                .toList();
+        java.time.Duration ttl = java.time.Duration.ofDays(Math.max(1, legalMemoryProperties.getCache().getMessagesTtlDays()));
+        return chatMessageCacheService.listMessages(principal.tenantId(), principal.userId(), sessionId, ttl);
     }
 
     public List<ChatSessionDto> listSessions(AuthPrincipal principal) {

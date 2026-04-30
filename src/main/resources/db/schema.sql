@@ -121,3 +121,104 @@ CREATE TABLE IF NOT EXISTS retrieval_log (
   KEY idx_retrieval_trace (trace_id),
   KEY idx_retrieval_tenant_time (tenant_id, created_at)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COMMENT='检索日志表';
+
+
+CREATE TABLE IF NOT EXISTS chat_memory_summary (
+  id BIGINT NOT NULL AUTO_INCREMENT COMMENT '摘要主键ID',
+  tenant_id BIGINT NOT NULL COMMENT '租户ID',
+  user_id BIGINT NOT NULL COMMENT '用户ID',
+  session_id VARCHAR(64) NOT NULL COMMENT '会话ID',
+  summary_text MEDIUMTEXT NOT NULL COMMENT '摘要文本（建议JSON）',
+  round_count INT NOT NULL DEFAULT 0 COMMENT '已摘要到第几轮',
+  version INT NOT NULL DEFAULT 1 COMMENT '摘要版本',
+  created_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP COMMENT '创建时间',
+  updated_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP COMMENT '更新时间',
+  PRIMARY KEY (id),
+  UNIQUE KEY uk_summary_session (tenant_id, user_id, session_id),
+  KEY idx_summary_tenant_user (tenant_id, user_id)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COMMENT='会话摘要记忆表';
+
+CREATE TABLE IF NOT EXISTS memory_task_outbox (
+  id BIGINT NOT NULL AUTO_INCREMENT COMMENT '任务主键ID',
+  tenant_id BIGINT NOT NULL COMMENT '租户ID',
+  user_id BIGINT NOT NULL COMMENT '用户ID',
+  session_id VARCHAR(64) DEFAULT NULL COMMENT '会话ID',
+  task_type VARCHAR(32) NOT NULL COMMENT '任务类型',
+  payload MEDIUMTEXT NOT NULL COMMENT '任务参数JSON',
+  status VARCHAR(16) NOT NULL DEFAULT 'PENDING' COMMENT '任务状态',
+  retry_count INT NOT NULL DEFAULT 0 COMMENT '重试次数',
+  next_retry_at DATETIME DEFAULT NULL COMMENT '下次重试时间',
+  last_error VARCHAR(1000) DEFAULT NULL COMMENT '最近失败原因',
+  created_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP COMMENT '创建时间',
+  updated_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP COMMENT '更新时间',
+  PRIMARY KEY (id),
+  KEY idx_task_status_retry (status, next_retry_at),
+  KEY idx_task_tenant_user (tenant_id, user_id)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COMMENT='记忆异步任务outbox';
+
+CREATE TABLE IF NOT EXISTS user_memory_item (
+  id BIGINT NOT NULL AUTO_INCREMENT COMMENT '记忆主键ID',
+  tenant_id BIGINT NOT NULL COMMENT '租户ID',
+  user_id BIGINT NOT NULL COMMENT '用户ID',
+  memory_type VARCHAR(32) NOT NULL COMMENT '记忆类型',
+  memory_key VARCHAR(64) NOT NULL COMMENT '记忆键',
+  memory_value MEDIUMTEXT NOT NULL COMMENT '记忆值JSON',
+  sensitivity_level VARCHAR(8) NOT NULL DEFAULT 'P0' COMMENT '敏感等级',
+  confidence DECIMAL(5,4) NOT NULL DEFAULT 0.0 COMMENT '置信度',
+  confirmation_count INT NOT NULL DEFAULT 0 COMMENT '连续命中确认次数',
+  stable_threshold INT NOT NULL DEFAULT 2 COMMENT '稳定升级阈值',
+  status VARCHAR(16) NOT NULL DEFAULT 'CANDIDATE' COMMENT '状态',
+  source_session_id VARCHAR(64) DEFAULT NULL COMMENT '来源会话ID',
+  source_message_id BIGINT DEFAULT NULL COMMENT '来源消息ID',
+  confirmed_by_user TINYINT(1) NOT NULL DEFAULT 0 COMMENT '是否用户确认',
+  expires_at DATETIME DEFAULT NULL COMMENT '过期时间',
+  last_seen_at DATETIME DEFAULT NULL COMMENT '最近出现时间',
+  stable_since DATETIME DEFAULT NULL COMMENT '稳定生效时间',
+  model_version VARCHAR(64) DEFAULT NULL COMMENT '模型版本',
+  prompt_version VARCHAR(64) DEFAULT NULL COMMENT 'Prompt版本',
+  version INT NOT NULL DEFAULT 1 COMMENT '乐观锁版本',
+  created_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP COMMENT '创建时间',
+  updated_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP COMMENT '更新时间',
+  PRIMARY KEY (id),
+  KEY idx_memory_tenant_user (tenant_id, user_id),
+  KEY idx_memory_status (status)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COMMENT='用户长期记忆事实表';
+
+CREATE TABLE IF NOT EXISTS user_knowledge (
+  knowledge_id BIGINT NOT NULL AUTO_INCREMENT COMMENT '用户知识主键ID',
+  tenant_id BIGINT NOT NULL COMMENT '租户ID',
+  user_id BIGINT NOT NULL COMMENT '用户ID',
+  session_id VARCHAR(64) NOT NULL COMMENT '来源会话ID',
+  question TEXT NOT NULL COMMENT '用户问题',
+  answer MEDIUMTEXT NOT NULL COMMENT '助手回答',
+  content MEDIUMTEXT NOT NULL COMMENT '用于索引的知识内容',
+  source VARCHAR(255) NOT NULL COMMENT '知识来源说明',
+  knowledge_level VARCHAR(16) NOT NULL DEFAULT 'OPTIONAL' COMMENT '知识等级（MUST/OPTIONAL/FORBIDDEN）',
+  reason VARCHAR(64) DEFAULT NULL COMMENT '分类理由',
+  core_content MEDIUMTEXT DEFAULT NULL COMMENT '提炼后的核心内容',
+  status VARCHAR(16) NOT NULL DEFAULT 'PENDING' COMMENT '状态（PENDING/ACTIVE/REJECTED/DELETED）',
+  index_status VARCHAR(16) NOT NULL DEFAULT 'PENDING' COMMENT '索引状态（PENDING/COMPLETED/FAILED）',
+  source_user_message_id BIGINT DEFAULT NULL COMMENT '来源用户消息ID',
+  source_assistant_message_id BIGINT DEFAULT NULL COMMENT '来源助手消息ID',
+  created_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP COMMENT '创建时间',
+  updated_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP COMMENT '更新时间',
+  reviewed_at DATETIME DEFAULT NULL COMMENT '复核时间',
+  PRIMARY KEY (knowledge_id),
+  KEY idx_user_knowledge_owner (tenant_id, user_id, created_at),
+  KEY idx_user_knowledge_session (session_id)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COMMENT='用户外挂知识库表';
+
+
+-- END MEMORY TABLES
+
+-- 注意：短期记忆不落 ES，仅用于对话上下文与消息列表缓存（Redis -> MySQL）。
+-- 删除语义：先删 MySQL 再删 Redis，保持最终一致性。
+
+-- 如需扩展：可增加 memory_knowledge_candidate（外挂知识候选）等表。
+
+-- --------------------
+-- End of schema
+-- --------------------
+
+--
+--

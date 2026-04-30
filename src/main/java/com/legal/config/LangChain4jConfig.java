@@ -3,6 +3,8 @@ package com.legal.config;
 import com.legal.chat.mapper.ChatMessageMapper;
 import com.legal.chat.memory.ChatMemoryFactory;
 import com.legal.chat.memory.ChatMemoryStoreImpl;
+import com.legal.config.LegalMemoryProperties;
+
 import dev.langchain4j.model.chat.ChatModel;
 import dev.langchain4j.model.chat.StreamingChatModel;
 import dev.langchain4j.model.openai.OpenAiChatModel;
@@ -18,7 +20,8 @@ import org.springframework.util.StringUtils;
         OpenAiChatModelProperties.class,
         OpenAiStreamingChatModelProperties.class,
         OpenAiEmbeddingProperties.class,
-        ElasticsearchProperties.class
+        ElasticsearchProperties.class,
+        LegalMemoryProperties.class
 })
 public class LangChain4jConfig {
 

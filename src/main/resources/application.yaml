@@ -87,6 +87,37 @@ rag:
   # 无检索结果时返回的提示语。
   empty-hit-warning: ${LEGAL_RAG_EMPTY_HIT_WARNING:当前知识库暂无直接相关内容，以下回答仅基于通用法律知识整理，请谨慎核对。}
 
+
+# 记忆管理配置（agent 上下文记忆：短期/摘要/长期）。
+legal:
+  memory:
+    enabled: ${LEGAL_MEMORY_ENABLED:true}
+    cache:
+      messages-ttl-days: ${LEGAL_MEMORY_MESSAGES_TTL_DAYS:7}
+      recent-max-messages: ${LEGAL_MEMORY_RECENT_MAX_MESSAGES:30}
+    short-term:
+      max-messages: ${LEGAL_MEMORY_SHORT_MAX_MESSAGES:${LEGAL_RAG_MAX_MEMORY_MESSAGES:12}}
+    summary:
+      enabled: ${LEGAL_MEMORY_SUMMARY_ENABLED:true}
+      refresh-rounds: ${LEGAL_MEMORY_SUMMARY_REFRESH_ROUNDS:5}
+      last-messages: ${LEGAL_MEMORY_SUMMARY_LAST_MESSAGES:20}
+    long-term:
+      enabled: ${LEGAL_MEMORY_LONG_TERM_ENABLED:true}
+      max-items: ${LEGAL_MEMORY_LONG_TERM_MAX_ITEMS:20}
+      min-confidence: ${LEGAL_MEMORY_LONG_TERM_MIN_CONFIDENCE:0.6}
+      stable-threshold: ${LEGAL_MEMORY_LONG_TERM_STABLE_THRESHOLD:2}
+    user-knowledge:
+      enabled: ${LEGAL_MEMORY_USER_KNOWLEDGE_ENABLED:true}
+      top-k: ${LEGAL_MEMORY_USER_KNOWLEDGE_TOP_K:3}
+      min-question-length: ${LEGAL_MEMORY_USER_KNOWLEDGE_MIN_QUESTION_LENGTH:8}
+      pending-archive-hours: ${LEGAL_MEMORY_USER_KNOWLEDGE_PENDING_ARCHIVE_HOURS:2}
+    worker:
+      enabled: ${LEGAL_MEMORY_WORKER_ENABLED:true}
+      poll-interval-ms: ${LEGAL_MEMORY_WORKER_POLL_INTERVAL_MS:3000}
+      batch-size: ${LEGAL_MEMORY_WORKER_BATCH_SIZE:10}
+      max-retries: ${LEGAL_MEMORY_WORKER_MAX_RETRIES:5}
+      retry-delay-seconds: ${LEGAL_MEMORY_WORKER_RETRY_DELAY_SECONDS:30}
+
 # Elasticsearch 配置（文档向量索引 + 混合检索）。
 elasticsearch:
   enabled: ${LEGAL_ES_ENABLED:true}
@@ -103,6 +134,7 @@ elasticsearch:
 
   index:
     kb-chunks: ${LEGAL_ES_INDEX_KB_CHUNKS:legal_kb_chunks_v1}
+    user-knowledge: ${LEGAL_ES_INDEX_USER_KNOWLEDGE:legal_kb_user_knowledge}
     retrieval-log: ${LEGAL_ES_INDEX_RETRIEVAL_LOG:legal_retrieval_log_v1}
     vector-dims: ${LEGAL_ES_VECTOR_DIMS:${LEGAL_LLM_EMBEDDING_DIMENSIONS:1024}}
 

@@ -36,6 +36,7 @@ public class ElasticsearchProperties {
     public static class Index {
 
         private String kbChunks = "legal_kb_chunks_v1";
+        private String userKnowledge = "legal_kb_user_knowledge";
         private int vectorDims = 1024;
     }
 

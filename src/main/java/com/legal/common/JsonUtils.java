@@ -11,7 +11,7 @@ import java.util.List;
  */
 public final class JsonUtils {
 
-    private static final ObjectMapper MAPPER = new ObjectMapper();
+    private static final ObjectMapper MAPPER = new ObjectMapper().findAndRegisterModules();
 
     private JsonUtils() {
     }
