@@ -47,14 +47,49 @@
       </div>
     </article>
 
-    <div class="review-grid">
-      <article class="card panel">
+    <article v-if="review" class="card panel filter-panel">
+      <div class="filter-layout">
+        <div class="filter-group">
+          <span class="filter-label">查看范围</span>
+          <div class="selection-row">
+            <label class="selection-chip" :class="{ 'selection-chip--active': panelMode === 'all' }">
+              <input v-model="panelMode" type="radio" name="review-panel-mode" value="all" />
+              <span>全部结果</span>
+            </label>
+            <label class="selection-chip" :class="{ 'selection-chip--active': panelMode === 'fields' }">
+              <input v-model="panelMode" type="radio" name="review-panel-mode" value="fields" />
+              <span>仅看字段</span>
+            </label>
+            <label class="selection-chip" :class="{ 'selection-chip--active': panelMode === 'risks' }">
+              <input v-model="panelMode" type="radio" name="review-panel-mode" value="risks" />
+              <span>仅看风险</span>
+            </label>
+          </div>
+        </div>
+        <div class="filter-group">
+          <span class="filter-label">聚焦重点</span>
+          <div class="selection-row">
+            <label class="selection-chip selection-chip--soft" :class="{ 'selection-chip--active': showMissingOnly }">
+              <input v-model="showMissingOnly" type="checkbox" />
+              <span>仅看缺失字段</span>
+            </label>
+            <label class="selection-chip selection-chip--soft" :class="{ 'selection-chip--active': showHitsOnly }">
+              <input v-model="showHitsOnly" type="checkbox" />
+              <span>仅看命中风险</span>
+            </label>
+          </div>
+        </div>
+      </div>
+    </article>
+
+    <div class="review-grid" :class="{ 'single-column': panelMode !== 'all' }">
+      <article v-if="displayFieldsPanel" class="card panel">
         <div class="header-row">
           <h3>抽取字段</h3>
-          <span class="note">{{ review?.fields?.length || 0 }} 项</span>
+          <span class="note">{{ filteredFields.length }}/{{ review?.fields?.length || 0 }} 项</span>
         </div>
-        <div v-if="review?.fields?.length" class="field-list">
-          <div v-for="field in review.fields" :key="field.fieldId ?? `${field.fieldCode}-${field.fieldOrder}`" class="field-item">
+        <div v-if="filteredFields.length" class="field-list">
+          <div v-for="field in filteredFields" :key="field.fieldId ?? `${field.fieldCode}-${field.fieldOrder}`" class="field-item">
             <div class="field-top">
               <strong>{{ field.fieldName }}</strong>
               <span class="status-pill" :data-status="field.status">{{ field.status }}</span>
@@ -69,13 +104,13 @@
         <p v-else class="note">暂无审查字段，点击“开始审查”后查看结果。</p>
       </article>
 
-      <article class="card panel">
+      <article v-if="displayRisksPanel" class="card panel">
         <div class="header-row">
           <h3>规则命中与风险项</h3>
-          <span class="note">{{ review?.riskItems?.length || 0 }} 项</span>
+          <span class="note">{{ filteredRiskItems.length }}/{{ review?.riskItems?.length || 0 }} 项</span>
         </div>
-        <div v-if="review?.riskItems?.length" class="risk-list">
-          <div v-for="item in review.riskItems" :key="item.riskId ?? item.ruleCode" class="risk-item">
+        <div v-if="filteredRiskItems.length" class="risk-list">
+          <div v-for="item in filteredRiskItems" :key="item.riskId ?? item.ruleCode" class="risk-item">
             <div class="field-top">
               <strong>{{ item.ruleName }}</strong>
               <span class="status-pill" :data-status="item.executionStatus">{{ item.executionStatus }}</span>
@@ -149,11 +184,25 @@ const notice = ref('');
 const errorMessage = ref('');
 let timer: number | null = null;
 
+const panelMode = ref<'all' | 'fields' | 'risks'>('all');
+const showMissingOnly = ref(false);
+const showHitsOnly = ref(false);
+
 const documentId = computed(() => Number(route.params.documentId || 0));
 const pageTitle = computed(() => {
   const title = route.query.title;
   return typeof title === 'string' && title.trim() ? title : `文档 #${documentId.value}`;
 });
+const filteredFields = computed(() => {
+  const items = review.value?.fields ?? [];
+  return showMissingOnly.value ? items.filter(field => field.status === 'MISSING') : items;
+});
+const filteredRiskItems = computed(() => {
+  const items = review.value?.riskItems ?? [];
+  return showHitsOnly.value ? items.filter(item => item.executionStatus === 'HIT') : items;
+});
+const displayFieldsPanel = computed(() => panelMode.value !== 'risks');
+const displayRisksPanel = computed(() => panelMode.value !== 'fields');
 
 onMounted(() => {
   refresh();
@@ -271,6 +320,10 @@ function goBack() {
   gap: 0.75rem;
 }
 
+.filter-panel {
+  padding: 0.95rem 1rem;
+}
+
 .status-header,
 .header-row,
 .field-top {
@@ -286,12 +339,34 @@ function goBack() {
   gap: 1rem;
 }
 
+.filter-layout {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 1rem;
+}
+
+.filter-group {
+  display: grid;
+  gap: 0.55rem;
+}
+
+.filter-label {
+  font-size: 0.8rem;
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+  color: var(--ink-soft);
+}
+
 .summary-grid {
   grid-template-columns: repeat(4, minmax(0, 1fr));
 }
 
 .review-grid {
   grid-template-columns: repeat(2, minmax(0, 1fr));
+}
+
+.review-grid.single-column {
+  grid-template-columns: 1fr;
 }
 
 .metric-card,
@@ -366,6 +441,7 @@ function goBack() {
 }
 
 @media (max-width: 1100px) {
+  .filter-layout,
   .summary-grid,
   .review-grid {
     grid-template-columns: 1fr;

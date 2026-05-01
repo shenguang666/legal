@@ -228,6 +228,7 @@ __VLS_asFunctionalElement(__VLS_intrinsicElements.div, __VLS_intrinsicElements.d
 __VLS_asFunctionalElement(__VLS_intrinsicElements.label, __VLS_intrinsicElements.label)({});
 __VLS_asFunctionalElement(__VLS_intrinsicElements.select, __VLS_intrinsicElements.select)({
     value: (__VLS_ctx.manualSeverity),
+    ...{ class: "console-select" },
 });
 __VLS_asFunctionalElement(__VLS_intrinsicElements.option, __VLS_intrinsicElements.option)({
     value: "HIGH",
@@ -296,6 +297,7 @@ __VLS_asFunctionalElement(__VLS_intrinsicElements.div, __VLS_intrinsicElements.d
 __VLS_asFunctionalElement(__VLS_intrinsicElements.label, __VLS_intrinsicElements.label)({});
 __VLS_asFunctionalElement(__VLS_intrinsicElements.select, __VLS_intrinsicElements.select)({
     value: (__VLS_ctx.importSeverity),
+    ...{ class: "console-select" },
 });
 __VLS_asFunctionalElement(__VLS_intrinsicElements.option, __VLS_intrinsicElements.option)({
     value: "HIGH",
@@ -455,6 +457,7 @@ __VLS_asFunctionalElement(__VLS_intrinsicElements.div, __VLS_intrinsicElements.d
 __VLS_asFunctionalElement(__VLS_intrinsicElements.label, __VLS_intrinsicElements.label)({});
 __VLS_asFunctionalElement(__VLS_intrinsicElements.select, __VLS_intrinsicElements.select)({
     value: (__VLS_ctx.extractorKind),
+    ...{ class: "console-select" },
 });
 __VLS_asFunctionalElement(__VLS_intrinsicElements.option, __VLS_intrinsicElements.option)({
     value: "PARTY_PATTERN",
@@ -477,23 +480,35 @@ __VLS_asFunctionalElement(__VLS_intrinsicElements.input)({
 });
 (__VLS_ctx.fieldSortOrder);
 __VLS_asFunctionalElement(__VLS_intrinsicElements.div, __VLS_intrinsicElements.div)({
-    ...{ class: "field-switches" },
+    ...{ class: "field-switches selection-row" },
 });
-__VLS_asFunctionalElement(__VLS_intrinsicElements.label, __VLS_intrinsicElements.label)({});
+__VLS_asFunctionalElement(__VLS_intrinsicElements.label, __VLS_intrinsicElements.label)({
+    ...{ class: "selection-chip selection-chip--soft" },
+    ...{ class: ({ 'selection-chip--active': __VLS_ctx.fieldRepeatable }) },
+});
 __VLS_asFunctionalElement(__VLS_intrinsicElements.input)({
     type: "checkbox",
 });
 (__VLS_ctx.fieldRepeatable);
-__VLS_asFunctionalElement(__VLS_intrinsicElements.label, __VLS_intrinsicElements.label)({});
+__VLS_asFunctionalElement(__VLS_intrinsicElements.span, __VLS_intrinsicElements.span)({});
+__VLS_asFunctionalElement(__VLS_intrinsicElements.label, __VLS_intrinsicElements.label)({
+    ...{ class: "selection-chip selection-chip--soft" },
+    ...{ class: ({ 'selection-chip--active': __VLS_ctx.fieldDeduplicate }) },
+});
 __VLS_asFunctionalElement(__VLS_intrinsicElements.input)({
     type: "checkbox",
 });
 (__VLS_ctx.fieldDeduplicate);
-__VLS_asFunctionalElement(__VLS_intrinsicElements.label, __VLS_intrinsicElements.label)({});
+__VLS_asFunctionalElement(__VLS_intrinsicElements.span, __VLS_intrinsicElements.span)({});
+__VLS_asFunctionalElement(__VLS_intrinsicElements.label, __VLS_intrinsicElements.label)({
+    ...{ class: "selection-chip selection-chip--soft" },
+    ...{ class: ({ 'selection-chip--active': __VLS_ctx.fieldEnabled }) },
+});
 __VLS_asFunctionalElement(__VLS_intrinsicElements.input)({
     type: "checkbox",
 });
 (__VLS_ctx.fieldEnabled);
+__VLS_asFunctionalElement(__VLS_intrinsicElements.span, __VLS_intrinsicElements.span)({});
 __VLS_asFunctionalElement(__VLS_intrinsicElements.div, __VLS_intrinsicElements.div)({});
 __VLS_asFunctionalElement(__VLS_intrinsicElements.label, __VLS_intrinsicElements.label)({});
 __VLS_asFunctionalElement(__VLS_intrinsicElements.textarea, __VLS_intrinsicElements.textarea)({
@@ -607,11 +622,13 @@ for (const [item] of __VLS_getVForSourceType((__VLS_ctx.fieldDefinitions))) {
 /** @type {__VLS_StyleScopedClasses['section-block']} */ ;
 /** @type {__VLS_StyleScopedClasses['grid']} */ ;
 /** @type {__VLS_StyleScopedClasses['form-grid']} */ ;
+/** @type {__VLS_StyleScopedClasses['console-select']} */ ;
 /** @type {__VLS_StyleScopedClasses['actions']} */ ;
 /** @type {__VLS_StyleScopedClasses['primary-btn']} */ ;
 /** @type {__VLS_StyleScopedClasses['section-block']} */ ;
 /** @type {__VLS_StyleScopedClasses['grid']} */ ;
 /** @type {__VLS_StyleScopedClasses['form-grid']} */ ;
+/** @type {__VLS_StyleScopedClasses['console-select']} */ ;
 /** @type {__VLS_StyleScopedClasses['actions']} */ ;
 /** @type {__VLS_StyleScopedClasses['primary-btn']} */ ;
 /** @type {__VLS_StyleScopedClasses['card']} */ ;
@@ -640,7 +657,15 @@ for (const [item] of __VLS_getVForSourceType((__VLS_ctx.fieldDefinitions))) {
 /** @type {__VLS_StyleScopedClasses['ghost-btn']} */ ;
 /** @type {__VLS_StyleScopedClasses['grid']} */ ;
 /** @type {__VLS_StyleScopedClasses['field-grid']} */ ;
+/** @type {__VLS_StyleScopedClasses['console-select']} */ ;
 /** @type {__VLS_StyleScopedClasses['field-switches']} */ ;
+/** @type {__VLS_StyleScopedClasses['selection-row']} */ ;
+/** @type {__VLS_StyleScopedClasses['selection-chip']} */ ;
+/** @type {__VLS_StyleScopedClasses['selection-chip--soft']} */ ;
+/** @type {__VLS_StyleScopedClasses['selection-chip']} */ ;
+/** @type {__VLS_StyleScopedClasses['selection-chip--soft']} */ ;
+/** @type {__VLS_StyleScopedClasses['selection-chip']} */ ;
+/** @type {__VLS_StyleScopedClasses['selection-chip--soft']} */ ;
 /** @type {__VLS_StyleScopedClasses['actions']} */ ;
 /** @type {__VLS_StyleScopedClasses['primary-btn']} */ ;
 /** @type {__VLS_StyleScopedClasses['item-list']} */ ;

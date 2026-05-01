@@ -22,7 +22,7 @@
             </div>
             <div>
               <label>风险级别</label>
-              <select v-model="manualSeverity">
+              <select v-model="manualSeverity" class="console-select">
                 <option value="HIGH">HIGH</option>
                 <option value="MEDIUM">MEDIUM</option>
                 <option value="LOW">LOW</option>
@@ -63,7 +63,7 @@
             </div>
             <div>
               <label>风险级别</label>
-              <select v-model="importSeverity">
+              <select v-model="importSeverity" class="console-select">
                 <option value="HIGH">HIGH</option>
                 <option value="MEDIUM">MEDIUM</option>
                 <option value="LOW">LOW</option>
@@ -137,7 +137,7 @@
         </div>
         <div>
           <label>抽取器类型</label>
-          <select v-model="extractorKind">
+          <select v-model="extractorKind" class="console-select">
             <option value="PARTY_PATTERN">PARTY_PATTERN</option>
             <option value="AMOUNT_PATTERN">AMOUNT_PATTERN</option>
             <option value="DATE_KEYWORD">DATE_KEYWORD</option>
@@ -148,10 +148,19 @@
           <label>排序</label>
           <input v-model="fieldSortOrder" type="number" min="0" step="1" />
         </div>
-        <div class="field-switches">
-          <label><input v-model="fieldRepeatable" type="checkbox" /> 多值字段</label>
-          <label><input v-model="fieldDeduplicate" type="checkbox" /> 归一值去重</label>
-          <label><input v-model="fieldEnabled" type="checkbox" /> 启用</label>
+        <div class="field-switches selection-row">
+          <label class="selection-chip selection-chip--soft" :class="{ 'selection-chip--active': fieldRepeatable }">
+            <input v-model="fieldRepeatable" type="checkbox" />
+            <span>多值字段</span>
+          </label>
+          <label class="selection-chip selection-chip--soft" :class="{ 'selection-chip--active': fieldDeduplicate }">
+            <input v-model="fieldDeduplicate" type="checkbox" />
+            <span>归一值去重</span>
+          </label>
+          <label class="selection-chip selection-chip--soft" :class="{ 'selection-chip--active': fieldEnabled }">
+            <input v-model="fieldEnabled" type="checkbox" />
+            <span>启用</span>
+          </label>
         </div>
       </div>
       <div>

@@ -7,11 +7,24 @@ const review = ref(null);
 const notice = ref('');
 const errorMessage = ref('');
 let timer = null;
+const panelMode = ref('all');
+const showMissingOnly = ref(false);
+const showHitsOnly = ref(false);
 const documentId = computed(() => Number(route.params.documentId || 0));
 const pageTitle = computed(() => {
     const title = route.query.title;
     return typeof title === 'string' && title.trim() ? title : `文档 #${documentId.value}`;
 });
+const filteredFields = computed(() => {
+    const items = review.value?.fields ?? [];
+    return showMissingOnly.value ? items.filter(field => field.status === 'MISSING') : items;
+});
+const filteredRiskItems = computed(() => {
+    const items = review.value?.riskItems ?? [];
+    return showHitsOnly.value ? items.filter(item => item.executionStatus === 'HIT') : items;
+});
+const displayFieldsPanel = computed(() => panelMode.value !== 'risks');
+const displayRisksPanel = computed(() => panelMode.value !== 'fields');
 onMounted(() => {
     refresh();
 });
@@ -96,6 +109,7 @@ let __VLS_components;
 let __VLS_directives;
 /** @type {__VLS_StyleScopedClasses['summary-grid']} */ ;
 /** @type {__VLS_StyleScopedClasses['review-grid']} */ ;
+/** @type {__VLS_StyleScopedClasses['review-grid']} */ ;
 /** @type {__VLS_StyleScopedClasses['error-text']} */ ;
 /** @type {__VLS_StyleScopedClasses['status-pill']} */ ;
 /** @type {__VLS_StyleScopedClasses['status-pill']} */ ;
@@ -106,6 +120,7 @@ let __VLS_directives;
 /** @type {__VLS_StyleScopedClasses['status-pill']} */ ;
 /** @type {__VLS_StyleScopedClasses['status-pill']} */ ;
 /** @type {__VLS_StyleScopedClasses['status-pill']} */ ;
+/** @type {__VLS_StyleScopedClasses['filter-layout']} */ ;
 /** @type {__VLS_StyleScopedClasses['summary-grid']} */ ;
 /** @type {__VLS_StyleScopedClasses['review-grid']} */ ;
 /** @type {__VLS_StyleScopedClasses['hero']} */ ;
@@ -225,132 +240,216 @@ if (__VLS_ctx.review) {
     (__VLS_ctx.review.extractedFieldCount ?? 0);
     (__VLS_ctx.review.totalFieldCount ?? 0);
 }
+if (__VLS_ctx.review) {
+    __VLS_asFunctionalElement(__VLS_intrinsicElements.article, __VLS_intrinsicElements.article)({
+        ...{ class: "card panel filter-panel" },
+    });
+    __VLS_asFunctionalElement(__VLS_intrinsicElements.div, __VLS_intrinsicElements.div)({
+        ...{ class: "filter-layout" },
+    });
+    __VLS_asFunctionalElement(__VLS_intrinsicElements.div, __VLS_intrinsicElements.div)({
+        ...{ class: "filter-group" },
+    });
+    __VLS_asFunctionalElement(__VLS_intrinsicElements.span, __VLS_intrinsicElements.span)({
+        ...{ class: "filter-label" },
+    });
+    __VLS_asFunctionalElement(__VLS_intrinsicElements.div, __VLS_intrinsicElements.div)({
+        ...{ class: "selection-row" },
+    });
+    __VLS_asFunctionalElement(__VLS_intrinsicElements.label, __VLS_intrinsicElements.label)({
+        ...{ class: "selection-chip" },
+        ...{ class: ({ 'selection-chip--active': __VLS_ctx.panelMode === 'all' }) },
+    });
+    __VLS_asFunctionalElement(__VLS_intrinsicElements.input)({
+        type: "radio",
+        name: "review-panel-mode",
+        value: "all",
+    });
+    (__VLS_ctx.panelMode);
+    __VLS_asFunctionalElement(__VLS_intrinsicElements.span, __VLS_intrinsicElements.span)({});
+    __VLS_asFunctionalElement(__VLS_intrinsicElements.label, __VLS_intrinsicElements.label)({
+        ...{ class: "selection-chip" },
+        ...{ class: ({ 'selection-chip--active': __VLS_ctx.panelMode === 'fields' }) },
+    });
+    __VLS_asFunctionalElement(__VLS_intrinsicElements.input)({
+        type: "radio",
+        name: "review-panel-mode",
+        value: "fields",
+    });
+    (__VLS_ctx.panelMode);
+    __VLS_asFunctionalElement(__VLS_intrinsicElements.span, __VLS_intrinsicElements.span)({});
+    __VLS_asFunctionalElement(__VLS_intrinsicElements.label, __VLS_intrinsicElements.label)({
+        ...{ class: "selection-chip" },
+        ...{ class: ({ 'selection-chip--active': __VLS_ctx.panelMode === 'risks' }) },
+    });
+    __VLS_asFunctionalElement(__VLS_intrinsicElements.input)({
+        type: "radio",
+        name: "review-panel-mode",
+        value: "risks",
+    });
+    (__VLS_ctx.panelMode);
+    __VLS_asFunctionalElement(__VLS_intrinsicElements.span, __VLS_intrinsicElements.span)({});
+    __VLS_asFunctionalElement(__VLS_intrinsicElements.div, __VLS_intrinsicElements.div)({
+        ...{ class: "filter-group" },
+    });
+    __VLS_asFunctionalElement(__VLS_intrinsicElements.span, __VLS_intrinsicElements.span)({
+        ...{ class: "filter-label" },
+    });
+    __VLS_asFunctionalElement(__VLS_intrinsicElements.div, __VLS_intrinsicElements.div)({
+        ...{ class: "selection-row" },
+    });
+    __VLS_asFunctionalElement(__VLS_intrinsicElements.label, __VLS_intrinsicElements.label)({
+        ...{ class: "selection-chip selection-chip--soft" },
+        ...{ class: ({ 'selection-chip--active': __VLS_ctx.showMissingOnly }) },
+    });
+    __VLS_asFunctionalElement(__VLS_intrinsicElements.input)({
+        type: "checkbox",
+    });
+    (__VLS_ctx.showMissingOnly);
+    __VLS_asFunctionalElement(__VLS_intrinsicElements.span, __VLS_intrinsicElements.span)({});
+    __VLS_asFunctionalElement(__VLS_intrinsicElements.label, __VLS_intrinsicElements.label)({
+        ...{ class: "selection-chip selection-chip--soft" },
+        ...{ class: ({ 'selection-chip--active': __VLS_ctx.showHitsOnly }) },
+    });
+    __VLS_asFunctionalElement(__VLS_intrinsicElements.input)({
+        type: "checkbox",
+    });
+    (__VLS_ctx.showHitsOnly);
+    __VLS_asFunctionalElement(__VLS_intrinsicElements.span, __VLS_intrinsicElements.span)({});
+}
 __VLS_asFunctionalElement(__VLS_intrinsicElements.div, __VLS_intrinsicElements.div)({
     ...{ class: "review-grid" },
+    ...{ class: ({ 'single-column': __VLS_ctx.panelMode !== 'all' }) },
 });
-__VLS_asFunctionalElement(__VLS_intrinsicElements.article, __VLS_intrinsicElements.article)({
-    ...{ class: "card panel" },
-});
-__VLS_asFunctionalElement(__VLS_intrinsicElements.div, __VLS_intrinsicElements.div)({
-    ...{ class: "header-row" },
-});
-__VLS_asFunctionalElement(__VLS_intrinsicElements.h3, __VLS_intrinsicElements.h3)({});
-__VLS_asFunctionalElement(__VLS_intrinsicElements.span, __VLS_intrinsicElements.span)({
-    ...{ class: "note" },
-});
-(__VLS_ctx.review?.fields?.length || 0);
-if (__VLS_ctx.review?.fields?.length) {
-    __VLS_asFunctionalElement(__VLS_intrinsicElements.div, __VLS_intrinsicElements.div)({
-        ...{ class: "field-list" },
+if (__VLS_ctx.displayFieldsPanel) {
+    __VLS_asFunctionalElement(__VLS_intrinsicElements.article, __VLS_intrinsicElements.article)({
+        ...{ class: "card panel" },
     });
-    for (const [field] of __VLS_getVForSourceType((__VLS_ctx.review.fields))) {
+    __VLS_asFunctionalElement(__VLS_intrinsicElements.div, __VLS_intrinsicElements.div)({
+        ...{ class: "header-row" },
+    });
+    __VLS_asFunctionalElement(__VLS_intrinsicElements.h3, __VLS_intrinsicElements.h3)({});
+    __VLS_asFunctionalElement(__VLS_intrinsicElements.span, __VLS_intrinsicElements.span)({
+        ...{ class: "note" },
+    });
+    (__VLS_ctx.filteredFields.length);
+    (__VLS_ctx.review?.fields?.length || 0);
+    if (__VLS_ctx.filteredFields.length) {
         __VLS_asFunctionalElement(__VLS_intrinsicElements.div, __VLS_intrinsicElements.div)({
-            key: (field.fieldId ?? `${field.fieldCode}-${field.fieldOrder}`),
-            ...{ class: "field-item" },
+            ...{ class: "field-list" },
         });
-        __VLS_asFunctionalElement(__VLS_intrinsicElements.div, __VLS_intrinsicElements.div)({
-            ...{ class: "field-top" },
-        });
-        __VLS_asFunctionalElement(__VLS_intrinsicElements.strong, __VLS_intrinsicElements.strong)({});
-        (field.fieldName);
-        __VLS_asFunctionalElement(__VLS_intrinsicElements.span, __VLS_intrinsicElements.span)({
-            ...{ class: "status-pill" },
-            'data-status': (field.status),
-        });
-        (field.status);
-        __VLS_asFunctionalElement(__VLS_intrinsicElements.p, __VLS_intrinsicElements.p)({
-            ...{ class: "field-value" },
-        });
-        (field.normalizedValue || field.rawValue || '未识别');
+        for (const [field] of __VLS_getVForSourceType((__VLS_ctx.filteredFields))) {
+            __VLS_asFunctionalElement(__VLS_intrinsicElements.div, __VLS_intrinsicElements.div)({
+                key: (field.fieldId ?? `${field.fieldCode}-${field.fieldOrder}`),
+                ...{ class: "field-item" },
+            });
+            __VLS_asFunctionalElement(__VLS_intrinsicElements.div, __VLS_intrinsicElements.div)({
+                ...{ class: "field-top" },
+            });
+            __VLS_asFunctionalElement(__VLS_intrinsicElements.strong, __VLS_intrinsicElements.strong)({});
+            (field.fieldName);
+            __VLS_asFunctionalElement(__VLS_intrinsicElements.span, __VLS_intrinsicElements.span)({
+                ...{ class: "status-pill" },
+                'data-status': (field.status),
+            });
+            (field.status);
+            __VLS_asFunctionalElement(__VLS_intrinsicElements.p, __VLS_intrinsicElements.p)({
+                ...{ class: "field-value" },
+            });
+            (field.normalizedValue || field.rawValue || '未识别');
+            __VLS_asFunctionalElement(__VLS_intrinsicElements.p, __VLS_intrinsicElements.p)({
+                ...{ class: "note" },
+            });
+            (field.fieldCode);
+            (__VLS_ctx.formatConfidence(field.confidence));
+            if (field.explanation) {
+                __VLS_asFunctionalElement(__VLS_intrinsicElements.p, __VLS_intrinsicElements.p)({
+                    ...{ class: "note" },
+                });
+                (field.explanation);
+            }
+            if (field.evidenceText) {
+                __VLS_asFunctionalElement(__VLS_intrinsicElements.p, __VLS_intrinsicElements.p)({
+                    ...{ class: "evidence" },
+                });
+                (field.evidenceText);
+            }
+            if (field.sourceChunkRef) {
+                __VLS_asFunctionalElement(__VLS_intrinsicElements.p, __VLS_intrinsicElements.p)({
+                    ...{ class: "note" },
+                });
+                (field.sourceChunkRef);
+                (field.extractorType);
+            }
+        }
+    }
+    else {
         __VLS_asFunctionalElement(__VLS_intrinsicElements.p, __VLS_intrinsicElements.p)({
             ...{ class: "note" },
         });
-        (field.fieldCode);
-        (__VLS_ctx.formatConfidence(field.confidence));
-        if (field.explanation) {
-            __VLS_asFunctionalElement(__VLS_intrinsicElements.p, __VLS_intrinsicElements.p)({
-                ...{ class: "note" },
-            });
-            (field.explanation);
-        }
-        if (field.evidenceText) {
-            __VLS_asFunctionalElement(__VLS_intrinsicElements.p, __VLS_intrinsicElements.p)({
-                ...{ class: "evidence" },
-            });
-            (field.evidenceText);
-        }
-        if (field.sourceChunkRef) {
-            __VLS_asFunctionalElement(__VLS_intrinsicElements.p, __VLS_intrinsicElements.p)({
-                ...{ class: "note" },
-            });
-            (field.sourceChunkRef);
-            (field.extractorType);
-        }
     }
 }
-else {
-    __VLS_asFunctionalElement(__VLS_intrinsicElements.p, __VLS_intrinsicElements.p)({
+if (__VLS_ctx.displayRisksPanel) {
+    __VLS_asFunctionalElement(__VLS_intrinsicElements.article, __VLS_intrinsicElements.article)({
+        ...{ class: "card panel" },
+    });
+    __VLS_asFunctionalElement(__VLS_intrinsicElements.div, __VLS_intrinsicElements.div)({
+        ...{ class: "header-row" },
+    });
+    __VLS_asFunctionalElement(__VLS_intrinsicElements.h3, __VLS_intrinsicElements.h3)({});
+    __VLS_asFunctionalElement(__VLS_intrinsicElements.span, __VLS_intrinsicElements.span)({
         ...{ class: "note" },
     });
-}
-__VLS_asFunctionalElement(__VLS_intrinsicElements.article, __VLS_intrinsicElements.article)({
-    ...{ class: "card panel" },
-});
-__VLS_asFunctionalElement(__VLS_intrinsicElements.div, __VLS_intrinsicElements.div)({
-    ...{ class: "header-row" },
-});
-__VLS_asFunctionalElement(__VLS_intrinsicElements.h3, __VLS_intrinsicElements.h3)({});
-__VLS_asFunctionalElement(__VLS_intrinsicElements.span, __VLS_intrinsicElements.span)({
-    ...{ class: "note" },
-});
-(__VLS_ctx.review?.riskItems?.length || 0);
-if (__VLS_ctx.review?.riskItems?.length) {
-    __VLS_asFunctionalElement(__VLS_intrinsicElements.div, __VLS_intrinsicElements.div)({
-        ...{ class: "risk-list" },
-    });
-    for (const [item] of __VLS_getVForSourceType((__VLS_ctx.review.riskItems))) {
+    (__VLS_ctx.filteredRiskItems.length);
+    (__VLS_ctx.review?.riskItems?.length || 0);
+    if (__VLS_ctx.filteredRiskItems.length) {
         __VLS_asFunctionalElement(__VLS_intrinsicElements.div, __VLS_intrinsicElements.div)({
-            key: (item.riskId ?? item.ruleCode),
-            ...{ class: "risk-item" },
+            ...{ class: "risk-list" },
         });
-        __VLS_asFunctionalElement(__VLS_intrinsicElements.div, __VLS_intrinsicElements.div)({
-            ...{ class: "field-top" },
-        });
-        __VLS_asFunctionalElement(__VLS_intrinsicElements.strong, __VLS_intrinsicElements.strong)({});
-        (item.ruleName);
-        __VLS_asFunctionalElement(__VLS_intrinsicElements.span, __VLS_intrinsicElements.span)({
-            ...{ class: "status-pill" },
-            'data-status': (item.executionStatus),
-        });
-        (item.executionStatus);
-        __VLS_asFunctionalElement(__VLS_intrinsicElements.p, __VLS_intrinsicElements.p)({
-            ...{ class: "field-value" },
-        });
-        (item.message);
+        for (const [item] of __VLS_getVForSourceType((__VLS_ctx.filteredRiskItems))) {
+            __VLS_asFunctionalElement(__VLS_intrinsicElements.div, __VLS_intrinsicElements.div)({
+                key: (item.riskId ?? item.ruleCode),
+                ...{ class: "risk-item" },
+            });
+            __VLS_asFunctionalElement(__VLS_intrinsicElements.div, __VLS_intrinsicElements.div)({
+                ...{ class: "field-top" },
+            });
+            __VLS_asFunctionalElement(__VLS_intrinsicElements.strong, __VLS_intrinsicElements.strong)({});
+            (item.ruleName);
+            __VLS_asFunctionalElement(__VLS_intrinsicElements.span, __VLS_intrinsicElements.span)({
+                ...{ class: "status-pill" },
+                'data-status': (item.executionStatus),
+            });
+            (item.executionStatus);
+            __VLS_asFunctionalElement(__VLS_intrinsicElements.p, __VLS_intrinsicElements.p)({
+                ...{ class: "field-value" },
+            });
+            (item.message);
+            __VLS_asFunctionalElement(__VLS_intrinsicElements.p, __VLS_intrinsicElements.p)({
+                ...{ class: "note" },
+            });
+            (item.ruleCode);
+            (item.ruleType);
+            (item.severity);
+            if (item.affectedFieldCodes) {
+                __VLS_asFunctionalElement(__VLS_intrinsicElements.p, __VLS_intrinsicElements.p)({
+                    ...{ class: "note" },
+                });
+                (item.affectedFieldCodes);
+            }
+            if (item.evidenceText) {
+                __VLS_asFunctionalElement(__VLS_intrinsicElements.p, __VLS_intrinsicElements.p)({
+                    ...{ class: "evidence" },
+                });
+                (item.evidenceText);
+            }
+        }
+    }
+    else {
         __VLS_asFunctionalElement(__VLS_intrinsicElements.p, __VLS_intrinsicElements.p)({
             ...{ class: "note" },
         });
-        (item.ruleCode);
-        (item.ruleType);
-        (item.severity);
-        if (item.affectedFieldCodes) {
-            __VLS_asFunctionalElement(__VLS_intrinsicElements.p, __VLS_intrinsicElements.p)({
-                ...{ class: "note" },
-            });
-            (item.affectedFieldCodes);
-        }
-        if (item.evidenceText) {
-            __VLS_asFunctionalElement(__VLS_intrinsicElements.p, __VLS_intrinsicElements.p)({
-                ...{ class: "evidence" },
-            });
-            (item.evidenceText);
-        }
     }
-}
-else {
-    __VLS_asFunctionalElement(__VLS_intrinsicElements.p, __VLS_intrinsicElements.p)({
-        ...{ class: "note" },
-    });
 }
 /** @type {__VLS_StyleScopedClasses['review-page']} */ ;
 /** @type {__VLS_StyleScopedClasses['card']} */ ;
@@ -379,6 +478,23 @@ else {
 /** @type {__VLS_StyleScopedClasses['metric-card']} */ ;
 /** @type {__VLS_StyleScopedClasses['metric-card']} */ ;
 /** @type {__VLS_StyleScopedClasses['metric-card']} */ ;
+/** @type {__VLS_StyleScopedClasses['card']} */ ;
+/** @type {__VLS_StyleScopedClasses['panel']} */ ;
+/** @type {__VLS_StyleScopedClasses['filter-panel']} */ ;
+/** @type {__VLS_StyleScopedClasses['filter-layout']} */ ;
+/** @type {__VLS_StyleScopedClasses['filter-group']} */ ;
+/** @type {__VLS_StyleScopedClasses['filter-label']} */ ;
+/** @type {__VLS_StyleScopedClasses['selection-row']} */ ;
+/** @type {__VLS_StyleScopedClasses['selection-chip']} */ ;
+/** @type {__VLS_StyleScopedClasses['selection-chip']} */ ;
+/** @type {__VLS_StyleScopedClasses['selection-chip']} */ ;
+/** @type {__VLS_StyleScopedClasses['filter-group']} */ ;
+/** @type {__VLS_StyleScopedClasses['filter-label']} */ ;
+/** @type {__VLS_StyleScopedClasses['selection-row']} */ ;
+/** @type {__VLS_StyleScopedClasses['selection-chip']} */ ;
+/** @type {__VLS_StyleScopedClasses['selection-chip--soft']} */ ;
+/** @type {__VLS_StyleScopedClasses['selection-chip']} */ ;
+/** @type {__VLS_StyleScopedClasses['selection-chip--soft']} */ ;
 /** @type {__VLS_StyleScopedClasses['review-grid']} */ ;
 /** @type {__VLS_StyleScopedClasses['card']} */ ;
 /** @type {__VLS_StyleScopedClasses['panel']} */ ;
@@ -414,8 +530,15 @@ const __VLS_self = (await import('vue')).defineComponent({
             review: review,
             notice: notice,
             errorMessage: errorMessage,
+            panelMode: panelMode,
+            showMissingOnly: showMissingOnly,
+            showHitsOnly: showHitsOnly,
             documentId: documentId,
             pageTitle: pageTitle,
+            filteredFields: filteredFields,
+            filteredRiskItems: filteredRiskItems,
+            displayFieldsPanel: displayFieldsPanel,
+            displayRisksPanel: displayRisksPanel,
             refresh: refresh,
             startReview: startReview,
             rerunReview: rerunReview,
