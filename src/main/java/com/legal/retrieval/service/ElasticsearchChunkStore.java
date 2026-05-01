@@ -36,18 +36,22 @@ public class ElasticsearchChunkStore {
     }
 
     public void upsertChunks(List<ChunkIndexPayload> chunks) {
+        upsertChunks(chunks, properties.getIndex().getKbChunks());
+    }
+
+    public void upsertChunks(List<ChunkIndexPayload> chunks, String indexName) {
         if (!isEnabled()) {
             return;
         }
         if (chunks == null || chunks.isEmpty()) {
             return;
         }
-        ensureIndex();
+        ensureIndex(indexName);
 
         StringBuilder ndjson = new StringBuilder(chunks.size() * 300);
         for (ChunkIndexPayload chunk : chunks) {
             ndjson.append("{\"index\":{\"_index\":\"")
-                    .append(properties.getIndex().getKbChunks())
+                    .append(indexName)
                     .append("\",\"_id\":\"")
                     .append(buildDocId(chunk.getTenantId(), chunk.getDocumentId(), chunk.getChunkId()))
                     .append("\"}}\n");
@@ -66,10 +70,14 @@ public class ElasticsearchChunkStore {
     }
 
     public void deleteByDocument(Long tenantId, Long documentId) {
+        deleteByDocument(tenantId, documentId, properties.getIndex().getKbChunks());
+    }
+
+    public void deleteByDocument(Long tenantId, Long documentId, String indexName) {
         if (!isEnabled()) {
             return;
         }
-        ensureIndex();
+        ensureIndex(indexName);
         Map<String, Object> body = Map.of(
                 "query", Map.of(
                         "bool", Map.of(
@@ -81,7 +89,7 @@ public class ElasticsearchChunkStore {
                 )
         );
         restClient.post()
-                .uri("/" + properties.getIndex().getKbChunks() + "/_delete_by_query")
+                .uri("/" + indexName + "/_delete_by_query")
                 .body(body)
                 .retrieve()
                 .toBodilessEntity();
@@ -111,7 +119,7 @@ public class ElasticsearchChunkStore {
         if (!isEnabled()) {
             return List.of();
         }
-        ensureIndex();
+        ensureIndex(properties.getIndex().getKbChunks());
 
         List<ChunkSearchHit> vectorHits = vectorSearch(tenantId, questionVector);
         List<ChunkSearchHit> bm25Hits = bm25Search(tenantId, question);
@@ -132,7 +140,7 @@ public class ElasticsearchChunkStore {
         if (!isEnabled()) {
             return List.of();
         }
-        ensureIndex();
+        ensureIndex(properties.getIndex().getKbChunks());
 
         List<ChunkSearchHit> vectorHits = vectorSearch(tenantId, questionVector)
                 .stream()
@@ -149,17 +157,35 @@ public class ElasticsearchChunkStore {
         if (!isEnabled()) {
             return List.of();
         }
-        ensureIndex();
+        ensureIndex(properties.getIndex().getKbChunks());
         int safeTopK = Math.max(1, topK);
-        return doVectorSearch(tenantId, questionVector, safeTopK);
+        return doVectorSearch(tenantId, questionVector, safeTopK, properties.getIndex().getKbChunks());
+    }
+
+    /**
+     * 仅向量检索（kNN），支持指定目标索引。
+     */
+    public List<ChunkSearchHit> vectorSearch(Long tenantId,
+                                             List<Float> questionVector,
+                                             int topK,
+                                             String indexName) {
+        if (!isEnabled()) {
+            return List.of();
+        }
+        ensureIndex(indexName);
+        int safeTopK = Math.max(1, topK);
+        return doVectorSearch(tenantId, questionVector, safeTopK, indexName);
     }
 
     private List<ChunkSearchHit> vectorSearch(Long tenantId, List<Float> questionVector) {
         int vectorTopK = Math.max(1, properties.getSearch().getVectorTopK());
-        return doVectorSearch(tenantId, questionVector, vectorTopK);
+        return doVectorSearch(tenantId, questionVector, vectorTopK, properties.getIndex().getKbChunks());
     }
 
-    private List<ChunkSearchHit> doVectorSearch(Long tenantId, List<Float> questionVector, int vectorTopK) {
+    private List<ChunkSearchHit> doVectorSearch(Long tenantId,
+                                                List<Float> questionVector,
+                                                int vectorTopK,
+                                                String indexName) {
         int numCandidates = Math.max(vectorTopK * 2, 100);
         Map<String, Object> body = Map.of(
                 "size", vectorTopK,
@@ -173,7 +199,7 @@ public class ElasticsearchChunkStore {
                 "_source", List.of("chunk_id", "document_id", "chunk_order", "source", "content")
         );
         JsonNode response = restClient.post()
-                .uri("/" + properties.getIndex().getKbChunks() + "/_search")
+                .uri("/" + indexName + "/_search")
                 .body(body)
                 .retrieve()
                 .body(JsonNode.class);
@@ -266,10 +292,10 @@ public class ElasticsearchChunkStore {
         }
     }
 
-    private void ensureIndex() {
+    private void ensureIndex(String indexName) {
         try {
             restClient.put()
-                    .uri("/" + properties.getIndex().getKbChunks())
+                    .uri("/" + indexName)
                     .contentType(MediaType.APPLICATION_JSON)
                     .body(buildIndexMapping())
                     .retrieve()

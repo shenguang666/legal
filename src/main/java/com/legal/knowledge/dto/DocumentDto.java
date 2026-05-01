@@ -7,6 +7,7 @@ public class DocumentDto {
     private Long documentId;
     private String title;
     private String source;
+    private String bizType;
     private String status;
     private String indexStatus;
     private LocalDateTime createdAt;
@@ -34,6 +35,14 @@ public class DocumentDto {
 
     public void setSource(String source) {
         this.source = source;
+    }
+
+    public String getBizType() {
+        return bizType;
+    }
+
+    public void setBizType(String bizType) {
+        this.bizType = bizType;
     }
 
     public String getStatus() {

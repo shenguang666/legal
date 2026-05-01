@@ -59,13 +59,15 @@ CREATE TABLE IF NOT EXISTS kb_document (
   owner_user_id BIGINT NOT NULL COMMENT '所属用户ID',
   title VARCHAR(255) NOT NULL COMMENT '文档标题',
   source VARCHAR(255) NOT NULL COMMENT '文档来源',
+  biz_type VARCHAR(32) NOT NULL DEFAULT 'KNOWLEDGE' COMMENT '文档业务类型（KNOWLEDGE/RISK_RULE/TIANYAN_REVIEW）',
   status VARCHAR(32) NOT NULL DEFAULT 'PENDING' COMMENT '文档状态（PENDING/PROCESSING/ACTIVE/DELETED）',
   doc_version INT NOT NULL DEFAULT 1 COMMENT '文档版本号',
   index_status VARCHAR(16) NOT NULL DEFAULT 'PENDING' COMMENT '索引状态（PENDING/PROCESSING/COMPLETED/FAILED）',
   created_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP COMMENT '创建时间',
   updated_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP COMMENT '更新时间',
   PRIMARY KEY (document_id),
-  KEY idx_doc_tenant_owner_status (tenant_id, owner_user_id, status)
+  KEY idx_doc_tenant_owner_status (tenant_id, owner_user_id, status),
+  KEY idx_doc_tenant_owner_biz_status (tenant_id, owner_user_id, biz_type, status)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COMMENT='知识库文档表';
 
 CREATE TABLE IF NOT EXISTS kb_chunk (
@@ -121,7 +123,6 @@ CREATE TABLE IF NOT EXISTS retrieval_log (
   KEY idx_retrieval_trace (trace_id),
   KEY idx_retrieval_tenant_time (tenant_id, created_at)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COMMENT='检索日志表';
-
 
 CREATE TABLE IF NOT EXISTS chat_memory_summary (
   id BIGINT NOT NULL AUTO_INCREMENT COMMENT '摘要主键ID',
@@ -202,22 +203,221 @@ CREATE TABLE IF NOT EXISTS user_knowledge (
   source_assistant_message_id BIGINT DEFAULT NULL COMMENT '来源助手消息ID',
   created_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP COMMENT '创建时间',
   updated_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP COMMENT '更新时间',
-  reviewed_at DATETIME DEFAULT NULL COMMENT '复核时间',
   PRIMARY KEY (knowledge_id),
   KEY idx_user_knowledge_owner (tenant_id, user_id, created_at),
   KEY idx_user_knowledge_session (session_id)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COMMENT='用户外挂知识库表';
 
+CREATE TABLE IF NOT EXISTS contract_field_definition (
+  field_definition_id BIGINT NOT NULL AUTO_INCREMENT COMMENT '抽取字段定义主键ID',
+  tenant_id BIGINT NOT NULL DEFAULT 0 COMMENT '所属租户ID，0表示平台默认字段定义',
+  field_code VARCHAR(64) NOT NULL COMMENT '字段编码，如 party_a、contract_amount',
+  field_name VARCHAR(128) NOT NULL COMMENT '字段名称',
+  extractor_kind VARCHAR(32) NOT NULL COMMENT '抽取器类型（PARTY_PATTERN/AMOUNT_PATTERN/DATE_KEYWORD/KEYWORD_LINE）',
+  pattern_expr VARCHAR(1000) DEFAULT NULL COMMENT '正则表达式配置',
+  keyword_config VARCHAR(1000) DEFAULT NULL COMMENT '关键字配置，支持换行分隔',
+  repeatable TINYINT(1) NOT NULL DEFAULT 0 COMMENT '是否允许抽取多个结果',
+  deduplicate_by_normalized TINYINT(1) NOT NULL DEFAULT 1 COMMENT '是否按归一化值去重',
+  enabled TINYINT(1) NOT NULL DEFAULT 1 COMMENT '字段定义是否启用',
+  sort_order INT NOT NULL DEFAULT 0 COMMENT '字段抽取顺序',
+  description VARCHAR(500) DEFAULT NULL COMMENT '字段定义说明',
+  created_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP COMMENT '创建时间',
+  updated_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP COMMENT '更新时间',
+  PRIMARY KEY (field_definition_id),
+  UNIQUE KEY uk_contract_field_definition_tenant_code (tenant_id, field_code),
+  KEY idx_contract_field_definition_enabled (tenant_id, enabled, sort_order)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COMMENT='合同抽取字段定义表';
 
--- END MEMORY TABLES
+CREATE TABLE IF NOT EXISTS contract_review (
+  review_id BIGINT NOT NULL AUTO_INCREMENT COMMENT '合同审阅记录主键ID',
+  tenant_id BIGINT NOT NULL COMMENT '租户ID',
+  document_id BIGINT NOT NULL COMMENT '被审阅文档ID',
+  doc_version INT NOT NULL COMMENT '审阅绑定的文档版本号',
+  owner_user_id BIGINT NOT NULL COMMENT '文档所属用户ID',
+  triggered_by_user_id BIGINT NOT NULL COMMENT '触发审阅的用户ID',
+  status VARCHAR(16) NOT NULL DEFAULT 'PENDING' COMMENT '审阅状态（PENDING/PROCESSING/COMPLETED/FAILED）',
+  risk_level VARCHAR(16) DEFAULT NULL COMMENT '总体风险等级（LOW/MEDIUM/HIGH）',
+  risk_count INT NOT NULL DEFAULT 0 COMMENT '风险项数量',
+  hit_rule_count INT NOT NULL DEFAULT 0 COMMENT '命中规则数量',
+  total_field_count INT NOT NULL DEFAULT 0 COMMENT '总字段数量',
+  extracted_field_count INT NOT NULL DEFAULT 0 COMMENT '成功抽取字段数量',
+  missing_field_count INT NOT NULL DEFAULT 0 COMMENT '缺失字段数量',
+  summary_text VARCHAR(1000) DEFAULT NULL COMMENT '审阅摘要',
+  failure_reason VARCHAR(1000) DEFAULT NULL COMMENT '审阅失败原因',
+  started_at DATETIME DEFAULT NULL COMMENT '开始处理时间',
+  completed_at DATETIME DEFAULT NULL COMMENT '完成处理时间',
+  created_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP COMMENT '创建时间',
+  updated_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP COMMENT '更新时间',
+  PRIMARY KEY (review_id),
+  KEY idx_contract_review_doc (tenant_id, document_id, created_at),
+  KEY idx_contract_review_status (status, updated_at)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COMMENT='合同审阅主表';
 
--- 注意：短期记忆不落 ES，仅用于对话上下文与消息列表缓存（Redis -> MySQL）。
--- 删除语义：先删 MySQL 再删 Redis，保持最终一致性。
+CREATE TABLE IF NOT EXISTS contract_review_field (
+  field_id BIGINT NOT NULL AUTO_INCREMENT COMMENT '字段结果主键ID',
+  review_id BIGINT NOT NULL COMMENT '所属审阅记录ID',
+  field_code VARCHAR(64) NOT NULL COMMENT '字段编码',
+  field_name VARCHAR(128) NOT NULL COMMENT '字段名称',
+  raw_value TEXT DEFAULT NULL COMMENT '原始抽取值',
+  normalized_value VARCHAR(512) DEFAULT NULL COMMENT '归一化字段值',
+  status VARCHAR(16) NOT NULL COMMENT '字段抽取状态（EXTRACTED/MISSING/UNCERTAIN）',
+  confidence DECIMAL(5,4) DEFAULT NULL COMMENT '抽取置信度',
+  evidence_text MEDIUMTEXT DEFAULT NULL COMMENT '字段证据片段',
+  source_chunk_ref VARCHAR(128) DEFAULT NULL COMMENT '来源切片引用',
+  extractor_type VARCHAR(32) DEFAULT NULL COMMENT '抽取器类型',
+  field_order INT NOT NULL DEFAULT 0 COMMENT '字段展示顺序',
+  group_key VARCHAR(64) DEFAULT NULL COMMENT '多值字段分组键',
+  explanation VARCHAR(500) DEFAULT NULL COMMENT '字段解释说明',
+  created_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP COMMENT '创建时间',
+  PRIMARY KEY (field_id),
+  KEY idx_contract_field_review (review_id, field_code, field_order)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COMMENT='合同审阅字段结果表';
 
--- 如需扩展：可增加 memory_knowledge_candidate（外挂知识候选）等表。
+CREATE TABLE IF NOT EXISTS contract_risk_item (
+  risk_id BIGINT NOT NULL AUTO_INCREMENT COMMENT '风险项主键ID',
+  review_id BIGINT NOT NULL COMMENT '所属审阅记录ID',
+  rule_code VARCHAR(64) NOT NULL COMMENT '规则编码',
+  rule_name VARCHAR(128) NOT NULL COMMENT '规则名称',
+  rule_type VARCHAR(32) NOT NULL COMMENT '规则类型',
+  severity VARCHAR(16) NOT NULL COMMENT '风险严重级别',
+  execution_status VARCHAR(16) NOT NULL COMMENT '规则执行状态（HIT/PASSED/SKIPPED）',
+  message VARCHAR(1000) NOT NULL COMMENT '风险说明信息',
+  evidence_text MEDIUMTEXT DEFAULT NULL COMMENT '风险证据片段',
+  affected_field_codes VARCHAR(255) DEFAULT NULL COMMENT '受影响字段编码列表',
+  created_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP COMMENT '创建时间',
+  PRIMARY KEY (risk_id),
+  KEY idx_contract_risk_review (review_id, severity, created_at)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COMMENT='合同风险项表';
 
--- --------------------
--- End of schema
+CREATE TABLE IF NOT EXISTS contract_review_task (
+  id BIGINT NOT NULL AUTO_INCREMENT COMMENT '异步任务主键ID',
+  tenant_id BIGINT NOT NULL COMMENT '租户ID',
+  review_id BIGINT NOT NULL COMMENT '合同审阅记录ID',
+  document_id BIGINT NOT NULL COMMENT '文档ID',
+  doc_version INT NOT NULL COMMENT '文档版本号',
+  status VARCHAR(16) NOT NULL DEFAULT 'PENDING' COMMENT '任务状态（PENDING/PROCESSING/DONE/FAILED）',
+  retry_count INT NOT NULL DEFAULT 0 COMMENT '重试次数',
+  next_retry_at DATETIME DEFAULT NULL COMMENT '下次重试时间',
+  last_error VARCHAR(1000) DEFAULT NULL COMMENT '最近失败原因',
+  created_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP COMMENT '创建时间',
+  updated_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP COMMENT '更新时间',
+  PRIMARY KEY (id),
+  UNIQUE KEY uk_contract_review_task_review (review_id),
+  KEY idx_contract_review_task_status (status, next_retry_at)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COMMENT='合同审阅异步任务表';
+
+CREATE TABLE IF NOT EXISTS contract_rule_definition (
+  rule_id BIGINT NOT NULL AUTO_INCREMENT COMMENT '规则定义主键ID',
+  tenant_id BIGINT NOT NULL DEFAULT 0 COMMENT '规则所属租户ID，0表示默认规则',
+  rule_code VARCHAR(64) NOT NULL COMMENT '规则编码',
+  rule_name VARCHAR(128) NOT NULL COMMENT '规则名称',
+  rule_type VARCHAR(32) NOT NULL COMMENT '规则类型（含 DOCUMENT_RETRIEVAL 检索型规则）',
+  rule_source_type VARCHAR(32) NOT NULL DEFAULT 'STRUCTURED' COMMENT '规则来源类型（STRUCTURED/MANUAL_TEXT/IMPORTED_DOCUMENT）',
+  field_code VARCHAR(64) DEFAULT NULL COMMENT '关联字段编码',
+  document_id BIGINT DEFAULT NULL COMMENT '关联的风险规则文档ID',
+  severity VARCHAR(16) NOT NULL COMMENT '命中后的严重级别',
+  enabled TINYINT(1) NOT NULL DEFAULT 1 COMMENT '是否启用',
+  hit_threshold DECIMAL(6,4) DEFAULT NULL COMMENT '检索型规则命中阈值',
+  rule_content MEDIUMTEXT DEFAULT NULL COMMENT '手工录入的规则原文',
+  rule_params VARCHAR(1000) DEFAULT NULL COMMENT '规则参数JSON',
+  sort_order INT NOT NULL DEFAULT 0 COMMENT '规则排序',
+  created_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP COMMENT '创建时间',
+  updated_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP COMMENT '更新时间',
+  PRIMARY KEY (rule_id),
+  UNIQUE KEY uk_contract_rule_tenant_code (tenant_id, rule_code),
+  KEY idx_contract_rule_enabled (tenant_id, enabled, sort_order),
+  KEY idx_contract_rule_document (tenant_id, rule_source_type, enabled, document_id)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COMMENT='合同规则定义表';
+
+INSERT INTO contract_field_definition (tenant_id, field_code, field_name, extractor_kind, pattern_expr, keyword_config, repeatable, deduplicate_by_normalized, enabled, sort_order, description)
+SELECT 0, 'party_a', '甲方', 'PARTY_PATTERN', '(?:甲方|采购方|发包方|委托方)\\s*[：:]\\s*([^\\n，。,；;]{2,40})', NULL, 0, 1, 1, 10, '抽取合同甲方主体'
+WHERE NOT EXISTS (
+  SELECT 1 FROM contract_field_definition WHERE tenant_id = 0 AND field_code = 'party_a'
+);
+
+INSERT INTO contract_field_definition (tenant_id, field_code, field_name, extractor_kind, pattern_expr, keyword_config, repeatable, deduplicate_by_normalized, enabled, sort_order, description)
+SELECT 0, 'party_b', '乙方', 'PARTY_PATTERN', '(?:乙方|供应商|承包方|受托方)\\s*[：:]\\s*([^\\n，。,；;]{2,40})', NULL, 0, 1, 1, 20, '抽取合同乙方主体'
+WHERE NOT EXISTS (
+  SELECT 1 FROM contract_field_definition WHERE tenant_id = 0 AND field_code = 'party_b'
+);
+
+INSERT INTO contract_field_definition (tenant_id, field_code, field_name, extractor_kind, pattern_expr, keyword_config, repeatable, deduplicate_by_normalized, enabled, sort_order, description)
+SELECT 0, 'contract_amount', '合同金额', 'AMOUNT_PATTERN', '((?:人民币)?\\s*[0-9]{1,3}(?:,[0-9]{3})*(?:\\.[0-9]{1,2})?|(?:人民币)?\\s*[0-9]+(?:\\.[0-9]{1,2})?)\\s*(万元|元)', NULL, 1, 1, 1, 30, '抽取合同金额并进行归一化'
+WHERE NOT EXISTS (
+  SELECT 1 FROM contract_field_definition WHERE tenant_id = 0 AND field_code = 'contract_amount'
+);
+
+INSERT INTO contract_field_definition (tenant_id, field_code, field_name, extractor_kind, pattern_expr, keyword_config, repeatable, deduplicate_by_normalized, enabled, sort_order, description)
+SELECT 0, 'effective_date', '生效日期', 'DATE_KEYWORD', '(20\\d{2})[年/.-](0?[1-9]|1[0-2])[月/.-](0?[1-9]|[12]\\d|3[01])日?', '生效日期\n签订日期\n签署日期\n合同日期', 0, 1, 1, 40, '结合关键字抽取合同生效日期'
+WHERE NOT EXISTS (
+  SELECT 1 FROM contract_field_definition WHERE tenant_id = 0 AND field_code = 'effective_date'
+);
+
+INSERT INTO contract_field_definition (tenant_id, field_code, field_name, extractor_kind, pattern_expr, keyword_config, repeatable, deduplicate_by_normalized, enabled, sort_order, description)
+SELECT 0, 'payment_date', '付款日期', 'DATE_KEYWORD', '(20\\d{2})[年/.-](0?[1-9]|1[0-2])[月/.-](0?[1-9]|[12]\\d|3[01])日?', '付款日期\n支付日期\n结算日期\n报销日期\n付款时间', 1, 0, 1, 50, '结合关键字抽取付款或结算日期'
+WHERE NOT EXISTS (
+  SELECT 1 FROM contract_field_definition WHERE tenant_id = 0 AND field_code = 'payment_date'
+);
+
+INSERT INTO contract_field_definition (tenant_id, field_code, field_name, extractor_kind, pattern_expr, keyword_config, repeatable, deduplicate_by_normalized, enabled, sort_order, description)
+SELECT 0, 'liability_clause', '责任条款', 'KEYWORD_LINE', NULL, '违约责任\n责任承担\n赔偿责任\n承担责任\n免责', 1, 0, 1, 60, '抽取责任承担与免责相关条款'
+WHERE NOT EXISTS (
+  SELECT 1 FROM contract_field_definition WHERE tenant_id = 0 AND field_code = 'liability_clause'
+);
+
+INSERT INTO contract_field_definition (tenant_id, field_code, field_name, extractor_kind, pattern_expr, keyword_config, repeatable, deduplicate_by_normalized, enabled, sort_order, description)
+SELECT 0, 'reimbursement_item', '报销项目', 'KEYWORD_LINE', NULL, '报销\n费用\n差旅\n交通\n住宿\n发票', 1, 0, 1, 70, '抽取报销、费用与票据相关字段'
+WHERE NOT EXISTS (
+  SELECT 1 FROM contract_field_definition WHERE tenant_id = 0 AND field_code = 'reimbursement_item'
+);
+
+INSERT INTO contract_rule_definition (tenant_id, rule_code, rule_name, rule_type, field_code, severity, enabled, rule_params, sort_order)
+SELECT 0, 'REQUIRED_PARTY_A', '甲方必填', 'REQUIRED_FIELD', 'party_a', 'HIGH', 1, NULL, 10
+WHERE NOT EXISTS (
+  SELECT 1 FROM contract_rule_definition WHERE tenant_id = 0 AND rule_code = 'REQUIRED_PARTY_A'
+);
+
+INSERT INTO contract_rule_definition (tenant_id, rule_code, rule_name, rule_type, field_code, severity, enabled, rule_params, sort_order)
+SELECT 0, 'REQUIRED_PARTY_B', '乙方必填', 'REQUIRED_FIELD', 'party_b', 'HIGH', 1, NULL, 20
+WHERE NOT EXISTS (
+  SELECT 1 FROM contract_rule_definition WHERE tenant_id = 0 AND rule_code = 'REQUIRED_PARTY_B'
+);
+
+INSERT INTO contract_rule_definition (tenant_id, rule_code, rule_name, rule_type, field_code, severity, enabled, rule_params, sort_order)
+SELECT 0, 'REQUIRED_CONTRACT_AMOUNT', '合同金额必填', 'REQUIRED_FIELD', 'contract_amount', 'HIGH', 1, NULL, 30
+WHERE NOT EXISTS (
+  SELECT 1 FROM contract_rule_definition WHERE tenant_id = 0 AND rule_code = 'REQUIRED_CONTRACT_AMOUNT'
+);
+
+INSERT INTO contract_rule_definition (tenant_id, rule_code, rule_name, rule_type, field_code, severity, enabled, rule_params, sort_order)
+SELECT 0, 'REQUIRED_EFFECTIVE_DATE', '生效日期必填', 'REQUIRED_FIELD', 'effective_date', 'MEDIUM', 1, NULL, 40
+WHERE NOT EXISTS (
+  SELECT 1 FROM contract_rule_definition WHERE tenant_id = 0 AND rule_code = 'REQUIRED_EFFECTIVE_DATE'
+);
+
+INSERT INTO contract_rule_definition (tenant_id, rule_code, rule_name, rule_type, field_code, severity, enabled, rule_params, sort_order)
+SELECT 0, 'AMOUNT_CONSISTENCY', '金额一致性校验', 'AMOUNT_CONSISTENCY', 'contract_amount', 'HIGH', 1, NULL, 50
+WHERE NOT EXISTS (
+  SELECT 1 FROM contract_rule_definition WHERE tenant_id = 0 AND rule_code = 'AMOUNT_CONSISTENCY'
+);
+
+INSERT INTO contract_rule_definition (tenant_id, rule_code, rule_name, rule_type, field_code, severity, enabled, rule_params, sort_order)
+SELECT 0, 'DATE_ORDER', '日期顺序校验', 'DATE_ORDER', 'payment_date', 'MEDIUM', 1, '{"leftField":"effective_date","rightField":"payment_date"}', 60
+WHERE NOT EXISTS (
+  SELECT 1 FROM contract_rule_definition WHERE tenant_id = 0 AND rule_code = 'DATE_ORDER'
+);
+
+INSERT INTO contract_rule_definition (tenant_id, rule_code, rule_name, rule_type, field_code, severity, enabled, rule_params, sort_order)
+SELECT 0, 'AMOUNT_THRESHOLD', '金额阈值校验', 'AMOUNT_THRESHOLD', 'contract_amount', 'MEDIUM', 1, '{"maxAmount":"1000000"}', 70
+WHERE NOT EXISTS (
+  SELECT 1 FROM contract_rule_definition WHERE tenant_id = 0 AND rule_code = 'AMOUNT_THRESHOLD'
+);
+
+INSERT INTO contract_rule_definition (tenant_id, rule_code, rule_name, rule_type, field_code, severity, enabled, rule_params, sort_order)
+SELECT 0, 'LIABILITY_CONFLICT', '责任条款冲突校验', 'LIABILITY_CONFLICT', 'liability_clause', 'HIGH', 1, NULL, 80
+WHERE NOT EXISTS (
+  SELECT 1 FROM contract_rule_definition WHERE tenant_id = 0 AND rule_code = 'LIABILITY_CONFLICT'
+);
 -- --------------------
 
 --

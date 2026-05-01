@@ -10,6 +10,8 @@
         <RouterLink to="/chat" class="menu-link">问答</RouterLink>
         <RouterLink to="/sessions" class="menu-link">会话</RouterLink>
         <RouterLink v-if="isAdmin" to="/knowledge" class="menu-link">知识库</RouterLink>
+        <RouterLink v-if="isAdmin" to="/risk-rules" class="menu-link">风险规则</RouterLink>
+        <RouterLink v-if="isAdmin" to="/tianyan" class="menu-link">天眼审查</RouterLink>
       </nav>
       <div class="identity">
         <span>{{ displayName }}</span>

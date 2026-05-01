@@ -2,8 +2,11 @@ package com.legal.knowledge.service;
 
 import com.baomidou.mybatisplus.core.conditions.query.LambdaQueryWrapper;
 import com.legal.common.AppException;
-import com.legal.knowledge.dto.CreateDocumentRequest;
-import com.legal.knowledge.dto.ChunkDto;
+import com.legal.enums.KbDocumentBizType;
+import com.legal.enums.KbDocumentStatus;
+import com.legal.enums.KbIndexStatus;
+import com.legal.enums.KbOutboxOp;
+import com.legal.enums.KbOutboxStatus;
 import com.legal.knowledge.dto.DocumentDto;
 import com.legal.knowledge.entity.KbChunkEntity;
 import com.legal.knowledge.entity.KbDocumentEntity;
@@ -11,11 +14,6 @@ import com.legal.knowledge.entity.KbIndexOutboxEntity;
 import com.legal.knowledge.mapper.KbChunkMapper;
 import com.legal.knowledge.mapper.KbDocumentMapper;
 import com.legal.knowledge.mapper.KbIndexOutboxMapper;
-import com.legal.enums.KbDocumentStatus;
-import com.legal.enums.KbDocumentBizType;
-import com.legal.enums.KbIndexStatus;
-import com.legal.enums.KbOutboxOp;
-import com.legal.enums.KbOutboxStatus;
 import com.legal.retrieval.service.ElasticsearchChunkStore;
 import com.legal.security.AuthPrincipal;
 import com.legal.security.IdempotencyService;
@@ -29,12 +27,9 @@ import java.security.MessageDigest;
 import java.security.NoSuchAlgorithmException;
 import java.time.LocalDateTime;
 import java.util.List;
-import java.util.Map;
-
-import static java.util.stream.Collectors.toList;
 
 @Service
-public class KnowledgeService {
+public class RiskRuleDocumentService {
 
     private final KbDocumentMapper kbDocumentMapper;
     private final KbChunkMapper kbChunkMapper;
@@ -44,13 +39,13 @@ public class KnowledgeService {
     private final DocumentChunker documentChunker;
     private final ElasticsearchChunkStore elasticsearchChunkStore;
 
-    public KnowledgeService(KbDocumentMapper kbDocumentMapper,
-                            KbChunkMapper kbChunkMapper,
-                            KbIndexOutboxMapper kbIndexOutboxMapper,
-                            IdempotencyService idempotencyService,
-                            DocumentTextExtractor documentTextExtractor,
-                            DocumentChunker documentChunker,
-                            ElasticsearchChunkStore elasticsearchChunkStore) {
+    public RiskRuleDocumentService(KbDocumentMapper kbDocumentMapper,
+                                   KbChunkMapper kbChunkMapper,
+                                   KbIndexOutboxMapper kbIndexOutboxMapper,
+                                   IdempotencyService idempotencyService,
+                                   DocumentTextExtractor documentTextExtractor,
+                                   DocumentChunker documentChunker,
+                                   ElasticsearchChunkStore elasticsearchChunkStore) {
         this.kbDocumentMapper = kbDocumentMapper;
         this.kbChunkMapper = kbChunkMapper;
         this.kbIndexOutboxMapper = kbIndexOutboxMapper;
@@ -58,24 +53,6 @@ public class KnowledgeService {
         this.documentTextExtractor = documentTextExtractor;
         this.documentChunker = documentChunker;
         this.elasticsearchChunkStore = elasticsearchChunkStore;
-    }
-
-    @Transactional
-    public DocumentDto createDocument(AuthPrincipal principal, CreateDocumentRequest request) {
-        idempotencyService.ensureUnique(principal, "knowledge:create-document", request.getRequestId());
-        KbDocumentEntity entity = new KbDocumentEntity();
-        entity.setTenantId(principal.tenantId());
-        entity.setOwnerUserId(principal.userId());
-        entity.setTitle(request.getTitle());
-        entity.setSource(request.getSource());
-        entity.setBizType(KbDocumentBizType.KNOWLEDGE);
-        entity.setStatus(KbDocumentStatus.PENDING);
-        entity.setDocVersion(1);
-        entity.setIndexStatus(KbIndexStatus.PENDING);
-        entity.setCreatedAt(LocalDateTime.now());
-        entity.setUpdatedAt(LocalDateTime.now());
-        kbDocumentMapper.insert(entity);
-        return toDto(entity);
     }
 
     @Transactional
@@ -87,11 +64,11 @@ public class KnowledgeService {
                                       Integer chunkSize,
                                       Integer chunkOverlap) {
         ensureElasticsearchEnabled();
-        idempotencyService.ensureUnique(principal, "knowledge:import-document", requestId);
+        idempotencyService.ensureUnique(principal, "risk-rule:import-document", requestId);
         String extractedText = documentTextExtractor.extract(file);
         List<String> chunks = buildChunks(extractedText, chunkSize, chunkOverlap);
         if (chunks.isEmpty()) {
-            throw AppException.badRequest("文档内容过短，无法生成可检索切片");
+            throw AppException.badRequest("文档内容过短，无法生成风险规则切片");
         }
 
         String originalName = file.getOriginalFilename();
@@ -104,7 +81,7 @@ public class KnowledgeService {
         document.setOwnerUserId(principal.userId());
         document.setTitle(documentTitle);
         document.setSource(documentSource);
-        document.setBizType(KbDocumentBizType.KNOWLEDGE);
+        document.setBizType(KbDocumentBizType.RISK_RULE);
         document.setStatus(KbDocumentStatus.PROCESSING);
         document.setDocVersion(1);
         document.setIndexStatus(KbIndexStatus.PENDING);
@@ -117,15 +94,44 @@ public class KnowledgeService {
         return toDto(document);
     }
 
-    private List<String> buildChunks(String extractedText, Integer chunkSize, Integer chunkOverlap) {
-        if (chunkSize == null) {
-            return documentChunker.chunk(extractedText);
+    @Transactional
+    public DocumentDto createManualDocument(AuthPrincipal principal,
+                                            String requestId,
+                                            String content,
+                                            String title,
+                                            String source,
+                                            Integer chunkSize,
+                                            Integer chunkOverlap) {
+        ensureElasticsearchEnabled();
+        idempotencyService.ensureUnique(principal, "risk-rule:create-manual-document", requestId);
+        if (!StringUtils.hasText(content)) {
+            throw AppException.badRequest("手工录入的风险规则内容不能为空");
         }
-        if (chunkOverlap == null) {
-            int overlap = (int) Math.round(chunkSize * 0.15d);
-            return documentChunker.chunk(extractedText, chunkSize, overlap);
+        List<String> chunks = buildChunks(content.trim(), chunkSize, chunkOverlap);
+        if (chunks.isEmpty()) {
+            throw AppException.badRequest("风险规则内容过短，无法生成切片");
         }
-        return documentChunker.chunk(extractedText, chunkSize, chunkOverlap);
+
+        String documentTitle = StringUtils.hasText(title) ? title.trim() : "手工风险规则";
+        String documentSource = StringUtils.hasText(source) ? source.trim() : "手工录入";
+        LocalDateTime now = LocalDateTime.now();
+
+        KbDocumentEntity document = new KbDocumentEntity();
+        document.setTenantId(principal.tenantId());
+        document.setOwnerUserId(principal.userId());
+        document.setTitle(documentTitle);
+        document.setSource(documentSource);
+        document.setBizType(KbDocumentBizType.RISK_RULE);
+        document.setStatus(KbDocumentStatus.PROCESSING);
+        document.setDocVersion(1);
+        document.setIndexStatus(KbIndexStatus.PENDING);
+        document.setCreatedAt(now);
+        document.setUpdatedAt(now);
+        kbDocumentMapper.insert(document);
+
+        persistChunks(principal.tenantId(), document.getDocumentId(), 1, chunks, now);
+        enqueueOutbox(principal.tenantId(), document.getDocumentId(), 1, KbOutboxOp.UPSERT, now);
+        return toDto(document);
     }
 
     public List<DocumentDto> listDocuments(AuthPrincipal principal) {
@@ -133,7 +139,7 @@ public class KnowledgeService {
                         new LambdaQueryWrapper<KbDocumentEntity>()
                                 .eq(KbDocumentEntity::getTenantId, principal.tenantId())
                                 .eq(KbDocumentEntity::getOwnerUserId, principal.userId())
-                                .eq(KbDocumentEntity::getBizType, KbDocumentBizType.KNOWLEDGE)
+                                .eq(KbDocumentEntity::getBizType, KbDocumentBizType.RISK_RULE)
                                 .ne(KbDocumentEntity::getStatus, KbDocumentStatus.DELETED)
                                 .orderByDesc(KbDocumentEntity::getUpdatedAt)
                 ).stream()
@@ -141,74 +147,10 @@ public class KnowledgeService {
                 .toList();
     }
 
-    public List<ChunkDto> listChunks(AuthPrincipal principal, Long documentId) {
-        KbDocumentEntity document = requireDocument(principal, documentId);
-        return kbChunkMapper.selectByDocVersion(principal.tenantId(), documentId, document.getDocVersion())
-                .stream()
-                .map(chunk -> {
-                    ChunkDto dto = new ChunkDto();
-                    dto.setChunkId(chunk.getChunkId());
-                    dto.setChunkOrder(chunk.getChunkOrder());
-                    dto.setContent(chunk.getContent());
-                    return dto;
-                })
-                .collect(toList());
-    }
-
-    @Transactional
-    public Map<String, Object> resetForEvaluation(AuthPrincipal principal, boolean purgeDb) {
-        ensureElasticsearchEnabled();
-        elasticsearchChunkStore.deleteKbChunksIndex();
-        if (purgeDb) {
-            List<Long> knowledgeDocumentIds = kbDocumentMapper.selectList(
-                            new LambdaQueryWrapper<KbDocumentEntity>()
-                                    .select(KbDocumentEntity::getDocumentId)
-                                    .eq(KbDocumentEntity::getTenantId, principal.tenantId())
-                                    .eq(KbDocumentEntity::getOwnerUserId, principal.userId())
-                                    .eq(KbDocumentEntity::getBizType, KbDocumentBizType.KNOWLEDGE)
-                    ).stream()
-                    .map(KbDocumentEntity::getDocumentId)
-                    .toList();
-            if (knowledgeDocumentIds.isEmpty()) {
-                return Map.of(
-                        "indexDeleted", true,
-                        "purgeDb", true,
-                        "deletedDocuments", 0,
-                        "deletedChunks", 0,
-                        "deletedOutbox", 0
-                );
-            }
-            int deletedOutbox = kbIndexOutboxMapper.delete(
-                    new LambdaQueryWrapper<KbIndexOutboxEntity>()
-                            .eq(KbIndexOutboxEntity::getTenantId, principal.tenantId())
-                            .in(!knowledgeDocumentIds.isEmpty(), KbIndexOutboxEntity::getDocumentId, knowledgeDocumentIds)
-            );
-            int deletedChunks = kbChunkMapper.delete(
-                    new LambdaQueryWrapper<KbChunkEntity>()
-                            .eq(KbChunkEntity::getTenantId, principal.tenantId())
-                            .in(!knowledgeDocumentIds.isEmpty(), KbChunkEntity::getDocumentId, knowledgeDocumentIds)
-            );
-            int deletedDocuments = kbDocumentMapper.delete(
-                    new LambdaQueryWrapper<KbDocumentEntity>()
-                            .eq(KbDocumentEntity::getTenantId, principal.tenantId())
-                            .eq(KbDocumentEntity::getOwnerUserId, principal.userId())
-                            .eq(KbDocumentEntity::getBizType, KbDocumentBizType.KNOWLEDGE)
-            );
-            return Map.of(
-                    "indexDeleted", true,
-                    "purgeDb", true,
-                    "deletedDocuments", deletedDocuments,
-                    "deletedChunks", deletedChunks,
-                    "deletedOutbox", deletedOutbox
-            );
-        }
-        return Map.of("indexDeleted", true, "purgeDb", false);
-    }
-
     @Transactional
     public DocumentDto triggerIndex(AuthPrincipal principal, Long documentId, String requestId) {
         ensureElasticsearchEnabled();
-        idempotencyService.ensureUnique(principal, "knowledge:trigger-index", requestId);
+        idempotencyService.ensureUnique(principal, "risk-rule:trigger-index", requestId);
         KbDocumentEntity document = requireDocument(principal, documentId);
         if (document.getStatus() == KbDocumentStatus.DELETED) {
             throw AppException.badRequest("已删除文档无法触发索引");
@@ -234,7 +176,7 @@ public class KnowledgeService {
     @Transactional
     public DocumentDto deleteDocument(AuthPrincipal principal, Long documentId, String requestId) {
         ensureElasticsearchEnabled();
-        idempotencyService.ensureUnique(principal, "knowledge:delete-document", requestId);
+        idempotencyService.ensureUnique(principal, "risk-rule:delete-document", requestId);
         KbDocumentEntity document = requireDocument(principal, documentId);
         if (document.getStatus() == KbDocumentStatus.DELETED) {
             return toDto(document);
@@ -249,6 +191,38 @@ public class KnowledgeService {
 
         enqueueOutbox(principal.tenantId(), documentId, nextVersion, KbOutboxOp.DELETE, LocalDateTime.now());
         return toDto(document);
+    }
+
+    private KbDocumentEntity requireDocument(AuthPrincipal principal, Long documentId) {
+        KbDocumentEntity document = kbDocumentMapper.selectOne(
+                new LambdaQueryWrapper<KbDocumentEntity>()
+                        .eq(KbDocumentEntity::getDocumentId, documentId)
+                        .eq(KbDocumentEntity::getTenantId, principal.tenantId())
+                        .eq(KbDocumentEntity::getOwnerUserId, principal.userId())
+                        .eq(KbDocumentEntity::getBizType, KbDocumentBizType.RISK_RULE)
+                        .last("limit 1")
+        );
+        if (document == null) {
+            throw AppException.notFound("风险规则文档不存在");
+        }
+        return document;
+    }
+
+    private void ensureElasticsearchEnabled() {
+        if (!elasticsearchChunkStore.isEnabled()) {
+            throw AppException.badRequest("当前环境未启用 Elasticsearch，无法执行风险规则索引相关操作");
+        }
+    }
+
+    private List<String> buildChunks(String extractedText, Integer chunkSize, Integer chunkOverlap) {
+        if (chunkSize == null) {
+            return documentChunker.chunk(extractedText);
+        }
+        if (chunkOverlap == null) {
+            int overlap = (int) Math.round(chunkSize * 0.15d);
+            return documentChunker.chunk(extractedText, chunkSize, overlap);
+        }
+        return documentChunker.chunk(extractedText, chunkSize, chunkOverlap);
     }
 
     private void persistChunks(Long tenantId,
@@ -288,30 +262,9 @@ public class KnowledgeService {
         kbIndexOutboxMapper.insert(outbox);
     }
 
-    private KbDocumentEntity requireDocument(AuthPrincipal principal, Long documentId) {
-        KbDocumentEntity document = kbDocumentMapper.selectOne(
-                new LambdaQueryWrapper<KbDocumentEntity>()
-                        .eq(KbDocumentEntity::getDocumentId, documentId)
-                        .eq(KbDocumentEntity::getTenantId, principal.tenantId())
-                        .eq(KbDocumentEntity::getOwnerUserId, principal.userId())
-                        .eq(KbDocumentEntity::getBizType, KbDocumentBizType.KNOWLEDGE)
-                        .last("limit 1")
-        );
-        if (document == null) {
-            throw AppException.notFound("文档不存在");
-        }
-        return document;
-    }
-
-    private void ensureElasticsearchEnabled() {
-        if (!elasticsearchChunkStore.isEnabled()) {
-            throw AppException.badRequest("当前环境未启用 Elasticsearch，无法执行索引相关操作");
-        }
-    }
-
     private String fallbackTitle(String fileName) {
         if (!StringUtils.hasText(fileName)) {
-            return "未命名文档";
+            return "未命名风险规则文档";
         }
         int dot = fileName.lastIndexOf('.');
         if (dot <= 0) {

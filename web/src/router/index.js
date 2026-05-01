@@ -4,6 +4,9 @@ import LoginView from '../views/LoginView.vue';
 import ChatView from '../views/ChatView.vue';
 import SessionsView from '../views/SessionsView.vue';
 import KnowledgeView from '../views/KnowledgeView.vue';
+import RiskRuleView from '../views/RiskRuleView.vue';
+import TianyanView from '../views/TianyanView.vue';
+import ContractReviewView from '../views/ContractReviewView.vue';
 const router = createRouter({
     history: createWebHistory(),
     routes: [
@@ -17,6 +20,9 @@ const router = createRouter({
         { path: '/chat', component: ChatView },
         { path: '/sessions', component: SessionsView },
         { path: '/knowledge', component: KnowledgeView, meta: { adminOnly: true } },
+        { path: '/risk-rules', component: RiskRuleView, meta: { adminOnly: true } },
+        { path: '/tianyan', component: TianyanView, meta: { adminOnly: true } },
+        { path: '/tianyan/reviews/:documentId', component: ContractReviewView, meta: { adminOnly: true } },
     ],
     scrollBehavior() {
         return { top: 0 };

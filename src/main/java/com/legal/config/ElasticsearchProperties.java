@@ -35,8 +35,13 @@ public class ElasticsearchProperties {
     @Data
     public static class Index {
 
+        /** 知识库文档切片索引名称。 */
         private String kbChunks = "legal_kb_chunks_v1";
+        /** 风险规则文档切片索引名称。 */
+        private String riskRule = "legal_risk_rule";
+        /** 用户外挂知识索引名称。 */
         private String userKnowledge = "legal_kb_user_knowledge";
+        /** 向量维度。 */
         private int vectorDims = 1024;
     }
 

@@ -3,6 +3,7 @@ package com.legal.knowledge.entity;
 import com.baomidou.mybatisplus.annotation.IdType;
 import com.baomidou.mybatisplus.annotation.TableId;
 import com.baomidou.mybatisplus.annotation.TableName;
+import com.legal.enums.KbDocumentBizType;
 import com.legal.enums.KbDocumentStatus;
 import com.legal.enums.KbIndexStatus;
 import lombok.Data;
@@ -27,6 +28,8 @@ public class KbDocumentEntity {
     private String title;
     /** 文档来源。 */
     private String source;
+    /** 文档业务类型（知识库/风险规则/天眼审查）。 */
+    private KbDocumentBizType bizType;
     /** 文档状态（PENDING/PROCESSING/DELETED）。 */
 	private KbDocumentStatus status;
     /** 文档版本号。 */

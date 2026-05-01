@@ -118,6 +118,39 @@ legal:
       max-retries: ${LEGAL_MEMORY_WORKER_MAX_RETRIES:5}
       retry-delay-seconds: ${LEGAL_MEMORY_WORKER_RETRY_DELAY_SECONDS:30}
 
+  # 合同审阅与风险识别配置。
+  contract-review:
+    # 合同审阅功能总开关，关闭后不允许触发审阅。
+    enabled: ${LEGAL_CONTRACT_REVIEW_ENABLED:true}
+    # 字段抽取相关配置。
+    extraction:
+      # 单个多值字段最多保留多少条抽取结果。
+      max-repeatable-fields: ${LEGAL_CONTRACT_REVIEW_MAX_REPEATABLE_FIELDS:8}
+      # 单条证据片段最大保留长度，超出会截断。
+      max-evidence-length: ${LEGAL_CONTRACT_REVIEW_MAX_EVIDENCE_LENGTH:180}
+    # 风险规则检索匹配配置。
+    risk-rule-retrieval:
+      # 是否启用导入风险规则的向量命中能力。
+      enabled: ${LEGAL_CONTRACT_REVIEW_RISK_RULE_RETRIEVAL_ENABLED:true}
+      # 单个审查切片最多召回多少条风险规则候选。
+      top-k: ${LEGAL_CONTRACT_REVIEW_RISK_RULE_RETRIEVAL_TOP_K:3}
+      # 向量命中的最小分数阈值。
+      min-score: ${LEGAL_CONTRACT_REVIEW_RISK_RULE_RETRIEVAL_MIN_SCORE:0.78}
+      # 单次审查最多保留多少条导入规则命中结果。
+      max-hits-per-review: ${LEGAL_CONTRACT_REVIEW_RISK_RULE_RETRIEVAL_MAX_HITS_PER_REVIEW:5}
+    # 审阅异步 worker 配置。
+    worker:
+      # 是否启用合同审阅后台任务轮询。
+      enabled: ${LEGAL_CONTRACT_REVIEW_WORKER_ENABLED:true}
+      # worker 轮询待处理任务的时间间隔（毫秒）。
+      poll-interval-ms: ${LEGAL_CONTRACT_REVIEW_WORKER_POLL_INTERVAL_MS:3000}
+      # 每次轮询最多拉取多少条审阅任务。
+      batch-size: ${LEGAL_CONTRACT_REVIEW_WORKER_BATCH_SIZE:10}
+      # 单条审阅任务允许的最大重试次数。
+      max-retries: ${LEGAL_CONTRACT_REVIEW_WORKER_MAX_RETRIES:5}
+      # 审阅任务失败后的重试延迟秒数。
+      retry-delay-seconds: ${LEGAL_CONTRACT_REVIEW_WORKER_RETRY_DELAY_SECONDS:30}
+
 # Elasticsearch 配置（文档向量索引 + 混合检索）。
 elasticsearch:
   enabled: ${LEGAL_ES_ENABLED:true}
@@ -133,7 +166,11 @@ elasticsearch:
   log-requests: ${LEGAL_ES_LOG_REQUESTS:false}
 
   index:
+    # 知识库文档切片索引名称。
     kb-chunks: ${LEGAL_ES_INDEX_KB_CHUNKS:legal_kb_chunks_v1}
+    # 风险规则文档切片索引名称。
+    risk-rule: ${LEGAL_ES_INDEX_RISK_RULE:legal_risk_rule}
+    # 用户外挂知识索引名称。
     user-knowledge: ${LEGAL_ES_INDEX_USER_KNOWLEDGE:legal_kb_user_knowledge}
     retrieval-log: ${LEGAL_ES_INDEX_RETRIEVAL_LOG:legal_retrieval_log_v1}
     vector-dims: ${LEGAL_ES_VECTOR_DIMS:${LEGAL_LLM_EMBEDDING_DIMENSIONS:1024}}

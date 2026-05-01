@@ -21,7 +21,8 @@ import org.springframework.util.StringUtils;
         OpenAiStreamingChatModelProperties.class,
         OpenAiEmbeddingProperties.class,
         ElasticsearchProperties.class,
-        LegalMemoryProperties.class
+        LegalMemoryProperties.class,
+        ContractReviewProperties.class
 })
 public class LangChain4jConfig {
 

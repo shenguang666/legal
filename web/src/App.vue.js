@@ -93,6 +93,36 @@ if (__VLS_ctx.isAdmin) {
     __VLS_11.slots.default;
     var __VLS_11;
 }
+if (__VLS_ctx.isAdmin) {
+    const __VLS_12 = {}.RouterLink;
+    /** @type {[typeof __VLS_components.RouterLink, typeof __VLS_components.RouterLink, ]} */ ;
+    // @ts-ignore
+    const __VLS_13 = __VLS_asFunctionalComponent(__VLS_12, new __VLS_12({
+        to: "/risk-rules",
+        ...{ class: "menu-link" },
+    }));
+    const __VLS_14 = __VLS_13({
+        to: "/risk-rules",
+        ...{ class: "menu-link" },
+    }, ...__VLS_functionalComponentArgsRest(__VLS_13));
+    __VLS_15.slots.default;
+    var __VLS_15;
+}
+if (__VLS_ctx.isAdmin) {
+    const __VLS_16 = {}.RouterLink;
+    /** @type {[typeof __VLS_components.RouterLink, typeof __VLS_components.RouterLink, ]} */ ;
+    // @ts-ignore
+    const __VLS_17 = __VLS_asFunctionalComponent(__VLS_16, new __VLS_16({
+        to: "/tianyan",
+        ...{ class: "menu-link" },
+    }));
+    const __VLS_18 = __VLS_17({
+        to: "/tianyan",
+        ...{ class: "menu-link" },
+    }, ...__VLS_functionalComponentArgsRest(__VLS_17));
+    __VLS_19.slots.default;
+    var __VLS_19;
+}
 __VLS_asFunctionalElement(__VLS_intrinsicElements.div, __VLS_intrinsicElements.div)({
     ...{ class: "identity" },
 });
@@ -111,11 +141,11 @@ __VLS_asFunctionalElement(__VLS_intrinsicElements.button, __VLS_intrinsicElement
 __VLS_asFunctionalElement(__VLS_intrinsicElements.main, __VLS_intrinsicElements.main)({
     ...{ class: "page card" },
 });
-const __VLS_12 = {}.RouterView;
+const __VLS_20 = {}.RouterView;
 /** @type {[typeof __VLS_components.RouterView, ]} */ ;
 // @ts-ignore
-const __VLS_13 = __VLS_asFunctionalComponent(__VLS_12, new __VLS_12({}));
-const __VLS_14 = __VLS_13({}, ...__VLS_functionalComponentArgsRest(__VLS_13));
+const __VLS_21 = __VLS_asFunctionalComponent(__VLS_20, new __VLS_20({}));
+const __VLS_22 = __VLS_21({}, ...__VLS_functionalComponentArgsRest(__VLS_21));
 /** @type {__VLS_StyleScopedClasses['shell']} */ ;
 /** @type {__VLS_StyleScopedClasses['shell-glow']} */ ;
 /** @type {__VLS_StyleScopedClasses['topbar']} */ ;
@@ -123,6 +153,8 @@ const __VLS_14 = __VLS_13({}, ...__VLS_functionalComponentArgsRest(__VLS_13));
 /** @type {__VLS_StyleScopedClasses['eyebrow']} */ ;
 /** @type {__VLS_StyleScopedClasses['brand']} */ ;
 /** @type {__VLS_StyleScopedClasses['menu']} */ ;
+/** @type {__VLS_StyleScopedClasses['menu-link']} */ ;
+/** @type {__VLS_StyleScopedClasses['menu-link']} */ ;
 /** @type {__VLS_StyleScopedClasses['menu-link']} */ ;
 /** @type {__VLS_StyleScopedClasses['menu-link']} */ ;
 /** @type {__VLS_StyleScopedClasses['menu-link']} */ ;

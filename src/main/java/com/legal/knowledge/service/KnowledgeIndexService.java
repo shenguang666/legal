@@ -3,6 +3,7 @@ package com.legal.knowledge.service;
 import com.baomidou.mybatisplus.core.conditions.query.LambdaQueryWrapper;
 import com.legal.common.AppException;
 import com.legal.config.ElasticsearchProperties;
+import com.legal.enums.KbDocumentBizType;
 import com.legal.enums.KbDocumentStatus;
 import com.legal.enums.KbIndexStatus;
 import com.legal.enums.KbOutboxOp;
@@ -78,6 +79,7 @@ public class KnowledgeIndexService {
 
         List<ChunkIndexPayload> payloads = new ArrayList<>(chunks.size());
         String source = document.getTitle() + "（" + document.getSource() + "）";
+        String targetIndex = resolveIndexName(document.getBizType());
         for (KbChunkEntity chunk : chunks) {
             List<Float> vector = embeddingClient.embed(chunk.getContent());
             int expectedDims = elasticsearchProperties.getIndex().getVectorDims();
@@ -98,8 +100,8 @@ public class KnowledgeIndexService {
             ));
         }
 
-        elasticsearchChunkStore.deleteByDocument(task.getTenantId(), task.getDocumentId());
-        elasticsearchChunkStore.upsertChunks(payloads);
+        elasticsearchChunkStore.deleteByDocument(task.getTenantId(), task.getDocumentId(), targetIndex);
+        elasticsearchChunkStore.upsertChunks(payloads, targetIndex);
         document.setStatus(KbDocumentStatus.ACTIVE);
         document.setIndexStatus(KbIndexStatus.COMPLETED);
         document.setUpdatedAt(LocalDateTime.now());
@@ -108,11 +110,11 @@ public class KnowledgeIndexService {
     }
 
     private void processDelete(KbIndexOutboxEntity task) {
-        elasticsearchChunkStore.deleteByDocument(task.getTenantId(), task.getDocumentId());
         KbDocumentEntity document = findDocument(task.getTenantId(), task.getDocumentId());
         if (document == null) {
             return;
         }
+        elasticsearchChunkStore.deleteByDocument(task.getTenantId(), task.getDocumentId(), resolveIndexName(document.getBizType()));
         if (document.getDocVersion() <= task.getDocVersion()) {
             document.setIndexStatus(KbIndexStatus.COMPLETED);
             document.setUpdatedAt(LocalDateTime.now());
@@ -127,5 +129,15 @@ public class KnowledgeIndexService {
                         .eq(KbDocumentEntity::getDocumentId, documentId)
                         .last("limit 1")
         );
+    }
+
+    private String resolveIndexName(KbDocumentBizType bizType) {
+        if (bizType == KbDocumentBizType.RISK_RULE) {
+            return elasticsearchProperties.getIndex().getRiskRule();
+        }
+        if (bizType == KbDocumentBizType.KNOWLEDGE || bizType == null) {
+            return elasticsearchProperties.getIndex().getKbChunks();
+        }
+        throw AppException.badRequest("当前文档类型不支持索引: " + bizType.getCode());
     }
 }
