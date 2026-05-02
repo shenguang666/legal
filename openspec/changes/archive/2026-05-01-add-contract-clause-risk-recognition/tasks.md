@@ -1,26 +1,25 @@
-﻿## 1. Data model and review workflow
+﻿## 1. 数据模型与审阅流程
 
-- [x] 1.1 Extend `src/main/resources/db/schema.sql` with contract review, extracted field, risk item, and review task/rule definition tables.
-- [x] 1.2 Add MyBatis entities, mappers, and enums for contract review status, field status, risk severity, and rule execution state.
-- [x] 1.3 Implement a contract review application service that creates idempotent review runs bound to `documentId` and `docVersion`.
-- [x] 1.4 Implement asynchronous review task dispatching and status transitions for pending, processing, completed, and failed runs.
+- [x] 1.1 扩展 `src/main/resources/db/schema.sql`，新增合同审阅、抽取字段、风险项以及审阅任务/规则定义表。
+- [x] 1.2 增加合同审阅状态、字段状态、风险严重级别和规则执行状态的 MyBatis 实体、Mapper 和枚举。
+- [x] 1.3 实现合同审阅应用服务，创建绑定 `documentId` 和 `docVersion` 的幂等审阅运行记录。
+- [x] 1.4 实现异步审阅任务分发，以及 pending、processing、completed、failed 的状态流转。
 
-## 2. Extraction and validation engine
+## 2. 抽取与校验引擎
 
-- [x] 2.1 Implement a contract field extraction pipeline that outputs field code, normalized value, evidence, confidence, extractor type, and status.
-- [x] 2.2 Support repeatable fields and non-success extraction states for missing or uncertain contract data.
-- [x] 2.3 Implement pluggable enterprise rule validators for required fields, amount consistency, date ordering, and abnormal threshold checks.
-- [x] 2.4 Persist rule hits and generate aggregated risk summaries, key warnings, and overall risk levels for each review.
+- [x] 2.1 实现合同字段抽取流水线，输出字段编码、标准化值、证据、置信度、抽取器类型和状态。
+- [x] 2.2 支持可重复字段，以及缺失或不确定合同数据的非成功抽取状态。
+- [x] 2.3 实现可插拔企业规则校验器，覆盖必填字段、金额一致性、日期顺序和异常阈值检查。
+- [x] 2.4 持久化规则命中，并为每次审阅生成聚合风险摘要、关键警示和总体风险等级。
 
-## 3. APIs and frontend review experience
+## 3. API 与前端审阅体验
 
-- [x] 3.1 Add backend endpoints to trigger a contract review, query review status/detail, and re-run analysis for a newer document version.
-- [x] 3.2 Create a frontend contract risk review view that shows review status, extracted fields, evidence, and risk items.
-- [x] 3.3 Add an entry from the existing knowledge/document management flow so users can start risk review for imported contracts.
+- [x] 3.1 增加后端接口，用于触发合同审阅、查询审阅状态/详情，以及针对新文档版本重新运行分析。
+- [x] 3.2 创建前端合同风险审阅视图，展示审阅状态、抽取字段、证据和风险项。
+- [x] 3.3 从现有知识库/文档管理流程增加入口，使用户可以对已导入合同发起风险审阅。
 
-## 4. Verification and rollout readiness
+## 4. 验证与发布准备
 
-- [x] 4.1 Add backend tests for extraction status handling, validation rule hits, risk aggregation, and review lifecycle transitions.
-- [x] 4.2 Add seed/default rule definitions plus failure logging or observability hooks for review execution.
-- [x] 4.3 Validate the end-to-end flow with sample contracts covering missing fields, inconsistent amounts, and clause conflicts.
-
+- [x] 4.1 增加后端测试，覆盖抽取状态处理、校验规则命中、风险聚合和审阅生命周期状态流转。
+- [x] 4.2 增加种子/默认规则定义，并补充审阅执行失败日志或可观测性钩子。
+- [x] 4.3 使用包含缺失字段、金额不一致和条款冲突的示例合同验证端到端流程。

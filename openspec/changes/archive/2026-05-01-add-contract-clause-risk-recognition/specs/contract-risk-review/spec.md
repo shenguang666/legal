@@ -1,33 +1,33 @@
-﻿## ADDED Requirements
+﻿## 新增需求
 
-### Requirement: Manage the contract review lifecycle
-The system SHALL create and track a contract review record for each triggered analysis request with statuses for pending, processing, completed, and failed execution.
+### 需求：管理合同审阅生命周期
+系统应为每次触发的分析请求创建并追踪合同审阅记录，状态包括待处理、处理中、已完成和失败。
 
-#### Scenario: User starts a contract review
-- **WHEN** a user submits a valid contract review request for an imported document version
-- **THEN** the system creates a contract review record and marks it as pending or processing
-- **THEN** the user can query the current review status by review ID or document ID
+#### 场景：用户开始合同审阅
+- **当** 用户针对已导入文档版本提交有效的合同审阅请求时
+- **则** 系统应创建合同审阅记录，并将其标记为待处理或处理中。
+- **则** 用户可以通过审阅 ID 或文档 ID 查询当前审阅状态。
 
-### Requirement: Aggregate review findings into a risk summary
-The system SHALL aggregate extraction results and validation hits into a review summary that includes overall risk level, total risk count, key warnings, and field coverage information.
+### 需求：聚合审阅发现形成风险摘要
+系统应将抽取结果和校验命中聚合为审阅摘要，摘要包含总体风险等级、风险总数、关键警示和字段覆盖信息。
 
-#### Scenario: Completed review returns a summary
-- **WHEN** contract extraction and rule validation finish successfully
-- **THEN** the system marks the review as completed
-- **THEN** the review detail response includes the overall risk level, summary indicators, extracted fields, and risk items
+#### 场景：已完成审阅返回摘要
+- **当** 合同抽取和规则校验成功完成时
+- **则** 系统应将审阅标记为已完成。
+- **则** 审阅详情响应应包含总体风险等级、摘要指标、抽取字段和风险项。
 
-### Requirement: Support re-run for new document versions or user retries
-The system SHALL allow a contract review to be re-triggered when the underlying document version changes or when a user explicitly requests another analysis run.
+### 需求：支持新文档版本或用户重试时重新运行
+当底层文档版本变化，或用户明确请求重新分析时，系统应允许重新触发合同审阅。
 
-#### Scenario: Document version changes after a previous review
-- **WHEN** a new document version is available for a document that already has a completed review
-- **THEN** the system creates a new review run tied to the latest document version
-- **THEN** previous review results remain queryable for audit and comparison purposes
+#### 场景：上次审阅后文档版本发生变化
+- **当** 已完成审阅的文档出现新版本时
+- **则** 系统应创建绑定最新文档版本的新审阅运行记录。
+- **则** 之前的审阅结果应继续可查询，用于审计和对比。
 
-### Requirement: Surface failed reviews with actionable information
-The system SHALL retain failure status and failure reason when contract review processing cannot complete.
+### 需求：失败审阅提供可操作信息
+当合同审阅处理无法完成时，系统应保留失败状态和失败原因。
 
-#### Scenario: Review processing fails
-- **WHEN** field extraction or rule validation throws a non-recoverable processing error
-- **THEN** the system marks the review as failed
-- **THEN** the review detail response includes a failure reason that helps the user decide whether to retry
+#### 场景：审阅处理失败
+- **当** 字段抽取或规则校验抛出不可恢复的处理错误时
+- **则** 系统应将审阅标记为失败。
+- **则** 审阅详情响应应包含失败原因，帮助用户判断是否重试。

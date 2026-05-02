@@ -46,4 +46,4 @@ web/*.tsbuildinfo
 /tools/
 
 /.claude/
-/openspec/
+/.windsurf/

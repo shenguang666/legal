@@ -5,6 +5,7 @@ import ChatView from '../views/ChatView.vue';
 import SessionsView from '../views/SessionsView.vue';
 import KnowledgeView from '../views/KnowledgeView.vue';
 import RiskRuleView from '../views/RiskRuleView.vue';
+import RagMetricsView from '../views/RagMetricsView.vue';
 import TianyanView from '../views/TianyanView.vue';
 import ContractReviewView from '../views/ContractReviewView.vue';
 const router = createRouter({
@@ -21,6 +22,7 @@ const router = createRouter({
         { path: '/sessions', component: SessionsView },
         { path: '/knowledge', component: KnowledgeView, meta: { adminOnly: true } },
         { path: '/risk-rules', component: RiskRuleView, meta: { adminOnly: true } },
+        { path: '/rag-metrics', component: RagMetricsView, meta: { adminOnly: true } },
         { path: '/tianyan', component: TianyanView, meta: { adminOnly: true } },
         { path: '/tianyan/reviews/:documentId', component: ContractReviewView, meta: { adminOnly: true } },
     ],

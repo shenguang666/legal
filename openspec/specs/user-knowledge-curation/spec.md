@@ -39,3 +39,21 @@ The system SHALL perform duplicate checks on distilled core content before writi
 #### Scenario: Duplicate core content not reinserted
 - **WHEN** a new candidate's core content is substantially the same as existing user knowledge
 - **THEN** the system SHALL avoid creating a duplicate active record and SHALL avoid duplicate Elasticsearch indexing
+
+### Requirement: Reusable retrieval for offline metric evaluation
+The system SHALL expose a reusable retrieval path that can recall TopN candidate documents for a query without invoking answer generation.
+
+#### Scenario: Offline evaluator recalls candidates
+- **WHEN** the retrieval metric evaluator submits a `query_text` and configured TopN value
+- **THEN** the system SHALL return candidate documents from the RAG retrieval layer without generating a chat answer
+
+#### Scenario: Candidate recall respects tenant scope
+- **WHEN** the evaluator recalls candidates for a tenant-specific retrieval log
+- **THEN** the system SHALL only return candidate documents visible to that tenant
+
+### Requirement: Retrieval candidate identity consistency
+The system SHALL return stable document or chunk identifiers in offline candidate recall results so that candidates can be compared with original hit documents from `retrieval_log`.
+
+#### Scenario: Candidate is compared with original hits
+- **WHEN** the evaluator receives TopN candidates and original hit documents
+- **THEN** the system SHALL compare them using stable identifiers instead of document text only

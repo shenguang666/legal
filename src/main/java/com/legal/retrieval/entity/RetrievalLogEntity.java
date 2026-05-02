@@ -32,6 +32,16 @@ public class RetrievalLogEntity {
     private String modelName;
     /** 检索耗时（毫秒）。 */
     private Integer latencyMs;
+    /** RAG 指标扫描状态。 */
+    private String ragMetricScanStatus;
+    /** RAG 指标最近扫描完成时间。 */
+    private LocalDateTime ragMetricScannedAt;
+    /** RAG 指标日汇总记录ID。 */
+    private Long ragMetricSummaryId;
+    /** RAG 指标扫描失败后的重试次数。 */
+    private Integer ragMetricRetryCount;
+    /** RAG 指标扫描失败或过滤原因。 */
+    private String ragMetricErrorMessage;
     /** 创建时间。 */
     private LocalDateTime createdAt;
 }

@@ -46,23 +46,19 @@ public class ElasticsearchHybridChunkRetriever implements ChunkRetriever {
         int fetchK = Math.max(1, Math.max(topK, 20));
         double minSimilarity = ragProperties.getMinVectorSimilarity();
         // 注意：hybridSearchRrf 内部会做向量阈值过滤，并用 rrfMerge 合并后再截断。
-        List<ChunkSearchHit> filtered = elasticsearchChunkStore.hybridSearchRrf(tenantId, question, queryVector, minSimilarity, fetchK)
+        List<ChunkSearchHit> candidates = elasticsearchChunkStore.hybridSearchRrf(tenantId, question, queryVector, minSimilarity, fetchK);
+        List<ChunkSearchHit> filtered = candidates
                 .stream()
                 .limit(topK)
                 .toList();
 
-        // 2B 指标（无标签口径）：
-        // precision = 过滤后条数 / 实际返回条数（这里相等，通常为 1；保留打印用于解释“有效命中率”）
-        // recall = 是否至少返回 1 条（0/1）
-        int retrievedCount = fetchK;
+        int retrievedCount = candidates.size();
         int returnedCount = filtered.size();
-        //TODO 这里的召回率和精准率写的不对，后期要改
-        double precision = returnedCount == 0 ? 0D : 1D;
-        double recall = returnedCount > 0 ? 1D : 0D;
+
         int latencyMs = (int) (System.currentTimeMillis() - start);
 
         String traceId = MDC.get("traceId");
-        log.info("RAG retrieve(rrf) traceId={} tenantId={} topK={} fetchK={} threshold={} retrieved={} returned={} recall={} precision={} latencyMs={} question={}",
+        log.info("RAG retrieve(rrf) traceId={} tenantId={} topK={} fetchK={} threshold={} retrieved={} returned={} latencyMs={} question={}",
                 traceId,
                 tenantId,
                 topK,
@@ -70,8 +66,6 @@ public class ElasticsearchHybridChunkRetriever implements ChunkRetriever {
                 String.format("%.2f", minSimilarity),
                 retrievedCount,
                 returnedCount,
-                String.format("%.2f", recall),
-                String.format("%.2f", precision),
                 latencyMs,
                 shorten(question, 120));
 

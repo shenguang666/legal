@@ -1,25 +1,25 @@
-﻿## ADDED Requirements
+﻿## 新增需求
 
-### Requirement: Validate extracted fields against enterprise rules
-The system SHALL evaluate extracted contract fields against configured enterprise rules for required fields, format checks, threshold checks, consistency checks, and conflict checks.
+### 需求：根据企业规则校验抽取字段
+系统应根据已配置企业规则评估抽取出的合同字段，规则类型包括必填字段、格式检查、阈值检查、一致性检查和冲突检查。
 
-#### Scenario: Missing required field triggers a rule hit
-- **WHEN** a required contract field is marked as missing after extraction
-- **THEN** the system creates a rule hit for the matching required-field rule
-- **THEN** the rule hit includes severity, rule code, and affected field references
+#### 场景：缺失必填字段触发规则命中
+- **当** 抽取后某个必填合同字段被标记为缺失时
+- **则** 系统应为匹配的必填字段规则创建规则命中。
+- **则** 规则命中应包含严重级别、规则编码和受影响字段引用。
 
-### Requirement: Detect inconsistent and abnormal values
-The system SHALL identify inconsistent amounts, abnormal date relationships, and other conflicting field values defined by enterprise rules.
+### 需求：识别不一致和异常值
+系统应识别企业规则定义的不一致金额、异常日期关系和其他冲突字段值。
 
-#### Scenario: Amount values conflict across clauses
-- **WHEN** the contract contains multiple amount fields that are expected to match under an enabled consistency rule
-- **THEN** the system marks the rule as hit when the normalized values do not match
-- **THEN** the resulting risk record references the conflicting fields and the supporting evidence
+#### 场景：条款之间金额值冲突
+- **当** 合同包含多个在启用的一致性规则下应保持一致的金额字段时
+- **则** 如果标准化值不一致，系统应将该规则标记为命中。
+- **则** 生成的风险记录应引用冲突字段和支撑证据。
 
-### Requirement: Produce explainable validation results
-The system SHALL persist each rule evaluation result with a human-readable explanation, related evidence, severity, and execution status so that users can understand why a risk was identified.
+### 需求：产生可解释的校验结果
+系统应持久化每个规则评估结果，包括可读解释、相关证据、严重级别和执行状态，使用户能够理解风险识别原因。
 
-#### Scenario: User reviews a triggered validation result
-- **WHEN** a validation rule is hit during contract review
-- **THEN** the system stores an explanation describing the rule condition and the observed contract values
-- **THEN** the explanation is available in the contract review detail response
+#### 场景：用户查看触发的校验结果
+- **当** 合同审阅过程中某条校验规则被命中时
+- **则** 系统应存储解释，说明规则条件和观察到的合同值。
+- **则** 该解释应在合同审阅详情响应中可用。

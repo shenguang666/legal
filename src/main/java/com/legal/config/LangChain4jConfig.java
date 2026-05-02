@@ -22,7 +22,8 @@ import org.springframework.util.StringUtils;
         OpenAiEmbeddingProperties.class,
         ElasticsearchProperties.class,
         LegalMemoryProperties.class,
-        ContractReviewProperties.class
+        ContractReviewProperties.class,
+        RagRetrievalMetricProperties.class
 })
 public class LangChain4jConfig {
 

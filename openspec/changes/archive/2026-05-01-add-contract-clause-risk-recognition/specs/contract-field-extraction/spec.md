@@ -1,25 +1,25 @@
-﻿## ADDED Requirements
+﻿## 新增需求
 
-### Requirement: Extract configured contract fields
-The system SHALL extract configured core contract fields from a reviewed contract document and persist each field result with field code, display name, raw value, normalized value, extraction status, confidence score, evidence text, source location, and extractor type.
+### 需求：抽取配置的合同字段
+系统应从被审阅的合同文档中抽取已配置的核心合同字段，并持久化每个字段结果，包括字段编码、显示名称、原始值、标准化值、抽取状态、置信度、证据文本、来源位置和抽取器类型。
 
-#### Scenario: Extract core fields from a contract document
-- **WHEN** a user triggers contract risk review for a document that contains recognizable contract clauses
-- **THEN** the system stores field results for each configured core field it can identify
-- **THEN** each stored field result includes evidence text and a confidence score
+#### 场景：从合同文档抽取核心字段
+- **当** 用户对包含可识别合同条款的文档触发合同风险审阅时
+- **则** 系统应为每个可识别的已配置核心字段存储字段结果。
+- **则** 每个已存储字段结果应包含证据文本和置信度。
 
-### Requirement: Preserve missing and uncertain extraction states
-The system SHALL mark fields as `MISSING`, `UNCERTAIN`, or `EXTRACTED` instead of fabricating values when the contract text is incomplete, ambiguous, or unsupported.
+### 需求：保留缺失和不确定抽取状态
+当合同文本不完整、含糊或不受支持时，系统应将字段标记为 `MISSING`、`UNCERTAIN` 或 `EXTRACTED`，而不是编造字段值。
 
-#### Scenario: Required field cannot be identified
-- **WHEN** a reviewed contract does not contain enough information to identify a required amount or date field
-- **THEN** the system records the field result with a non-success status instead of generating an unsupported value
-- **THEN** the field result includes an explanation or evidence reference describing why extraction was incomplete
+#### 场景：必填字段无法识别
+- **当** 被审阅合同没有足够信息识别必填金额或日期字段时
+- **则** 系统应记录非成功状态的字段结果，而不是生成无依据的值。
+- **则** 字段结果应包含解释或证据引用，说明抽取为何不完整。
 
-### Requirement: Support multi-valued business fields
-The system SHALL support multiple extracted values for repeatable business fields such as reimbursement items, clause references, or multiple payment milestones.
+### 需求：支持多值业务字段
+系统应支持可重复业务字段的多个抽取值，例如报销项目、条款引用或多个付款节点。
 
-#### Scenario: Contract contains multiple reimbursement items
-- **WHEN** a contract lists more than one reimbursement item or payment line
-- **THEN** the system stores each identified item as a separate field result or child item under the same field code
-- **THEN** the review detail response returns the complete list in document order
+#### 场景：合同包含多个报销项目
+- **当** 合同列出多个报销项目或付款明细时
+- **则** 系统应将每个识别出的项目作为独立字段结果，或作为同一字段编码下的子项目存储。
+- **则** 审阅详情响应应按文档顺序返回完整列表。
