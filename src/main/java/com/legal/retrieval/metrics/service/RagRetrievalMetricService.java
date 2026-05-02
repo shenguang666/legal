@@ -3,6 +3,7 @@ package com.legal.retrieval.metrics.service;
 import com.baomidou.mybatisplus.core.conditions.query.LambdaQueryWrapper;
 import com.baomidou.mybatisplus.extension.plugins.pagination.Page;
 import com.legal.chat.rag.RetrievedChunk;
+import com.legal.common.AppException;
 import com.legal.common.JsonUtils;
 import com.legal.config.OpenAiChatModelProperties;
 import com.legal.config.RagRetrievalMetricProperties;
@@ -16,6 +17,7 @@ import com.legal.retrieval.metrics.enums.RagMetricEvaluationStatusEnum;
 import com.legal.retrieval.metrics.enums.RagMetricScanStatusEnum;
 import com.legal.retrieval.metrics.mapper.RagRetrievalMetricDailySummaryMapper;
 import com.legal.retrieval.metrics.mapper.RagRetrievalMetricEvaluationMapper;
+import org.springframework.dao.DuplicateKeyException;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 import org.springframework.util.StringUtils;
@@ -57,17 +59,97 @@ public class RagRetrievalMetricService {
         this.judgeService = judgeService;
     }
 
-    @Transactional
     public RagRetrievalMetricDtos.RunResult evaluateDate(LocalDate date) {
         LocalDate metricDate = date == null ? scheduledMetricDate() : date;
-        List<RetrievalLogEntity> logs = selectBatchLogs(metricDate);
+        return processDate(null, metricDate, false, false);
+    }
+
+    public RagRetrievalMetricDtos.RunResult evaluateScheduledRun() {
+        LocalDate metricDate = scheduledMetricDate();
+        RagRetrievalMetricDtos.RunResult result = hasProcessableLogs(null, metricDate)
+                ? processDate(null, metricDate, false, false)
+                : emptyRunResult(metricDate, false, "当前归档日期暂无待处�?RAG 消息");
+        if (!hasProcessableLogs(null, metricDate)) {
+            LocalDate backfillDate = findOlderProcessableDate(metricDate);
+            if (backfillDate != null) {
+                RagRetrievalMetricDtos.RunResult backfill = processDate(null, backfillDate, true, false);
+                result.setSelected(result.getSelected() + backfill.getSelected());
+                result.setSuccess(result.getSuccess() + backfill.getSuccess());
+                result.setFailed(result.getFailed() + backfill.getFailed());
+                result.setSkipped(result.getSkipped() + backfill.getSkipped());
+                result.setBackfill(true);
+                result.setMetricDate(backfillDate);
+                result.setMessage("已处理当前归档日期，并补扫历史日�?" + backfillDate);
+            }
+        }
+        return result;
+    }
+
+    public RagRetrievalMetricDtos.RunResult evaluateManualRange(Long tenantId, LocalDate startDate, LocalDate endDate) {
+        LocalDate today = LocalDate.now();
+        LocalDate safeEnd = endDate == null ? startDate : endDate;
+        LocalDate safeStart = startDate == null ? safeEnd : startDate;
+        if (safeStart == null || safeEnd == null) {
+            throw AppException.badRequest("请选择需要手动评估的历史日期");
+        }
+        if (safeEnd.isBefore(safeStart)) {
+            throw AppException.badRequest("手动评估结束日期不能早于开始日期");
+        }
+        if (!safeEnd.isBefore(today)) {
+            throw AppException.badRequest("手动评估结束日期只能选择今天之前的历史日期");
+        }
+        RagRetrievalMetricDtos.RunResult merged = new RagRetrievalMetricDtos.RunResult();
+        merged.setStartDate(safeStart);
+        merged.setEndDate(safeEnd);
+        int alreadyProcessedDates = 0;
+        int noPendingDates = 0;
+        LocalDate cursor = safeStart;
+        while (!cursor.isAfter(safeEnd)) {
+            if (isDateAlreadyProcessed(tenantId, cursor)) {
+                alreadyProcessedDates++;
+                cursor = cursor.plusDays(1);
+                continue;
+            }
+            if (!hasProcessableLogs(tenantId, cursor)) {
+                noPendingDates++;
+                cursor = cursor.plusDays(1);
+                continue;
+            }
+            RagRetrievalMetricDtos.RunResult current = processDate(tenantId, cursor, false, true);
+            merged.setSelected(merged.getSelected() + current.getSelected());
+            merged.setSuccess(merged.getSuccess() + current.getSuccess());
+            merged.setFailed(merged.getFailed() + current.getFailed());
+            merged.setSkipped(merged.getSkipped() + current.getSkipped());
+            cursor = cursor.plusDays(1);
+        }
+        merged.setAlreadyProcessedDates(alreadyProcessedDates);
+        merged.setAlreadyProcessed(alreadyProcessedDates > 0 && merged.getSelected() == 0);
+        if (merged.isAlreadyProcessed()) {
+            merged.setMessage("已有记录，无需评估");
+            merged.setSkippedReason("already-processed");
+        } else if (merged.getSelected() == 0 && noPendingDates > 0) {
+            merged.setMessage("暂无待处理 RAG 消息，无需评估");
+            merged.setSkippedReason("no-pending-logs");
+        } else if (alreadyProcessedDates > 0) {
+            merged.setMessage("部分日期已有记录，已跳过；其余日期评估完成");
+        } else {
+            merged.setMessage("手动评估完成");
+        }
+        return merged;
+    }
+
+    private RagRetrievalMetricDtos.RunResult processDate(Long tenantId, LocalDate metricDate, boolean backfill, boolean manual) {
+        List<RetrievalLogEntity> logs = selectBatchLogs(tenantId, metricDate);
         RagRetrievalMetricDtos.RunResult result = new RagRetrievalMetricDtos.RunResult();
+        result.setMetricDate(metricDate);
+        result.setBackfill(backfill);
         result.setSelected(logs.size());
         int success = 0;
         int failed = 0;
         int skipped = 0;
         for (RetrievalLogEntity log : logs) {
-            RagRetrievalMetricDailySummaryEntity summary = getOrCreateDailySummary(log.getTenantId(), metricDate);
+            LocalDate logMetricDate = log.getCreatedAt() == null ? metricDate : log.getCreatedAt().toLocalDate();
+            RagRetrievalMetricDailySummaryEntity summary = getOrCreateDailySummary(log.getTenantId(), logMetricDate);
             String previousScanStatus = log.getRagMetricScanStatus();
             markLogProcessing(log, summary.getId());
             resetRetryEvaluation(log, previousScanStatus);
@@ -85,10 +167,13 @@ public class RagRetrievalMetricService {
             }
             refreshDailySummary(summary.getId());
         }
-        completeSummaries(metricDate);
+        completeSummaries(metricDate, tenantId);
         result.setSuccess(success);
         result.setFailed(failed);
         result.setSkipped(skipped);
+        if (!manual && logs.isEmpty()) {
+            result.setSkippedReason("no-pending-logs");
+        }
         return result;
     }
 
@@ -177,31 +262,25 @@ public class RagRetrievalMetricService {
         return entity;
     }
 
-    private List<RetrievalLogEntity> selectBatchLogs(LocalDate metricDate) {
+    private List<RetrievalLogEntity> selectBatchLogs(Long tenantId, LocalDate metricDate) {
         int batchSize = Math.max(1, properties.getWorker().getBatchSize());
         LocalDateTime start = metricDate.atStartOfDay();
         LocalDateTime end = metricDate.atTime(LocalTime.MAX);
-        return retrievalLogMapper.selectList(new LambdaQueryWrapper<RetrievalLogEntity>()
+        LambdaQueryWrapper<RetrievalLogEntity> wrapper = new LambdaQueryWrapper<RetrievalLogEntity>()
                 .ge(RetrievalLogEntity::getCreatedAt, start)
                 .le(RetrievalLogEntity::getCreatedAt, end)
                 .isNotNull(RetrievalLogEntity::getHitChunkIds)
-                .and(wrapper -> wrapper
-                        .isNull(RetrievalLogEntity::getRagMetricScanStatus)
-                        .or()
-                        .eq(RetrievalLogEntity::getRagMetricScanStatus, RagMetricScanStatusEnum.PENDING.name())
-                        .or(nested -> nested
-                                .eq(RetrievalLogEntity::getRagMetricScanStatus, RagMetricScanStatusEnum.FAILED.name())
-                                .lt(RetrievalLogEntity::getRagMetricRetryCount, properties.getWorker().getMaxRetries())))
+                .and(this::processableStatusCondition)
                 .orderByAsc(RetrievalLogEntity::getId)
-                .last("LIMIT " + batchSize));
+                .last("LIMIT " + batchSize);
+        if (tenantId != null) {
+            wrapper.eq(RetrievalLogEntity::getTenantId, tenantId);
+        }
+        return retrievalLogMapper.selectList(wrapper);
     }
 
     private RagRetrievalMetricDailySummaryEntity getOrCreateDailySummary(Long tenantId, LocalDate metricDate) {
-        RagRetrievalMetricDailySummaryEntity existing = dailySummaryMapper.selectOne(new LambdaQueryWrapper<RagRetrievalMetricDailySummaryEntity>()
-                .eq(RagRetrievalMetricDailySummaryEntity::getTenantId, tenantId)
-                .eq(RagRetrievalMetricDailySummaryEntity::getMetricDate, metricDate)
-                .eq(RagRetrievalMetricDailySummaryEntity::getEvaluationVersion, evaluationVersion())
-                .last("LIMIT 1"));
+        RagRetrievalMetricDailySummaryEntity existing = selectDailySummary(tenantId, metricDate);
         if (existing != null) {
             return existing;
         }
@@ -223,8 +302,24 @@ public class RagRetrievalMetricService {
         created.setStartedAt(now);
         created.setCreatedAt(now);
         created.setUpdatedAt(now);
-        dailySummaryMapper.insert(created);
+        try {
+            dailySummaryMapper.insert(created);
+        } catch (DuplicateKeyException ex) {
+            RagRetrievalMetricDailySummaryEntity concurrent = selectDailySummary(tenantId, metricDate);
+            if (concurrent != null) {
+                return concurrent;
+            }
+            throw ex;
+        }
         return created;
+    }
+
+    private RagRetrievalMetricDailySummaryEntity selectDailySummary(Long tenantId, LocalDate metricDate) {
+        return dailySummaryMapper.selectOne(new LambdaQueryWrapper<RagRetrievalMetricDailySummaryEntity>()
+                .eq(RagRetrievalMetricDailySummaryEntity::getTenantId, tenantId)
+                .eq(RagRetrievalMetricDailySummaryEntity::getMetricDate, metricDate)
+                .eq(RagRetrievalMetricDailySummaryEntity::getEvaluationVersion, evaluationVersion())
+                .last("LIMIT 1"));
     }
 
     private void refreshDailySummary(Long summaryId) {
@@ -254,10 +349,14 @@ public class RagRetrievalMetricService {
         dailySummaryMapper.updateById(summary);
     }
 
-    private void completeSummaries(LocalDate metricDate) {
-        List<RagRetrievalMetricDailySummaryEntity> summaries = dailySummaryMapper.selectList(new LambdaQueryWrapper<RagRetrievalMetricDailySummaryEntity>()
+    private void completeSummaries(LocalDate metricDate, Long tenantId) {
+        LambdaQueryWrapper<RagRetrievalMetricDailySummaryEntity> wrapper = new LambdaQueryWrapper<RagRetrievalMetricDailySummaryEntity>()
                 .eq(RagRetrievalMetricDailySummaryEntity::getMetricDate, metricDate)
-                .eq(RagRetrievalMetricDailySummaryEntity::getEvaluationVersion, evaluationVersion()));
+                .eq(RagRetrievalMetricDailySummaryEntity::getEvaluationVersion, evaluationVersion());
+        if (tenantId != null) {
+            wrapper.eq(RagRetrievalMetricDailySummaryEntity::getTenantId, tenantId);
+        }
+        List<RagRetrievalMetricDailySummaryEntity> summaries = dailySummaryMapper.selectList(wrapper);
         for (RagRetrievalMetricDailySummaryEntity summary : summaries) {
             if (hasRemainingLogs(summary)) {
                 continue;
@@ -281,20 +380,124 @@ public class RagRetrievalMetricService {
                 .ge(RetrievalLogEntity::getCreatedAt, start)
                 .le(RetrievalLogEntity::getCreatedAt, end)
                 .isNotNull(RetrievalLogEntity::getHitChunkIds)
-                .and(wrapper -> wrapper
-                        .isNull(RetrievalLogEntity::getRagMetricScanStatus)
-                        .or()
-                        .eq(RetrievalLogEntity::getRagMetricScanStatus, RagMetricScanStatusEnum.PENDING.name())
-                        .or()
+                .and(this::remainingStatusCondition));
+        return count != null && count > 0;
+    }
+
+    private boolean hasProcessableLogs(Long tenantId, LocalDate metricDate) {
+        LocalDateTime start = metricDate.atStartOfDay();
+        LocalDateTime end = metricDate.atTime(LocalTime.MAX);
+        LambdaQueryWrapper<RetrievalLogEntity> wrapper = new LambdaQueryWrapper<RetrievalLogEntity>()
+                .ge(RetrievalLogEntity::getCreatedAt, start)
+                .le(RetrievalLogEntity::getCreatedAt, end)
+                .isNotNull(RetrievalLogEntity::getHitChunkIds)
+                .and(this::processableStatusCondition);
+        if (tenantId != null) {
+            wrapper.eq(RetrievalLogEntity::getTenantId, tenantId);
+        }
+        Long count = retrievalLogMapper.selectCount(wrapper);
+        return count != null && count > 0;
+    }
+
+    private boolean hasRemainingLogs(Long tenantId, LocalDate metricDate) {
+        LocalDateTime start = metricDate.atStartOfDay();
+        LocalDateTime end = metricDate.atTime(LocalTime.MAX);
+        LambdaQueryWrapper<RetrievalLogEntity> wrapper = new LambdaQueryWrapper<RetrievalLogEntity>()
+                .ge(RetrievalLogEntity::getCreatedAt, start)
+                .le(RetrievalLogEntity::getCreatedAt, end)
+                .isNotNull(RetrievalLogEntity::getHitChunkIds)
+                .and(this::remainingStatusCondition);
+        if (tenantId != null) {
+            wrapper.eq(RetrievalLogEntity::getTenantId, tenantId);
+        }
+        Long count = retrievalLogMapper.selectCount(wrapper);
+        return count != null && count > 0;
+    }
+
+    private LocalDate findOlderProcessableDate(LocalDate beforeDate) {
+        List<RetrievalLogEntity> logs = retrievalLogMapper.selectList(new LambdaQueryWrapper<RetrievalLogEntity>()
+                .lt(RetrievalLogEntity::getCreatedAt, beforeDate.atStartOfDay())
+                .isNotNull(RetrievalLogEntity::getHitChunkIds)
+                .and(this::processableStatusCondition)
+                .orderByAsc(RetrievalLogEntity::getCreatedAt)
+                .orderByAsc(RetrievalLogEntity::getId)
+                .last("LIMIT 1"));
+        if (logs.isEmpty() || logs.get(0).getCreatedAt() == null) {
+            return null;
+        }
+        return logs.get(0).getCreatedAt().toLocalDate();
+    }
+
+    private void processableStatusCondition(LambdaQueryWrapper<RetrievalLogEntity> wrapper) {
+        LocalDateTime staleProcessingBefore = LocalDateTime.now().minus(properties.getWorker().getTimeout());
+        wrapper.isNull(RetrievalLogEntity::getRagMetricScanStatus)
+                .or()
+                .eq(RetrievalLogEntity::getRagMetricScanStatus, RagMetricScanStatusEnum.PENDING.name())
+                .or(nested -> nested
+                        .eq(RetrievalLogEntity::getRagMetricScanStatus, RagMetricScanStatusEnum.FAILED.name())
+                        .and(retry -> retry
+                                .isNull(RetrievalLogEntity::getRagMetricRetryCount)
+                                .or()
+                                .lt(RetrievalLogEntity::getRagMetricRetryCount, properties.getWorker().getMaxRetries())))
+                .or(nested -> nested
                         .eq(RetrievalLogEntity::getRagMetricScanStatus, RagMetricScanStatusEnum.PROCESSING.name())
+                        .and(stale -> stale
+                                .isNull(RetrievalLogEntity::getRagMetricScannedAt)
+                                .or()
+                                .lt(RetrievalLogEntity::getRagMetricScannedAt, staleProcessingBefore)));
+    }
+
+    private void remainingStatusCondition(LambdaQueryWrapper<RetrievalLogEntity> wrapper) {
+        wrapper.isNull(RetrievalLogEntity::getRagMetricScanStatus)
+                .or()
+                .eq(RetrievalLogEntity::getRagMetricScanStatus, RagMetricScanStatusEnum.PENDING.name())
+                .or()
+                .eq(RetrievalLogEntity::getRagMetricScanStatus, RagMetricScanStatusEnum.PROCESSING.name())
+                .or(nested -> nested
+                        .eq(RetrievalLogEntity::getRagMetricScanStatus, RagMetricScanStatusEnum.FAILED.name())
+                        .and(retry -> retry
+                                .isNull(RetrievalLogEntity::getRagMetricRetryCount)
+                                .or()
+                                .lt(RetrievalLogEntity::getRagMetricRetryCount, properties.getWorker().getMaxRetries())));
+    }
+
+    private boolean isDateAlreadyProcessed(Long tenantId, LocalDate metricDate) {
+        if (hasRemainingLogs(tenantId, metricDate)) {
+            return false;
+        }
+        return selectDailySummary(tenantId, metricDate) != null || hasTerminalMetricLogs(tenantId, metricDate);
+    }
+
+    private boolean hasTerminalMetricLogs(Long tenantId, LocalDate metricDate) {
+        LocalDateTime start = metricDate.atStartOfDay();
+        LocalDateTime end = metricDate.atTime(LocalTime.MAX);
+        Long count = retrievalLogMapper.selectCount(new LambdaQueryWrapper<RetrievalLogEntity>()
+                .eq(RetrievalLogEntity::getTenantId, tenantId)
+                .ge(RetrievalLogEntity::getCreatedAt, start)
+                .le(RetrievalLogEntity::getCreatedAt, end)
+                .isNotNull(RetrievalLogEntity::getHitChunkIds)
+                .and(wrapper -> wrapper
+                        .in(RetrievalLogEntity::getRagMetricScanStatus,
+                                RagMetricScanStatusEnum.SUCCESS.name(),
+                                RagMetricScanStatusEnum.FILTERED.name())
                         .or(nested -> nested
                                 .eq(RetrievalLogEntity::getRagMetricScanStatus, RagMetricScanStatusEnum.FAILED.name())
-                                .lt(RetrievalLogEntity::getRagMetricRetryCount, properties.getWorker().getMaxRetries()))));
+                                .ge(RetrievalLogEntity::getRagMetricRetryCount, properties.getWorker().getMaxRetries()))));
         return count != null && count > 0;
+    }
+
+    private RagRetrievalMetricDtos.RunResult emptyRunResult(LocalDate metricDate, boolean backfill, String message) {
+        RagRetrievalMetricDtos.RunResult result = new RagRetrievalMetricDtos.RunResult();
+        result.setMetricDate(metricDate);
+        result.setBackfill(backfill);
+        result.setMessage(message);
+        result.setSkippedReason("no-pending-logs");
+        return result;
     }
 
     private void markLogProcessing(RetrievalLogEntity log, Long summaryId) {
         log.setRagMetricScanStatus(RagMetricScanStatusEnum.PROCESSING.name());
+        log.setRagMetricScannedAt(LocalDateTime.now());
         log.setRagMetricSummaryId(summaryId);
         log.setRagMetricErrorMessage(null);
         retrievalLogMapper.updateById(log);
@@ -373,7 +576,7 @@ public class RagRetrievalMetricService {
         entity.setEvaluatedCandidateCount(0);
         entity.setEvaluatedTopN(properties.getCandidateRecall().getTopN());
         entity.setJudgeSummary("query-filtered");
-        entity.setExplanation("Query 过短、寒暄或代表性不足，已跳过评估。");
+        entity.setExplanation("Query 过短、寒暄或代表性不足，已跳过评估");
         entity.setStatus(RagMetricEvaluationStatusEnum.SKIPPED.name());
         entity.setErrorMessage("low-quality-query");
     }

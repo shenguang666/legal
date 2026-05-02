@@ -95,7 +95,7 @@ rag:
       # 定时评估任务配置。
       worker:
         # RAG 检索质量评估定时任务 Cron 表达式，默认低峰期 02:00-05:59 每 5 分钟执行一次。
-        cron: ${RAG_METRIC_RETRIEVAL_WORKER_CRON:0 0/5 2-5 * * ?}
+        cron: ${RAG_METRIC_RETRIEVAL_WORKER_CRON:0 0/20 * * * ?}
         # 单次任务最多处理多少条检索日志，仅限制单批大小，不限制每日总量。
         batch-size: ${RAG_METRIC_RETRIEVAL_WORKER_BATCH_SIZE:20}
         # 定时任务默认处理距离当前日期多少天的业务日期，1 表示处理上一自然日。
@@ -124,22 +124,6 @@ rag:
         min-query-length: ${RAG_METRIC_RETRIEVAL_MIN_QUERY_LENGTH:6}
         # 低价值或寒暄类 query 黑名单，命中后会跳过评估。
         excluded-queries:
-          # 过滤寒暄语“你好”。
-          - ${RAG_METRIC_RETRIEVAL_EXCLUDED_QUERY_1:你好}
-          # 过滤寒暄语“您好”。
-          - ${RAG_METRIC_RETRIEVAL_EXCLUDED_QUERY_2:您好}
-          # 过滤英文寒暄语 hello。
-          - ${RAG_METRIC_RETRIEVAL_EXCLUDED_QUERY_3:hello}
-          # 过滤英文寒暄语 hi。
-          - ${RAG_METRIC_RETRIEVAL_EXCLUDED_QUERY_4:hi}
-          # 过滤低价值确认语“在吗”。
-          - ${RAG_METRIC_RETRIEVAL_EXCLUDED_QUERY_5:在吗}
-          # 过滤感谢语“谢谢”。
-          - ${RAG_METRIC_RETRIEVAL_EXCLUDED_QUERY_6:谢谢}
-          # 过滤测试输入 test。
-          - ${RAG_METRIC_RETRIEVAL_EXCLUDED_QUERY_7:test}
-          # 过滤测试输入“测试”。
-          - ${RAG_METRIC_RETRIEVAL_EXCLUDED_QUERY_8:测试}
       # 大模型评估配置。
       judge-model:
         # 评估提示词版本，用于区分不同评估口径。

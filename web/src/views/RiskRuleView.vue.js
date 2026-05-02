@@ -102,6 +102,9 @@ async function reindexRule(item) {
     await refreshAll();
 }
 async function deleteRule(item) {
+    if (!window.confirm(`确认删除风险规则 ${item.ruleCode}？`)) {
+        return;
+    }
     await apiDelete(`/api/risk-rules/${item.ruleId}?requestId=${encodeURIComponent(randomRequestId('risk-rule-delete'))}`);
     notice.value = `风险规则 ${item.ruleCode} 已删除`;
     await refreshAll();
@@ -170,6 +173,9 @@ async function toggleField(item) {
     await refreshAll();
 }
 async function deleteField(item) {
+    if (!window.confirm(`确认删除字段定义 ${item.fieldCode}？`)) {
+        return;
+    }
     await apiDelete(`/api/risk-rules/fields/${item.fieldDefinitionId}?requestId=${encodeURIComponent(randomRequestId('field-definition-delete'))}`);
     notice.value = `字段定义 ${item.fieldCode} 已删除`;
     await refreshAll();
@@ -261,6 +267,7 @@ __VLS_asFunctionalElement(__VLS_intrinsicElements.div, __VLS_intrinsicElements.d
 __VLS_asFunctionalElement(__VLS_intrinsicElements.button, __VLS_intrinsicElements.button)({
     ...{ onClick: (__VLS_ctx.createManualRule) },
     ...{ class: "primary-btn" },
+    type: "button",
 });
 __VLS_asFunctionalElement(__VLS_intrinsicElements.div, __VLS_intrinsicElements.div)({
     ...{ class: "section-block" },
@@ -330,6 +337,7 @@ __VLS_asFunctionalElement(__VLS_intrinsicElements.div, __VLS_intrinsicElements.d
 __VLS_asFunctionalElement(__VLS_intrinsicElements.button, __VLS_intrinsicElements.button)({
     ...{ onClick: (__VLS_ctx.importRuleDocument) },
     ...{ class: "primary-btn" },
+    type: "button",
 });
 __VLS_asFunctionalElement(__VLS_intrinsicElements.article, __VLS_intrinsicElements.article)({
     ...{ class: "card panel" },
@@ -345,6 +353,7 @@ __VLS_asFunctionalElement(__VLS_intrinsicElements.h3, __VLS_intrinsicElements.h3
 __VLS_asFunctionalElement(__VLS_intrinsicElements.button, __VLS_intrinsicElements.button)({
     ...{ onClick: (__VLS_ctx.refreshAll) },
     ...{ class: "ghost-btn" },
+    type: "button",
 });
 __VLS_asFunctionalElement(__VLS_intrinsicElements.div, __VLS_intrinsicElements.div)({
     ...{ class: "item-list" },
@@ -396,6 +405,7 @@ for (const [item] of __VLS_getVForSourceType((__VLS_ctx.rules))) {
                 __VLS_ctx.toggleRule(item);
             } },
         ...{ class: "ghost-btn" },
+        type: "button",
     });
     (item.enabled ? '停用' : '启用');
     __VLS_asFunctionalElement(__VLS_intrinsicElements.button, __VLS_intrinsicElements.button)({
@@ -403,6 +413,7 @@ for (const [item] of __VLS_getVForSourceType((__VLS_ctx.rules))) {
                 __VLS_ctx.reindexRule(item);
             } },
         ...{ class: "ghost-btn" },
+        type: "button",
         disabled: (!item.documentId),
     });
     __VLS_asFunctionalElement(__VLS_intrinsicElements.button, __VLS_intrinsicElements.button)({
@@ -410,6 +421,7 @@ for (const [item] of __VLS_getVForSourceType((__VLS_ctx.rules))) {
                 __VLS_ctx.deleteRule(item);
             } },
         ...{ class: "warn-btn" },
+        type: "button",
     });
 }
 if (!__VLS_ctx.rules.length) {
@@ -437,6 +449,7 @@ __VLS_asFunctionalElement(__VLS_intrinsicElements.h3, __VLS_intrinsicElements.h3
 __VLS_asFunctionalElement(__VLS_intrinsicElements.button, __VLS_intrinsicElements.button)({
     ...{ onClick: (__VLS_ctx.resetFieldForm) },
     ...{ class: "ghost-btn" },
+    type: "button",
 });
 __VLS_asFunctionalElement(__VLS_intrinsicElements.div, __VLS_intrinsicElements.div)({
     ...{ class: "grid field-grid" },
@@ -536,6 +549,7 @@ __VLS_asFunctionalElement(__VLS_intrinsicElements.div, __VLS_intrinsicElements.d
 __VLS_asFunctionalElement(__VLS_intrinsicElements.button, __VLS_intrinsicElements.button)({
     ...{ onClick: (__VLS_ctx.saveFieldDefinition) },
     ...{ class: "primary-btn" },
+    type: "button",
 });
 (__VLS_ctx.editingFieldId ? '更新字段定义' : '新增字段定义');
 __VLS_asFunctionalElement(__VLS_intrinsicElements.div, __VLS_intrinsicElements.div)({
@@ -595,6 +609,7 @@ for (const [item] of __VLS_getVForSourceType((__VLS_ctx.fieldDefinitions))) {
                 __VLS_ctx.beginEditField(item);
             } },
         ...{ class: "ghost-btn" },
+        type: "button",
         disabled: (item.systemDefault),
     });
     __VLS_asFunctionalElement(__VLS_intrinsicElements.button, __VLS_intrinsicElements.button)({
@@ -602,6 +617,7 @@ for (const [item] of __VLS_getVForSourceType((__VLS_ctx.fieldDefinitions))) {
                 __VLS_ctx.toggleField(item);
             } },
         ...{ class: "ghost-btn" },
+        type: "button",
         disabled: (item.systemDefault),
     });
     (item.enabled ? '停用' : '启用');
@@ -610,6 +626,7 @@ for (const [item] of __VLS_getVForSourceType((__VLS_ctx.fieldDefinitions))) {
                 __VLS_ctx.deleteField(item);
             } },
         ...{ class: "warn-btn" },
+        type: "button",
         disabled: (item.systemDefault),
     });
 }

@@ -13,6 +13,6 @@ public enum RagMetricScanStatusEnum {
     SUCCESS,
     /** 当前日志评估失败，后续可按重试策略再次处理。 */
     FAILED,
-    /** 当前日志命中过滤规则，不进入大模型评估。 */
+    /** 当前日志命中过滤规则并被跳过，不进入大模型评估；数据库值继续使用 FILTERED。 */
     FILTERED
 }

@@ -15,12 +15,19 @@ function formatTime(input) {
     if (!input) {
         return '';
     }
-    return new Date(input).toLocaleString();
+    return new Intl.DateTimeFormat('zh-CN', {
+        year: 'numeric',
+        month: '2-digit',
+        day: '2-digit',
+        hour: '2-digit',
+        minute: '2-digit',
+    }).format(new Date(input));
 }
 debugger; /* PartiallyEnd: #3632/scriptSetup.vue */
 const __VLS_ctx = {};
 let __VLS_components;
 let __VLS_directives;
+/** @type {__VLS_StyleScopedClasses['session-item']} */ ;
 /** @type {__VLS_StyleScopedClasses['session-item']} */ ;
 /** @type {__VLS_StyleScopedClasses['session-item']} */ ;
 /** @type {__VLS_StyleScopedClasses['session-item']} */ ;
@@ -39,9 +46,13 @@ __VLS_asFunctionalElement(__VLS_intrinsicElements.p, __VLS_intrinsicElements.p)(
 __VLS_asFunctionalElement(__VLS_intrinsicElements.h2, __VLS_intrinsicElements.h2)({
     ...{ class: "section-title" },
 });
+__VLS_asFunctionalElement(__VLS_intrinsicElements.p, __VLS_intrinsicElements.p)({
+    ...{ class: "note" },
+});
 __VLS_asFunctionalElement(__VLS_intrinsicElements.button, __VLS_intrinsicElements.button)({
     ...{ onClick: (__VLS_ctx.refresh) },
     ...{ class: "primary-btn" },
+    type: "button",
 });
 __VLS_asFunctionalElement(__VLS_intrinsicElements.div, __VLS_intrinsicElements.div)({
     ...{ class: "session-grid" },
@@ -50,6 +61,9 @@ for (const [item] of __VLS_getVForSourceType((__VLS_ctx.sessions))) {
     __VLS_asFunctionalElement(__VLS_intrinsicElements.article, __VLS_intrinsicElements.article)({
         key: (item.sessionId),
         ...{ class: "session-item" },
+    });
+    __VLS_asFunctionalElement(__VLS_intrinsicElements.span, __VLS_intrinsicElements.span)({
+        ...{ class: "session-badge" },
     });
     __VLS_asFunctionalElement(__VLS_intrinsicElements.h3, __VLS_intrinsicElements.h3)({});
     (item.title);
@@ -64,6 +78,7 @@ for (const [item] of __VLS_getVForSourceType((__VLS_ctx.sessions))) {
                 __VLS_ctx.open(item.sessionId);
             } },
         ...{ class: "ghost-btn" },
+        type: "button",
     });
 }
 if (!__VLS_ctx.sessions.length) {
@@ -77,9 +92,11 @@ if (!__VLS_ctx.sessions.length) {
 /** @type {__VLS_StyleScopedClasses['header-row']} */ ;
 /** @type {__VLS_StyleScopedClasses['tag']} */ ;
 /** @type {__VLS_StyleScopedClasses['section-title']} */ ;
+/** @type {__VLS_StyleScopedClasses['note']} */ ;
 /** @type {__VLS_StyleScopedClasses['primary-btn']} */ ;
 /** @type {__VLS_StyleScopedClasses['session-grid']} */ ;
 /** @type {__VLS_StyleScopedClasses['session-item']} */ ;
+/** @type {__VLS_StyleScopedClasses['session-badge']} */ ;
 /** @type {__VLS_StyleScopedClasses['ghost-btn']} */ ;
 /** @type {__VLS_StyleScopedClasses['note']} */ ;
 var __VLS_dollars;

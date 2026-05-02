@@ -4,8 +4,11 @@ import { apiGet, apiPost } from '../api/client';
 const today = new Date();
 const start = new Date(today);
 start.setDate(today.getDate() - 7);
+const yesterday = new Date(today);
+yesterday.setDate(today.getDate() - 1);
 const startDate = ref(toDateInput(start));
 const endDate = ref(toDateInput(today));
+const maxManualEndDate = toDateInput(yesterday);
 const summary = ref(null);
 const dailySummaries = ref([]);
 const details = ref([]);
@@ -59,9 +62,13 @@ async function loadDetails() {
     detailPageSize.value = page.pageSize;
 }
 async function runToday() {
-    notice.value = '正在提交评估任务...';
-    const result = await apiPost(`/api/rag-metrics/run?date=${endDate.value}`);
-    notice.value = `评估完成：选中 ${result.selected}，成功 ${result.success}，失败 ${result.failed}，跳过 ${result.skipped}`;
+    if (endDate.value >= toDateInput(today)) {
+        notice.value = '手动评估结束日期只能选择今天之前的历史日期。';
+        return;
+    }
+    notice.value = '正在提交评估任务…';
+    const result = await apiPost(`/api/rag-metrics/run?date=${startDate.value}&endDate=${endDate.value}`);
+    notice.value = result.message || `评估完成：选中 ${result.selected}，成功 ${result.success}，失败 ${result.failed}，跳过 ${result.skipped}`;
     await loadAll();
 }
 function openDailySummary(item) {
@@ -188,15 +195,19 @@ __VLS_asFunctionalElement(__VLS_intrinsicElements.div, __VLS_intrinsicElements.d
 __VLS_asFunctionalElement(__VLS_intrinsicElements.label, __VLS_intrinsicElements.label)({});
 __VLS_asFunctionalElement(__VLS_intrinsicElements.input)({
     type: "date",
+    max: (__VLS_ctx.maxManualEndDate),
 });
 (__VLS_ctx.endDate);
 __VLS_asFunctionalElement(__VLS_intrinsicElements.button, __VLS_intrinsicElements.button)({
     ...{ onClick: (__VLS_ctx.loadAll) },
     ...{ class: "primary-btn" },
+    type: "button",
 });
 __VLS_asFunctionalElement(__VLS_intrinsicElements.button, __VLS_intrinsicElements.button)({
     ...{ onClick: (__VLS_ctx.runToday) },
     ...{ class: "ghost-btn" },
+    type: "button",
+    disabled: (__VLS_ctx.endDate > __VLS_ctx.maxManualEndDate),
 });
 __VLS_asFunctionalElement(__VLS_intrinsicElements.div, __VLS_intrinsicElements.div)({
     ...{ class: "metric-grid" },
@@ -286,11 +297,13 @@ if (__VLS_ctx.viewMode === 'detail') {
     __VLS_asFunctionalElement(__VLS_intrinsicElements.button, __VLS_intrinsicElements.button)({
         ...{ onClick: (__VLS_ctx.backToSummaries) },
         ...{ class: "ghost-btn" },
+        type: "button",
     });
 }
 __VLS_asFunctionalElement(__VLS_intrinsicElements.button, __VLS_intrinsicElements.button)({
     ...{ onClick: (__VLS_ctx.refreshCurrentPanel) },
     ...{ class: "ghost-btn" },
+    type: "button",
 });
 (__VLS_ctx.viewMode === 'summary' ? '刷新日汇总' : '刷新明细');
 if (__VLS_ctx.viewMode === 'summary') {
@@ -306,6 +319,7 @@ if (__VLS_ctx.viewMode === 'summary') {
                 } },
             key: (item.id),
             ...{ class: "summary-row" },
+            type: "button",
         });
         __VLS_asFunctionalElement(__VLS_intrinsicElements.span, __VLS_intrinsicElements.span)({});
         (item.metricDate);
@@ -335,6 +349,7 @@ if (__VLS_ctx.viewMode === 'summary') {
     __VLS_asFunctionalElement(__VLS_intrinsicElements.button, __VLS_intrinsicElements.button)({
         ...{ onClick: (__VLS_ctx.prevSummaryPage) },
         ...{ class: "ghost-btn" },
+        type: "button",
         disabled: (__VLS_ctx.summaryPageNo <= 1),
     });
     __VLS_asFunctionalElement(__VLS_intrinsicElements.span, __VLS_intrinsicElements.span)({});
@@ -343,6 +358,7 @@ if (__VLS_ctx.viewMode === 'summary') {
     __VLS_asFunctionalElement(__VLS_intrinsicElements.button, __VLS_intrinsicElements.button)({
         ...{ onClick: (__VLS_ctx.nextSummaryPage) },
         ...{ class: "ghost-btn" },
+        type: "button",
         disabled: (__VLS_ctx.summaryPageNo * __VLS_ctx.summaryPageSize >= __VLS_ctx.summaryTotal),
     });
 }
@@ -426,6 +442,7 @@ else {
     __VLS_asFunctionalElement(__VLS_intrinsicElements.button, __VLS_intrinsicElements.button)({
         ...{ onClick: (__VLS_ctx.prevDetailPage) },
         ...{ class: "ghost-btn" },
+        type: "button",
         disabled: (__VLS_ctx.detailPageNo <= 1),
     });
     __VLS_asFunctionalElement(__VLS_intrinsicElements.span, __VLS_intrinsicElements.span)({});
@@ -434,6 +451,7 @@ else {
     __VLS_asFunctionalElement(__VLS_intrinsicElements.button, __VLS_intrinsicElements.button)({
         ...{ onClick: (__VLS_ctx.nextDetailPage) },
         ...{ class: "ghost-btn" },
+        type: "button",
         disabled: (__VLS_ctx.detailPageNo * __VLS_ctx.detailPageSize >= __VLS_ctx.detailTotal),
     });
 }
@@ -499,6 +517,7 @@ const __VLS_self = (await import('vue')).defineComponent({
         return {
             startDate: startDate,
             endDate: endDate,
+            maxManualEndDate: maxManualEndDate,
             summary: summary,
             dailySummaries: dailySummaries,
             details: details,

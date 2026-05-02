@@ -106,9 +106,25 @@ public final class RagRetrievalMetricDtos {
 
     @Data
     public static class RunResult {
+        /** 实际处理的单个指标业务日期；日期范围评估时为空。 */
+        private LocalDate metricDate;
+        /** 手动评估请求的开始日期。 */
+        private LocalDate startDate;
+        /** 手动评估请求的结束日期。 */
+        private LocalDate endDate;
+        /** 是否为定时任务自动选择的历史补扫日期。 */
+        private boolean backfill;
+        /** 是否因为目标日期已完整处理而跳过本次评估。 */
+        private boolean alreadyProcessed;
         private int selected;
         private int success;
         private int failed;
         private int skipped;
+        /** 本次被判定为已完整处理、无需重复评估的日期数量。 */
+        private int alreadyProcessedDates;
+        /** 本次运行结果提示，用于前端展示。 */
+        private String message;
+        /** 本次未执行评估时的跳过原因。 */
+        private String skippedReason;
     }
 }

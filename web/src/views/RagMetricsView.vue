@@ -13,10 +13,10 @@
         </div>
         <div>
           <label>结束日期</label>
-          <input v-model="endDate" type="date" />
+          <input v-model="endDate" type="date" :max="maxManualEndDate" />
         </div>
         <button class="primary-btn" type="button" @click="loadAll">查询统计</button>
-        <button class="ghost-btn" type="button" @click="runToday">手动评估结束日期</button>
+        <button class="ghost-btn" type="button" :disabled="endDate > maxManualEndDate" @click="runToday">手动评估日期范围</button>
       </div>
     </article>
 
@@ -222,12 +222,30 @@ interface DailySummaryPage {
   items: DailySummary[];
 }
 
+interface RunResult {
+  metricDate?: string;
+  startDate?: string;
+  endDate?: string;
+  backfill: boolean;
+  alreadyProcessed: boolean;
+  selected: number;
+  success: number;
+  failed: number;
+  skipped: number;
+  alreadyProcessedDates: number;
+  message?: string;
+  skippedReason?: string;
+}
+
 const today = new Date();
 const start = new Date(today);
 start.setDate(today.getDate() - 7);
+const yesterday = new Date(today);
+yesterday.setDate(today.getDate() - 1);
 
 const startDate = ref(toDateInput(start));
 const endDate = ref(toDateInput(today));
+const maxManualEndDate = toDateInput(yesterday);
 const summary = ref<Summary | null>(null);
 const dailySummaries = ref<DailySummary[]>([]);
 const details = ref<Detail[]>([]);
@@ -288,9 +306,13 @@ async function loadDetails() {
 }
 
 async function runToday() {
+  if (endDate.value >= toDateInput(today)) {
+    notice.value = '手动评估结束日期只能选择今天之前的历史日期。';
+    return;
+  }
   notice.value = '正在提交评估任务…';
-  const result = await apiPost<{ selected: number; success: number; failed: number; skipped: number }>(`/api/rag-metrics/run?date=${endDate.value}`);
-  notice.value = `评估完成：选中 ${result.selected}，成功 ${result.success}，失败 ${result.failed}，跳过 ${result.skipped}`;
+  const result = await apiPost<RunResult>(`/api/rag-metrics/run?date=${startDate.value}&endDate=${endDate.value}`);
+  notice.value = result.message || `评估完成：选中 ${result.selected}，成功 ${result.success}，失败 ${result.failed}，跳过 ${result.skipped}`;
   await loadAll();
 }
 

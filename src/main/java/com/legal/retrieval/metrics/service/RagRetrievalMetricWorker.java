@@ -7,6 +7,8 @@ import org.slf4j.LoggerFactory;
 import org.springframework.scheduling.annotation.Scheduled;
 import org.springframework.stereotype.Component;
 
+import java.util.concurrent.atomic.AtomicBoolean;
+
 @Component
 public class RagRetrievalMetricWorker {
 
@@ -14,6 +16,7 @@ public class RagRetrievalMetricWorker {
 
     private final RagRetrievalMetricProperties properties;
     private final RagRetrievalMetricService metricService;
+    private final AtomicBoolean running = new AtomicBoolean(false);
 
     public RagRetrievalMetricWorker(RagRetrievalMetricProperties properties,
                                     RagRetrievalMetricService metricService) {
@@ -26,8 +29,17 @@ public class RagRetrievalMetricWorker {
         if (!properties.isEnabled()) {
             return;
         }
-        RagRetrievalMetricDtos.RunResult result = metricService.evaluateDate(null);
-        log.info("RAG metric worker selected={} success={} failed={} skipped={}",
-                result.getSelected(), result.getSuccess(), result.getFailed(), result.getSkipped());
+        if (!running.compareAndSet(false, true)) {
+            log.warn("RAG metric worker skipped because previous run is still running");
+            return;
+        }
+        try {
+            RagRetrievalMetricDtos.RunResult result = metricService.evaluateScheduledRun();
+            log.info("RAG metric worker date={} backfill={} selected={} success={} failed={} skipped={} message={}",
+                    result.getMetricDate(), result.isBackfill(), result.getSelected(), result.getSuccess(),
+                    result.getFailed(), result.getSkipped(), result.getMessage());
+        } finally {
+            running.set(false);
+        }
     }
 }

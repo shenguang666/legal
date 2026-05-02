@@ -66,7 +66,6 @@ public class RagMetricLlmJudgeService {
                     .append(", content=").append(content)
                     .append("\n");
         }
-        log.info("prompt:{}",builder);
         return builder.toString();
     }
 

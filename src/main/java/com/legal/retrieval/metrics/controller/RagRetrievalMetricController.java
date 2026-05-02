@@ -55,7 +55,9 @@ public class RagRetrievalMetricController {
     }
 
     @PostMapping("/run")
-    public ApiResponse<RagRetrievalMetricDtos.RunResult> run(@RequestParam("date") @DateTimeFormat(iso = DateTimeFormat.ISO.DATE) LocalDate date) {
-        return ApiResponse.ok(metricService.evaluateDate(date));
+    public ApiResponse<RagRetrievalMetricDtos.RunResult> run(@RequestParam("date") @DateTimeFormat(iso = DateTimeFormat.ISO.DATE) LocalDate date,
+                                                             @RequestParam(value = "endDate", required = false) @DateTimeFormat(iso = DateTimeFormat.ISO.DATE) LocalDate endDate) {
+        AuthPrincipal principal = AuthContextHolder.getRequired();
+        return ApiResponse.ok(metricService.evaluateManualRange(principal.tenantId(), date, endDate));
     }
 }

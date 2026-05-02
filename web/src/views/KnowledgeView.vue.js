@@ -40,6 +40,9 @@ async function triggerIndex(documentId) {
     await refresh();
 }
 async function remove(documentId) {
+    if (!window.confirm(`确认删除知识库文档 ${documentId}？`)) {
+        return;
+    }
     await apiDelete(`/api/knowledge/documents/${documentId}?requestId=${encodeURIComponent(randomRequestId('kb-delete'))}`);
     notice.value = `文档 ${documentId} 已标记删除`;
     await refresh();
@@ -48,6 +51,7 @@ debugger; /* PartiallyEnd: #3632/scriptSetup.vue */
 const __VLS_ctx = {};
 let __VLS_components;
 let __VLS_directives;
+/** @type {__VLS_StyleScopedClasses['doc-item']} */ ;
 /** @type {__VLS_StyleScopedClasses['doc-item']} */ ;
 /** @type {__VLS_StyleScopedClasses['doc-item']} */ ;
 /** @type {__VLS_StyleScopedClasses['knowledge-grid']} */ ;
@@ -69,21 +73,35 @@ __VLS_asFunctionalElement(__VLS_intrinsicElements.div, __VLS_intrinsicElements.d
     ...{ class: "grid form-grid" },
 });
 __VLS_asFunctionalElement(__VLS_intrinsicElements.div, __VLS_intrinsicElements.div)({});
-__VLS_asFunctionalElement(__VLS_intrinsicElements.label, __VLS_intrinsicElements.label)({});
+__VLS_asFunctionalElement(__VLS_intrinsicElements.label, __VLS_intrinsicElements.label)({
+    for: "knowledge-title",
+});
 __VLS_asFunctionalElement(__VLS_intrinsicElements.input)({
-    placeholder: "可选，不填则使用文件名",
+    id: "knowledge-title",
+    name: "knowledgeTitle",
+    autocomplete: "off",
+    placeholder: "可选，不填则使用文件名…",
 });
 (__VLS_ctx.title);
 __VLS_asFunctionalElement(__VLS_intrinsicElements.div, __VLS_intrinsicElements.div)({});
-__VLS_asFunctionalElement(__VLS_intrinsicElements.label, __VLS_intrinsicElements.label)({});
+__VLS_asFunctionalElement(__VLS_intrinsicElements.label, __VLS_intrinsicElements.label)({
+    for: "knowledge-source",
+});
 __VLS_asFunctionalElement(__VLS_intrinsicElements.input)({
-    placeholder: "可选，例如：国家法规库",
+    id: "knowledge-source",
+    name: "knowledgeSource",
+    autocomplete: "off",
+    placeholder: "可选，例如：国家法规库…",
 });
 (__VLS_ctx.source);
 __VLS_asFunctionalElement(__VLS_intrinsicElements.div, __VLS_intrinsicElements.div)({});
-__VLS_asFunctionalElement(__VLS_intrinsicElements.label, __VLS_intrinsicElements.label)({});
+__VLS_asFunctionalElement(__VLS_intrinsicElements.label, __VLS_intrinsicElements.label)({
+    for: "knowledge-file",
+});
 __VLS_asFunctionalElement(__VLS_intrinsicElements.input)({
     ...{ onChange: (__VLS_ctx.onSelectFile) },
+    id: "knowledge-file",
+    name: "knowledgeFile",
     type: "file",
     accept: ".pdf,.doc,.docx,.txt,.md",
 });
@@ -93,6 +111,7 @@ __VLS_asFunctionalElement(__VLS_intrinsicElements.div, __VLS_intrinsicElements.d
 __VLS_asFunctionalElement(__VLS_intrinsicElements.button, __VLS_intrinsicElements.button)({
     ...{ onClick: (__VLS_ctx.importDocument) },
     ...{ class: "primary-btn" },
+    type: "button",
 });
 __VLS_asFunctionalElement(__VLS_intrinsicElements.p, __VLS_intrinsicElements.p)({
     ...{ class: "note" },
@@ -103,10 +122,15 @@ __VLS_asFunctionalElement(__VLS_intrinsicElements.article, __VLS_intrinsicElemen
 __VLS_asFunctionalElement(__VLS_intrinsicElements.div, __VLS_intrinsicElements.div)({
     ...{ class: "header-row" },
 });
+__VLS_asFunctionalElement(__VLS_intrinsicElements.div, __VLS_intrinsicElements.div)({});
+__VLS_asFunctionalElement(__VLS_intrinsicElements.p, __VLS_intrinsicElements.p)({
+    ...{ class: "tag" },
+});
 __VLS_asFunctionalElement(__VLS_intrinsicElements.h3, __VLS_intrinsicElements.h3)({});
 __VLS_asFunctionalElement(__VLS_intrinsicElements.button, __VLS_intrinsicElements.button)({
     ...{ onClick: (__VLS_ctx.refresh) },
     ...{ class: "ghost-btn" },
+    type: "button",
 });
 __VLS_asFunctionalElement(__VLS_intrinsicElements.div, __VLS_intrinsicElements.div)({
     ...{ class: "doc-list" },
@@ -116,13 +140,15 @@ for (const [item] of __VLS_getVForSourceType((__VLS_ctx.documents))) {
         key: (item.documentId),
         ...{ class: "doc-item" },
     });
+    __VLS_asFunctionalElement(__VLS_intrinsicElements.span, __VLS_intrinsicElements.span)({
+        ...{ class: "doc-status" },
+    });
+    (item.status);
+    (item.indexStatus);
     __VLS_asFunctionalElement(__VLS_intrinsicElements.h4, __VLS_intrinsicElements.h4)({});
     (item.title);
     __VLS_asFunctionalElement(__VLS_intrinsicElements.p, __VLS_intrinsicElements.p)({});
     (item.source);
-    __VLS_asFunctionalElement(__VLS_intrinsicElements.p, __VLS_intrinsicElements.p)({});
-    (item.status);
-    (item.indexStatus);
     __VLS_asFunctionalElement(__VLS_intrinsicElements.div, __VLS_intrinsicElements.div)({
         ...{ class: "doc-actions" },
     });
@@ -131,12 +157,14 @@ for (const [item] of __VLS_getVForSourceType((__VLS_ctx.documents))) {
                 __VLS_ctx.triggerIndex(item.documentId);
             } },
         ...{ class: "ghost-btn" },
+        type: "button",
     });
     __VLS_asFunctionalElement(__VLS_intrinsicElements.button, __VLS_intrinsicElements.button)({
         ...{ onClick: (...[$event]) => {
                 __VLS_ctx.remove(item.documentId);
             } },
         ...{ class: "warn-btn" },
+        type: "button",
     });
 }
 if (!__VLS_ctx.documents.length) {
@@ -147,6 +175,7 @@ if (!__VLS_ctx.documents.length) {
 if (__VLS_ctx.notice) {
     __VLS_asFunctionalElement(__VLS_intrinsicElements.p, __VLS_intrinsicElements.p)({
         ...{ class: "notice" },
+        'aria-live': "polite",
     });
     (__VLS_ctx.notice);
 }
@@ -163,9 +192,11 @@ if (__VLS_ctx.notice) {
 /** @type {__VLS_StyleScopedClasses['card']} */ ;
 /** @type {__VLS_StyleScopedClasses['panel']} */ ;
 /** @type {__VLS_StyleScopedClasses['header-row']} */ ;
+/** @type {__VLS_StyleScopedClasses['tag']} */ ;
 /** @type {__VLS_StyleScopedClasses['ghost-btn']} */ ;
 /** @type {__VLS_StyleScopedClasses['doc-list']} */ ;
 /** @type {__VLS_StyleScopedClasses['doc-item']} */ ;
+/** @type {__VLS_StyleScopedClasses['doc-status']} */ ;
 /** @type {__VLS_StyleScopedClasses['doc-actions']} */ ;
 /** @type {__VLS_StyleScopedClasses['ghost-btn']} */ ;
 /** @type {__VLS_StyleScopedClasses['warn-btn']} */ ;
