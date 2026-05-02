@@ -23,7 +23,8 @@ import org.springframework.util.StringUtils;
         ElasticsearchProperties.class,
         LegalMemoryProperties.class,
         ContractReviewProperties.class,
-        RagRetrievalMetricProperties.class
+        RagRetrievalMetricProperties.class,
+        DocumentProcessingProperties.class
 })
 public class LangChain4jConfig {
 

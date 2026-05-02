@@ -98,8 +98,9 @@ public class RiskRuleManagementService {
                                             String severity,
                                             Double hitThreshold,
                                             Integer chunkSize,
-                                            Integer chunkOverlap) {
-        DocumentDto document = riskRuleDocumentService.importDocument(principal, requestId, file, title, source, chunkSize, chunkOverlap);
+                                            Integer chunkOverlap,
+                                            String parseMethod) {
+        DocumentDto document = riskRuleDocumentService.importDocument(principal, requestId, file, title, source, chunkSize, chunkOverlap, parseMethod);
         String resolvedRuleName = StringUtils.hasText(ruleName) ? ruleName.trim() : document.getTitle();
         ContractRuleDefinitionEntity entity = createDocumentRetrievalRule(
                 principal,
@@ -268,6 +269,9 @@ public class RiskRuleManagementService {
             dto.setDocumentSource(document.getSource());
             dto.setDocumentStatus(document.getStatus() == null ? null : document.getStatus().getCode());
             dto.setDocumentIndexStatus(document.getIndexStatus() == null ? null : document.getIndexStatus().getCode());
+            dto.setDocumentParseMethod(document.getParseMethod() == null ? null : document.getParseMethod().getCode());
+            dto.setDocumentParseStatus(document.getParseStatus() == null ? null : document.getParseStatus().getCode());
+            dto.setDocumentParseFailureReason(document.getParseFailureReason());
         }
         return dto;
     }

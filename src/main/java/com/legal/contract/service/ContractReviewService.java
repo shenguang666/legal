@@ -17,6 +17,7 @@ import com.legal.contract.mapper.ContractRiskItemMapper;
 import com.legal.enums.ContractReviewStatus;
 import com.legal.enums.ContractReviewTaskStatus;
 import com.legal.enums.ContractRiskLevel;
+import com.legal.enums.DocumentParseStatus;
 import com.legal.enums.KbDocumentBizType;
 import com.legal.enums.KbDocumentStatus;
 import com.legal.knowledge.entity.KbDocumentEntity;
@@ -132,6 +133,13 @@ public class ContractReviewService {
                 .last("limit 1"));
         if (document == null || document.getStatus() == KbDocumentStatus.DELETED) {
             throw AppException.notFound("文档不存在");
+        }
+        if (document.getParseStatus() == DocumentParseStatus.PENDING || document.getParseStatus() == DocumentParseStatus.PROCESSING) {
+            throw AppException.badRequest("文档仍在解析中，请解析完成后再启动天眼审查");
+        }
+        if (document.getParseStatus() == DocumentParseStatus.FAILED) {
+            String reason = document.getParseFailureReason();
+            throw AppException.badRequest("文档解析失败，无法启动天眼审查" + (reason == null || reason.isBlank() ? "" : "：" + reason));
         }
         return document;
     }

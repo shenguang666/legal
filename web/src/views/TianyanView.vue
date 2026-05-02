@@ -22,11 +22,17 @@
             @change="onSelectFile"
           />
         </div>
+        <div>
+          <label for="tianyan-parse-method">解析方式</label>
+          <select id="tianyan-parse-method" v-model="parseMethod" class="console-select">
+            <option v-for="method in parseMethods" :key="method" :value="method">{{ parseMethodLabel(method) }}</option>
+          </select>
+        </div>
       </div>
       <div class="actions">
         <button class="primary-btn" type="button" @click="importDocument">导入审查文档</button>
       </div>
-      <p class="note">导入后可直接发起天眼审查，系统会从文档切片中抽取字段并执行风险规则校验。</p>
+      <p class="note">单次最多上传 {{ maxUploadDocuments }} 个文档。MinerU 精准解析完成后才能发起天眼审查。</p>
     </article>
 
     <article class="card panel">
@@ -40,13 +46,15 @@
 
       <div class="doc-list">
         <div v-for="item in documents" :key="item.documentId" class="doc-item">
-          <span class="doc-status">{{ item.status }} / {{ item.indexStatus }}</span>
+          <span class="doc-status">{{ item.status }} / {{ item.indexStatus }} / {{ item.parseStatus || 'COMPLETED' }}</span>
           <h4>{{ item.title }}</h4>
           <p>来源：{{ item.source }}</p>
           <div class="doc-actions">
-            <button class="primary-btn" type="button" @click="openReview(item)">进入审查</button>
+            <button class="primary-btn" type="button" :disabled="Boolean(item.parseStatus && item.parseStatus !== 'COMPLETED')" @click="openReview(item)">进入审查</button>
+            <button v-if="item.parseStatus === 'FAILED'" class="ghost-btn" type="button" @click="retryParse(item.documentId)">重试解析</button>
             <button class="warn-btn" type="button" @click="remove(item.documentId)">删除</button>
           </div>
+          <p v-if="item.parseFailureReason" class="note">解析失败：{{ item.parseFailureReason }}</p>
         </div>
       </div>
       <p v-if="!documents.length" class="note">暂无待审查文档，请先上传。</p>
@@ -58,7 +66,7 @@
 <script setup lang="ts">
 import { onMounted, ref } from 'vue';
 import { useRouter } from 'vue-router';
-import { apiDelete, apiGet, apiPostForm, randomRequestId } from '../api/client';
+import { apiDelete, apiGet, apiPost, apiPostForm, randomRequestId } from '../api/client';
 
 interface DocumentItem {
   documentId: number;
@@ -67,6 +75,15 @@ interface DocumentItem {
   status: string;
   indexStatus: string;
   bizType?: string;
+  parseMethod?: string;
+  parseStatus?: string;
+  parseFailureReason?: string;
+}
+
+interface DocumentProcessingCapabilities {
+  defaultParseMethod: string;
+  maxUploadDocuments: number;
+  availableParseMethods: string[];
 }
 
 const router = useRouter();
@@ -75,8 +92,21 @@ const source = ref('');
 const selectedFile = ref<File | null>(null);
 const documents = ref<DocumentItem[]>([]);
 const notice = ref('');
+const parseMethod = ref('NATIVE');
+const parseMethods = ref<string[]>(['NATIVE']);
+const maxUploadDocuments = ref(1);
 
-onMounted(refresh);
+onMounted(async () => {
+  await loadCapabilities();
+  await refresh();
+});
+
+async function loadCapabilities() {
+  const capabilities = await apiGet<DocumentProcessingCapabilities>('/api/document-processing/capabilities');
+  parseMethods.value = capabilities.availableParseMethods?.length ? capabilities.availableParseMethods : ['NATIVE'];
+  parseMethod.value = capabilities.defaultParseMethod || parseMethods.value[0];
+  maxUploadDocuments.value = capabilities.maxUploadDocuments || 1;
+}
 
 async function refresh() {
   documents.value = await apiGet<DocumentItem[]>('/api/tianyan/documents');
@@ -101,11 +131,12 @@ async function importDocument() {
   if (source.value.trim()) {
     formData.append('source', source.value.trim());
   }
+  formData.append('parseMethod', parseMethod.value);
   await apiPostForm('/api/tianyan/documents/import', formData);
   title.value = '';
   source.value = '';
   selectedFile.value = null;
-  notice.value = '审查文档已导入，可立即发起天眼审查';
+  notice.value = parseMethod.value === 'MINERU_PRECISE' ? '审查文档已导入，MinerU 精准解析完成后可发起天眼审查' : '审查文档已导入，可立即发起天眼审查';
   await refresh();
 }
 
@@ -119,12 +150,29 @@ async function remove(documentId: number) {
 }
 
 function openReview(item: DocumentItem) {
+  if (item.parseStatus && item.parseStatus !== 'COMPLETED') {
+    notice.value = '文档解析未完成，暂不能发起天眼审查';
+    return;
+  }
   router.push({
     path: `/tianyan/reviews/${item.documentId}`,
     query: {
       title: item.title,
     },
   });
+}
+
+async function retryParse(documentId: number) {
+  await apiPost(`/api/tianyan/documents/${documentId}/retry-parse?requestId=${encodeURIComponent(randomRequestId('tianyan-retry-parse'))}`);
+  notice.value = `审查文档 ${documentId} 已重新提交解析`;
+  await refresh();
+}
+
+function parseMethodLabel(method: string) {
+  if (method === 'MINERU_PRECISE') {
+    return 'MinerU 精准解析';
+  }
+  return '原生解析';
 }
 </script>
 

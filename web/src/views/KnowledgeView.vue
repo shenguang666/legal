@@ -18,15 +18,22 @@
             id="knowledge-file"
             name="knowledgeFile"
             type="file"
+            multiple
             accept=".pdf,.doc,.docx,.txt,.md"
             @change="onSelectFile"
           />
+        </div>
+        <div>
+          <label for="knowledge-parse-method">解析方式</label>
+          <select id="knowledge-parse-method" v-model="parseMethod" class="console-select">
+            <option v-for="method in parseMethods" :key="method" :value="method">{{ parseMethodLabel(method) }}</option>
+          </select>
         </div>
       </div>
       <div class="actions">
         <button class="primary-btn" type="button" @click="importDocument">导入并索引</button>
       </div>
-      <p class="note">支持 pdf/doc/docx/txt/md，导入后由后台异步完成向量索引。</p>
+      <p class="note">支持 pdf/doc/docx/txt/md，单次最多上传 {{ maxUploadDocuments }} 个文档，导入后由后台异步完成解析与向量索引。</p>
     </article>
 
     <article class="card panel">
@@ -40,13 +47,15 @@
 
       <div class="doc-list">
         <div v-for="item in documents" :key="item.documentId" class="doc-item">
-          <span class="doc-status">{{ item.status }} / {{ item.indexStatus }}</span>
+          <span class="doc-status">{{ item.status }} / {{ item.indexStatus }} / {{ item.parseStatus || 'COMPLETED' }}</span>
           <h4>{{ item.title }}</h4>
           <p>来源：{{ item.source }}</p>
           <div class="doc-actions">
             <button class="ghost-btn" type="button" @click="triggerIndex(item.documentId)">触发索引</button>
+            <button v-if="item.parseStatus === 'FAILED'" class="ghost-btn" type="button" @click="retryParse(item.documentId)">重试解析</button>
             <button class="warn-btn" type="button" @click="remove(item.documentId)">删除</button>
           </div>
+          <p v-if="item.parseFailureReason" class="note">解析失败：{{ item.parseFailureReason }}</p>
         </div>
       </div>
       <p v-if="!documents.length" class="note">暂无文档，请先创建一条记录。</p>
@@ -65,15 +74,37 @@ interface DocumentItem {
   source: string;
   status: string;
   indexStatus: string;
+  parseMethod?: string;
+  parseStatus?: string;
+  parseFailureReason?: string;
+}
+
+interface DocumentProcessingCapabilities {
+  defaultParseMethod: string;
+  maxUploadDocuments: number;
+  availableParseMethods: string[];
 }
 
 const title = ref('');
 const source = ref('');
-const selectedFile = ref<File | null>(null);
+const selectedFiles = ref<File[]>([]);
 const documents = ref<DocumentItem[]>([]);
 const notice = ref('');
+const parseMethod = ref('NATIVE');
+const parseMethods = ref<string[]>(['NATIVE']);
+const maxUploadDocuments = ref(1);
 
-onMounted(refresh);
+onMounted(async () => {
+  await loadCapabilities();
+  await refresh();
+});
+
+async function loadCapabilities() {
+  const capabilities = await apiGet<DocumentProcessingCapabilities>('/api/document-processing/capabilities');
+  parseMethods.value = capabilities.availableParseMethods?.length ? capabilities.availableParseMethods : ['NATIVE'];
+  parseMethod.value = capabilities.defaultParseMethod || parseMethods.value[0];
+  maxUploadDocuments.value = capabilities.maxUploadDocuments || 1;
+}
 
 async function refresh() {
   documents.value = await apiGet<DocumentItem[]>('/api/knowledge/documents');
@@ -81,28 +112,35 @@ async function refresh() {
 
 function onSelectFile(event: Event) {
   const input = event.target as HTMLInputElement;
-  selectedFile.value = input.files?.[0] || null;
+  selectedFiles.value = Array.from(input.files || []);
 }
 
 async function importDocument() {
-  if (!selectedFile.value) {
+  if (!selectedFiles.value.length) {
     notice.value = '请先选择文件';
     return;
   }
-  const formData = new FormData();
-  formData.append('requestId', randomRequestId('kb-import'));
-  formData.append('file', selectedFile.value);
-  if (title.value.trim()) {
-    formData.append('title', title.value.trim());
+  if (selectedFiles.value.length > maxUploadDocuments.value) {
+    notice.value = `单次最多上传 ${maxUploadDocuments.value} 个文档`;
+    return;
   }
-  if (source.value.trim()) {
-    formData.append('source', source.value.trim());
+  for (const file of selectedFiles.value) {
+    const formData = new FormData();
+    formData.append('requestId', randomRequestId('kb-import'));
+    formData.append('file', file);
+    if (title.value.trim() && selectedFiles.value.length === 1) {
+      formData.append('title', title.value.trim());
+    }
+    if (source.value.trim()) {
+      formData.append('source', source.value.trim());
+    }
+    formData.append('parseMethod', parseMethod.value);
+    await apiPostForm('/api/knowledge/documents/import', formData);
   }
-  await apiPostForm('/api/knowledge/documents/import', formData);
   title.value = '';
   source.value = '';
-  selectedFile.value = null;
-  notice.value = '文档已导入，正在后台建立向量索引';
+  selectedFiles.value = [];
+  notice.value = parseMethod.value === 'MINERU_PRECISE' ? '文档已导入，正在后台进行 MinerU 精准解析' : '文档已导入，正在后台建立向量索引';
   await refresh();
 }
 
@@ -110,6 +148,19 @@ async function triggerIndex(documentId: number) {
   await apiPost(`/api/knowledge/documents/${documentId}/index?requestId=${encodeURIComponent(randomRequestId('kb-index'))}`);
   notice.value = `文档 ${documentId} 已投递索引任务`;
   await refresh();
+}
+
+async function retryParse(documentId: number) {
+  await apiPost(`/api/knowledge/documents/${documentId}/retry-parse?requestId=${encodeURIComponent(randomRequestId('kb-retry-parse'))}`);
+  notice.value = `文档 ${documentId} 已重新提交解析`;
+  await refresh();
+}
+
+function parseMethodLabel(method: string) {
+  if (method === 'MINERU_PRECISE') {
+    return 'MinerU 精准解析';
+  }
+  return '原生解析';
 }
 
 async function remove(documentId: number) {

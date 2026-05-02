@@ -136,6 +136,57 @@ rag:
 
 # 记忆管理配置（agent 上下文记忆：短期/摘要/长期）。
 legal:
+  # 文档上传、解析方式选择和语义切片配置。
+  document-processing:
+    # 未显式选择解析方式时使用的默认解析方式，支持 NATIVE 和 MINERU_PRECISE。
+    default-parse-method: ${LEGAL_DOCUMENT_DEFAULT_PARSE_METHOD:NATIVE}
+    # 单次上传请求允许的最大文档数量。
+    max-upload-documents: ${LEGAL_DOCUMENT_MAX_UPLOAD_DOCUMENTS:5}
+    # 文档语义切片配置。
+    chunking:
+      # 语义切片目标最大字符数。
+      max-chunk-size: ${LEGAL_DOCUMENT_CHUNKING_MAX_CHUNK_SIZE:800}
+      # 相邻短语义块合并时的目标最小字符数。
+      min-chunk-size: ${LEGAL_DOCUMENT_CHUNKING_MIN_CHUNK_SIZE:180}
+      # 超长语义块兜底字符切分时的重叠字符数。
+      fallback-overlap: ${LEGAL_DOCUMENT_CHUNKING_FALLBACK_OVERLAP:80}
+    # MinerU 精准解析配置，Token 只能通过后端环境变量注入。
+    mineru:
+      # 是否启用 MinerU 精准解析能力。
+      enabled: ${LEGAL_MINERU_ENABLED:true}
+      # MinerU API 基础地址。
+      base-url: ${LEGAL_MINERU_BASE_URL:https://mineru.net}
+      # MinerU API Token，禁止在仓库中写入真实 Token。
+      api-token: ${LEGAL_MINERU_API_TOKEN:eyJ0eXBlIjoiSldUIiwiYWxnIjoiSFM1MTIifQ.eyJqdGkiOiIxMDEwMDM3MCIsInJvbCI6IlJPTEVfUkVHSVNURVIiLCJpc3MiOiJPcGVuWExhYiIsImlhdCI6MTc3NzcxNzU5NSwiY2xpZW50SWQiOiJsa3pkeDU3bnZ5MjJqa3BxOXgydyIsInBob25lIjoiIiwib3BlbklkIjpudWxsLCJ1dWlkIjoiODgzMjUxZTYtYTcwYy00NDgzLTk4OTAtN2MxMTRiZGRhNzVjIiwiZW1haWwiOiIiLCJleHAiOjE3ODU0OTM1OTV9.5pWUbeVKlYmBNaeZ8eY7dHoX8uj-lhQSZP7UNugMve4aYdUi-daqLJua3K3fDZR8VGXWFZhoFcVcwfGtnX8XFQ}
+      # MinerU 模型版本，vlm 表示默认精准解析模型。
+      model-version: ${LEGAL_MINERU_MODEL_VERSION:vlm}
+      # MinerU 文档语言配置，ch 表示中文。
+      language: ${LEGAL_MINERU_LANGUAGE:ch}
+      # 是否启用 MinerU 表格识别。
+      enable-table: ${LEGAL_MINERU_ENABLE_TABLE:true}
+      # 是否启用 MinerU 公式识别。
+      enable-formula: ${LEGAL_MINERU_ENABLE_FORMULA:true}
+      # 是否启用 MinerU OCR。
+      ocr: ${LEGAL_MINERU_OCR:false}
+      # MinerU HTTP 连接超时时间。
+      connect-timeout: ${LEGAL_MINERU_CONNECT_TIMEOUT:10s}
+      # MinerU HTTP 读取超时时间。
+      read-timeout: ${LEGAL_MINERU_READ_TIMEOUT:60s}
+      # MinerU 单个解析任务总超时时间。
+      timeout: ${LEGAL_MINERU_TIMEOUT:5m}
+      # MinerU 解析结果轮询间隔。
+      poll-interval: ${LEGAL_MINERU_POLL_INTERVAL:3s}
+    # 文档解析后台 worker 配置。
+    worker:
+      # 是否启用文档解析后台 worker。
+      enabled: ${LEGAL_DOCUMENT_PARSE_WORKER_ENABLED:true}
+      # 文档解析 worker 轮询间隔毫秒数。
+      poll-interval-ms: ${LEGAL_DOCUMENT_PARSE_WORKER_POLL_INTERVAL_MS:3000}
+      # 单次 worker 最多处理的解析任务数量。
+      batch-size: ${LEGAL_DOCUMENT_PARSE_WORKER_BATCH_SIZE:5}
+      # 文档解析失败后允许的最大重试次数。
+      max-retries: ${LEGAL_DOCUMENT_PARSE_WORKER_MAX_RETRIES:3}
+
   memory:
     enabled: ${LEGAL_MEMORY_ENABLED:true}
     cache:

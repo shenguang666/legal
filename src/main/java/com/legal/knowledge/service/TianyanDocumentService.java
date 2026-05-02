@@ -2,6 +2,8 @@ package com.legal.knowledge.service;
 
 import com.baomidou.mybatisplus.core.conditions.query.LambdaQueryWrapper;
 import com.legal.common.AppException;
+import com.legal.enums.DocumentParseMethod;
+import com.legal.enums.DocumentParseStatus;
 import com.legal.enums.KbDocumentBizType;
 import com.legal.enums.KbDocumentStatus;
 import com.legal.enums.KbIndexStatus;
@@ -31,17 +33,23 @@ public class TianyanDocumentService {
     private final IdempotencyService idempotencyService;
     private final DocumentTextExtractor documentTextExtractor;
     private final DocumentChunker documentChunker;
+    private final DocumentImportService documentImportService;
+    private final DocumentParseTaskService documentParseTaskService;
 
     public TianyanDocumentService(KbDocumentMapper kbDocumentMapper,
                                   KbChunkMapper kbChunkMapper,
                                   IdempotencyService idempotencyService,
                                   DocumentTextExtractor documentTextExtractor,
-                                  DocumentChunker documentChunker) {
+                                  DocumentChunker documentChunker,
+                                  DocumentImportService documentImportService,
+                                  DocumentParseTaskService documentParseTaskService) {
         this.kbDocumentMapper = kbDocumentMapper;
         this.kbChunkMapper = kbChunkMapper;
         this.idempotencyService = idempotencyService;
         this.documentTextExtractor = documentTextExtractor;
         this.documentChunker = documentChunker;
+        this.documentImportService = documentImportService;
+        this.documentParseTaskService = documentParseTaskService;
     }
 
     @Transactional
@@ -52,32 +60,30 @@ public class TianyanDocumentService {
                                       String source,
                                       Integer chunkSize,
                                       Integer chunkOverlap) {
+        return importDocument(principal, requestId, file, title, source, chunkSize, chunkOverlap, null);
+    }
+
+    @Transactional
+    public DocumentDto importDocument(AuthPrincipal principal,
+                                      String requestId,
+                                      MultipartFile file,
+                                      String title,
+                                      String source,
+                                      Integer chunkSize,
+                                      Integer chunkOverlap,
+                                      String parseMethod) {
         idempotencyService.ensureUnique(principal, "tianyan:import-document", requestId);
-        String extractedText = documentTextExtractor.extract(file);
-        List<String> chunks = buildChunks(extractedText, chunkSize, chunkOverlap);
-        if (chunks.isEmpty()) {
-            throw AppException.badRequest("文档内容过短，无法生成天眼审查切片");
-        }
-
-        String originalName = file.getOriginalFilename();
-        String documentTitle = StringUtils.hasText(title) ? title.trim() : fallbackTitle(originalName);
-        String documentSource = StringUtils.hasText(source) ? source.trim() : fallbackSource(originalName);
-        LocalDateTime now = LocalDateTime.now();
-
-        KbDocumentEntity document = new KbDocumentEntity();
-        document.setTenantId(principal.tenantId());
-        document.setOwnerUserId(principal.userId());
-        document.setTitle(documentTitle);
-        document.setSource(documentSource);
-        document.setBizType(KbDocumentBizType.TIANYAN_REVIEW);
-        document.setStatus(KbDocumentStatus.ACTIVE);
-        document.setDocVersion(1);
-        document.setIndexStatus(KbIndexStatus.COMPLETED);
-        document.setCreatedAt(now);
-        document.setUpdatedAt(now);
-        kbDocumentMapper.insert(document);
-
-        persistChunks(principal.tenantId(), document.getDocumentId(), 1, chunks, now);
+        KbDocumentEntity document = documentImportService.importDocument(
+                principal,
+                file,
+                title,
+                source,
+                KbDocumentBizType.TIANYAN_REVIEW,
+                parseMethod,
+                chunkSize,
+                chunkOverlap,
+                "文档内容过短，无法生成天眼审查切片"
+        );
         return toDto(document);
     }
 
@@ -105,6 +111,13 @@ public class TianyanDocumentService {
         document.setUpdatedAt(LocalDateTime.now());
         kbDocumentMapper.updateById(document);
         return toDto(document);
+    }
+
+    @Transactional
+    public DocumentDto retryParsing(AuthPrincipal principal, Long documentId, String requestId) {
+        idempotencyService.ensureUnique(principal, "tianyan:retry-parsing", requestId);
+        documentParseTaskService.retryFailed(principal.tenantId(), principal.userId(), documentId);
+        return toDto(requireDocument(principal, documentId));
     }
 
     private KbDocumentEntity requireDocument(AuthPrincipal principal, Long documentId) {
@@ -192,6 +205,9 @@ public class TianyanDocumentService {
         dto.setBizType(entity.getBizType() == null ? null : entity.getBizType().getCode());
         dto.setStatus(entity.getStatus() == null ? null : entity.getStatus().getCode());
         dto.setIndexStatus(entity.getIndexStatus() == null ? null : entity.getIndexStatus().getCode());
+        dto.setParseMethod(entity.getParseMethod() == null ? null : entity.getParseMethod().getCode());
+        dto.setParseStatus(entity.getParseStatus() == null ? null : entity.getParseStatus().getCode());
+        dto.setParseFailureReason(entity.getParseFailureReason());
         dto.setCreatedAt(entity.getCreatedAt());
         dto.setUpdatedAt(entity.getUpdatedAt());
         return dto;

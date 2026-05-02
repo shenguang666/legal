@@ -2,6 +2,8 @@ package com.legal.knowledge.service;
 
 import com.baomidou.mybatisplus.core.conditions.query.LambdaQueryWrapper;
 import com.legal.common.AppException;
+import com.legal.enums.DocumentParseMethod;
+import com.legal.enums.DocumentParseStatus;
 import com.legal.knowledge.dto.CreateDocumentRequest;
 import com.legal.knowledge.dto.ChunkDto;
 import com.legal.knowledge.dto.DocumentDto;
@@ -43,6 +45,8 @@ public class KnowledgeService {
     private final DocumentTextExtractor documentTextExtractor;
     private final DocumentChunker documentChunker;
     private final ElasticsearchChunkStore elasticsearchChunkStore;
+    private final DocumentImportService documentImportService;
+    private final DocumentParseTaskService documentParseTaskService;
 
     public KnowledgeService(KbDocumentMapper kbDocumentMapper,
                             KbChunkMapper kbChunkMapper,
@@ -50,7 +54,9 @@ public class KnowledgeService {
                             IdempotencyService idempotencyService,
                             DocumentTextExtractor documentTextExtractor,
                             DocumentChunker documentChunker,
-                            ElasticsearchChunkStore elasticsearchChunkStore) {
+                            ElasticsearchChunkStore elasticsearchChunkStore,
+                            DocumentImportService documentImportService,
+                            DocumentParseTaskService documentParseTaskService) {
         this.kbDocumentMapper = kbDocumentMapper;
         this.kbChunkMapper = kbChunkMapper;
         this.kbIndexOutboxMapper = kbIndexOutboxMapper;
@@ -58,6 +64,8 @@ public class KnowledgeService {
         this.documentTextExtractor = documentTextExtractor;
         this.documentChunker = documentChunker;
         this.elasticsearchChunkStore = elasticsearchChunkStore;
+        this.documentImportService = documentImportService;
+        this.documentParseTaskService = documentParseTaskService;
     }
 
     @Transactional
@@ -72,6 +80,8 @@ public class KnowledgeService {
         entity.setStatus(KbDocumentStatus.PENDING);
         entity.setDocVersion(1);
         entity.setIndexStatus(KbIndexStatus.PENDING);
+        entity.setParseMethod(DocumentParseMethod.NATIVE);
+        entity.setParseStatus(DocumentParseStatus.PENDING);
         entity.setCreatedAt(LocalDateTime.now());
         entity.setUpdatedAt(LocalDateTime.now());
         kbDocumentMapper.insert(entity);
@@ -86,34 +96,31 @@ public class KnowledgeService {
                                       String source,
                                       Integer chunkSize,
                                       Integer chunkOverlap) {
+        return importDocument(principal, requestId, file, title, source, chunkSize, chunkOverlap, null);
+    }
+
+    @Transactional
+    public DocumentDto importDocument(AuthPrincipal principal,
+                                      String requestId,
+                                      MultipartFile file,
+                                      String title,
+                                      String source,
+                                      Integer chunkSize,
+                                      Integer chunkOverlap,
+                                      String parseMethod) {
         ensureElasticsearchEnabled();
         idempotencyService.ensureUnique(principal, "knowledge:import-document", requestId);
-        String extractedText = documentTextExtractor.extract(file);
-        List<String> chunks = buildChunks(extractedText, chunkSize, chunkOverlap);
-        if (chunks.isEmpty()) {
-            throw AppException.badRequest("文档内容过短，无法生成可检索切片");
-        }
-
-        String originalName = file.getOriginalFilename();
-        String documentTitle = StringUtils.hasText(title) ? title.trim() : fallbackTitle(originalName);
-        String documentSource = StringUtils.hasText(source) ? source.trim() : fallbackSource(originalName);
-        LocalDateTime now = LocalDateTime.now();
-
-        KbDocumentEntity document = new KbDocumentEntity();
-        document.setTenantId(principal.tenantId());
-        document.setOwnerUserId(principal.userId());
-        document.setTitle(documentTitle);
-        document.setSource(documentSource);
-        document.setBizType(KbDocumentBizType.KNOWLEDGE);
-        document.setStatus(KbDocumentStatus.PROCESSING);
-        document.setDocVersion(1);
-        document.setIndexStatus(KbIndexStatus.PENDING);
-        document.setCreatedAt(now);
-        document.setUpdatedAt(now);
-        kbDocumentMapper.insert(document);
-
-        persistChunks(principal.tenantId(), document.getDocumentId(), 1, chunks, now);
-        enqueueOutbox(principal.tenantId(), document.getDocumentId(), 1, KbOutboxOp.UPSERT, now);
+        KbDocumentEntity document = documentImportService.importDocument(
+                principal,
+                file,
+                title,
+                source,
+                KbDocumentBizType.KNOWLEDGE,
+                parseMethod,
+                chunkSize,
+                chunkOverlap,
+                "文档内容过短，无法生成可检索切片"
+        );
         return toDto(document);
     }
 
@@ -251,6 +258,13 @@ public class KnowledgeService {
         return toDto(document);
     }
 
+    @Transactional
+    public DocumentDto retryParsing(AuthPrincipal principal, Long documentId, String requestId) {
+        idempotencyService.ensureUnique(principal, "knowledge:retry-parsing", requestId);
+        documentParseTaskService.retryFailed(principal.tenantId(), principal.userId(), documentId);
+        return toDto(requireDocument(principal, documentId));
+    }
+
     private void persistChunks(Long tenantId,
                                Long documentId,
                                int docVersion,
@@ -349,6 +363,9 @@ public class KnowledgeService {
         dto.setBizType(entity.getBizType() == null ? null : entity.getBizType().getCode());
         dto.setStatus(entity.getStatus() == null ? null : entity.getStatus().getCode());
         dto.setIndexStatus(entity.getIndexStatus() == null ? null : entity.getIndexStatus().getCode());
+        dto.setParseMethod(entity.getParseMethod() == null ? null : entity.getParseMethod().getCode());
+        dto.setParseStatus(entity.getParseStatus() == null ? null : entity.getParseStatus().getCode());
+        dto.setParseFailureReason(entity.getParseFailureReason());
         dto.setCreatedAt(entity.getCreatedAt());
         dto.setUpdatedAt(entity.getUpdatedAt());
         return dto;

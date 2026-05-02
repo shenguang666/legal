@@ -77,7 +77,14 @@
               <label>文件</label>
               <input type="file" accept=".pdf,.doc,.docx,.txt,.md" @change="onSelectFile" />
             </div>
+            <div>
+              <label>解析方式</label>
+              <select v-model="parseMethod" class="console-select">
+                <option v-for="method in parseMethods" :key="method" :value="method">{{ parseMethodLabel(method) }}</option>
+              </select>
+            </div>
           </div>
+          <p class="note">单次最多上传 {{ maxUploadDocuments }} 个文档。MinerU 精准解析会在后台完成后再投递风险规则索引。</p>
           <div class="actions">
             <button class="primary-btn" type="button" @click="importRuleDocument">导入规则文件</button>
           </div>
@@ -102,8 +109,9 @@
               </div>
               <span class="status-pill" :data-status="item.enabled ? 'ENABLED' : 'DISABLED'">{{ item.enabled ? 'ENABLED' : 'DISABLED' }}</span>
             </div>
-            <p class="note">文档：{{ item.documentTitle || '-' }} / {{ item.documentStatus || '-' }} / {{ item.documentIndexStatus || '-' }}</p>
+            <p class="note">文档：{{ item.documentTitle || '-' }} / {{ item.documentStatus || '-' }} / {{ item.documentIndexStatus || '-' }} / {{ item.documentParseStatus || 'COMPLETED' }}</p>
             <p class="note">来源：{{ item.documentSource || '-' }} | 阈值：{{ item.hitThreshold ?? '-' }}</p>
+            <p v-if="item.documentParseFailureReason" class="note">解析失败：{{ item.documentParseFailureReason }}</p>
             <p v-if="item.ruleContent" class="evidence">{{ item.ruleContent }}</p>
             <div class="item-actions">
               <button class="ghost-btn" type="button" @click="toggleRule(item)">{{ item.enabled ? '停用' : '启用' }}</button>
@@ -221,7 +229,16 @@ interface RiskRuleItem {
   documentSource?: string | null;
   documentStatus?: string | null;
   documentIndexStatus?: string | null;
+  documentParseMethod?: string | null;
+  documentParseStatus?: string | null;
+  documentParseFailureReason?: string | null;
   ruleContent?: string | null;
+}
+
+interface DocumentProcessingCapabilities {
+  defaultParseMethod: string;
+  maxUploadDocuments: number;
+  availableParseMethods: string[];
 }
 
 interface FieldDefinitionItem {
@@ -244,6 +261,9 @@ const rules = ref<RiskRuleItem[]>([]);
 const fieldDefinitions = ref<FieldDefinitionItem[]>([]);
 const selectedFile = ref<File | null>(null);
 const notice = ref('');
+const parseMethod = ref('NATIVE');
+const parseMethods = ref<string[]>(['NATIVE']);
+const maxUploadDocuments = ref(1);
 
 const manualRuleName = ref('');
 const manualRuleCode = ref('');
@@ -271,7 +291,17 @@ const fieldEnabled = ref(true);
 const fieldSortOrder = ref(10);
 const fieldDescription = ref('');
 
-onMounted(refreshAll);
+onMounted(async () => {
+  await loadCapabilities();
+  await refreshAll();
+});
+
+async function loadCapabilities() {
+  const capabilities = await apiGet<DocumentProcessingCapabilities>('/api/document-processing/capabilities');
+  parseMethods.value = capabilities.availableParseMethods?.length ? capabilities.availableParseMethods : ['NATIVE'];
+  parseMethod.value = capabilities.defaultParseMethod || parseMethods.value[0];
+  maxUploadDocuments.value = capabilities.maxUploadDocuments || 1;
+}
 
 async function refreshAll() {
   rules.value = await apiGet<RiskRuleItem[]>('/api/risk-rules/entries');
@@ -312,6 +342,10 @@ async function importRuleDocument() {
     notice.value = '请先选择文件';
     return;
   }
+  if (maxUploadDocuments.value < 1) {
+    notice.value = '当前配置不允许上传文档';
+    return;
+  }
   const formData = new FormData();
   formData.append('requestId', randomRequestId('risk-rule-import'));
   formData.append('file', selectedFile.value);
@@ -321,6 +355,7 @@ async function importRuleDocument() {
   if (importSource.value.trim()) formData.append('source', importSource.value.trim());
   formData.append('severity', importSeverity.value);
   formData.append('hitThreshold', String(importHitThreshold.value));
+  formData.append('parseMethod', parseMethod.value);
   await apiPostForm('/api/risk-rules/import', formData);
   importTitle.value = '';
   importRuleName.value = '';
@@ -329,8 +364,15 @@ async function importRuleDocument() {
   importSeverity.value = 'MEDIUM';
   importHitThreshold.value = 0.78;
   selectedFile.value = null;
-  notice.value = '风险规则文件已导入，规则元数据与 ES 索引已同步创建';
+  notice.value = parseMethod.value === 'MINERU_PRECISE' ? '风险规则文件已导入，MinerU 精准解析完成后会自动投递索引' : '风险规则文件已导入，规则元数据与 ES 索引已同步创建';
   await refreshAll();
+}
+
+function parseMethodLabel(method: string) {
+  if (method === 'MINERU_PRECISE') {
+    return 'MinerU 精准解析';
+  }
+  return '原生解析';
 }
 
 async function toggleRule(item: RiskRuleItem) {

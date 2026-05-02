@@ -36,9 +36,10 @@ public class TianyanDocumentController {
                                                @RequestParam(value = "title", required = false) String title,
                                                @RequestParam(value = "source", required = false) String source,
                                                @RequestParam(value = "chunkSize", required = false) Integer chunkSize,
-                                               @RequestParam(value = "chunkOverlap", required = false) Integer chunkOverlap) {
+                                               @RequestParam(value = "chunkOverlap", required = false) Integer chunkOverlap,
+                                               @RequestParam(value = "parseMethod", required = false) String parseMethod) {
         AuthPrincipal principal = AuthContextHolder.getRequired();
-        return ApiResponse.ok(tianyanDocumentService.importDocument(principal, requestId, file, title, source, chunkSize, chunkOverlap));
+        return ApiResponse.ok(tianyanDocumentService.importDocument(principal, requestId, file, title, source, chunkSize, chunkOverlap, parseMethod));
     }
 
     @GetMapping
@@ -52,5 +53,12 @@ public class TianyanDocumentController {
                                            @RequestParam("requestId") String requestId) {
         AuthPrincipal principal = AuthContextHolder.getRequired();
         return ApiResponse.ok(tianyanDocumentService.deleteDocument(principal, id, requestId));
+    }
+
+    @PostMapping("/{id}/retry-parse")
+    public ApiResponse<DocumentDto> retryParse(@PathVariable("id") Long id,
+                                               @RequestParam("requestId") String requestId) {
+        AuthPrincipal principal = AuthContextHolder.getRequired();
+        return ApiResponse.ok(tianyanDocumentService.retryParsing(principal, id, requestId));
     }
 }

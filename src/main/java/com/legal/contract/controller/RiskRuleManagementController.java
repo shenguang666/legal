@@ -63,7 +63,8 @@ public class RiskRuleManagementController {
                                                          @RequestParam(value = "severity", required = false) String severity,
                                                          @RequestParam(value = "hitThreshold", required = false) Double hitThreshold,
                                                          @RequestParam(value = "chunkSize", required = false) Integer chunkSize,
-                                                         @RequestParam(value = "chunkOverlap", required = false) Integer chunkOverlap) {
+                                                         @RequestParam(value = "chunkOverlap", required = false) Integer chunkOverlap,
+                                                         @RequestParam(value = "parseMethod", required = false) String parseMethod) {
         AuthPrincipal principal = AuthContextHolder.getRequired();
         return ApiResponse.ok(riskRuleManagementService.importRuleFile(
                 principal,
@@ -76,7 +77,8 @@ public class RiskRuleManagementController {
                 severity,
                 hitThreshold,
                 chunkSize,
-                chunkOverlap
+                chunkOverlap,
+                parseMethod
         ));
     }
 

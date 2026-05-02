@@ -20,6 +20,9 @@ public class RiskRuleManageDto {
     private String documentSource;
     private String documentStatus;
     private String documentIndexStatus;
+    private String documentParseMethod;
+    private String documentParseStatus;
+    private String documentParseFailureReason;
     private String ruleContent;
     private LocalDateTime createdAt;
     private LocalDateTime updatedAt;

@@ -10,6 +10,9 @@ public class DocumentDto {
     private String bizType;
     private String status;
     private String indexStatus;
+    private String parseMethod;
+    private String parseStatus;
+    private String parseFailureReason;
     private LocalDateTime createdAt;
     private LocalDateTime updatedAt;
 
@@ -59,6 +62,30 @@ public class DocumentDto {
 
     public void setIndexStatus(String indexStatus) {
         this.indexStatus = indexStatus;
+    }
+
+    public String getParseMethod() {
+        return parseMethod;
+    }
+
+    public void setParseMethod(String parseMethod) {
+        this.parseMethod = parseMethod;
+    }
+
+    public String getParseStatus() {
+        return parseStatus;
+    }
+
+    public void setParseStatus(String parseStatus) {
+        this.parseStatus = parseStatus;
+    }
+
+    public String getParseFailureReason() {
+        return parseFailureReason;
+    }
+
+    public void setParseFailureReason(String parseFailureReason) {
+        this.parseFailureReason = parseFailureReason;
     }
 
     public LocalDateTime getCreatedAt() {
