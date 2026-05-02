@@ -53,6 +53,45 @@ CREATE TABLE IF NOT EXISTS chat_message (
   KEY idx_message_session_time (session_id, created_at)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COMMENT='问答消息表';
 
+CREATE TABLE IF NOT EXISTS chat_hotword (
+  hotword_id BIGINT NOT NULL AUTO_INCREMENT COMMENT '热词主键ID',
+  tenant_id BIGINT NOT NULL COMMENT '租户ID，用于隔离不同租户的热词池',
+  hotword_key VARCHAR(64) NOT NULL COMMENT '热词标记，用于前端提交 askStream 时标识命中的热词',
+  content VARCHAR(255) NOT NULL COMMENT '热词内容，展示在聊天页快捷问题区域',
+  preset_answer TEXT DEFAULT NULL COMMENT '预设答案，命中热词标记时由后端直接返回',
+  category VARCHAR(64) DEFAULT NULL COMMENT '热词分类，如劳动合同、合同审查、报销合规',
+  weight INT NOT NULL DEFAULT 0 COMMENT '热词权重，用于管理页排序和后续推荐扩展',
+  sort_order INT NOT NULL DEFAULT 0 COMMENT '热词排序号，数值越小越靠前',
+  enabled TINYINT(1) NOT NULL DEFAULT 1 COMMENT '是否启用，1启用、0停用',
+  deleted TINYINT(1) NOT NULL DEFAULT 0 COMMENT '是否逻辑删除，1已删除、0未删除',
+  created_by BIGINT NOT NULL COMMENT '创建用户ID',
+  updated_by BIGINT NOT NULL COMMENT '最近更新用户ID',
+  created_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP COMMENT '创建时间',
+  updated_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP COMMENT '更新时间',
+  PRIMARY KEY (hotword_id),
+  UNIQUE KEY uk_chat_hotword_tenant_key (tenant_id, hotword_key),
+  KEY idx_chat_hotword_tenant_enabled (tenant_id, enabled, deleted, weight, sort_order),
+  KEY idx_chat_hotword_tenant_updated (tenant_id, deleted, updated_at)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COMMENT='聊天快捷问题热词表';
+
+INSERT INTO chat_hotword (tenant_id, hotword_key, content, preset_answer, category, weight, sort_order, enabled, deleted, created_by, updated_by)
+SELECT 1001, 'labor_contract_expire_compensation', '劳动合同到期未续签是否有经济补偿？', '劳动合同到期后用人单位不续签，通常需要按照劳动者在本单位工作年限支付经济补偿；但用人单位维持或提高劳动合同约定条件续订、劳动者不同意续订的，一般无需支付经济补偿。建议重点核对到期通知、续签条件、工作年限和当地裁审口径。', '劳动合同', 100, 10, 1, 0, 1, 1
+WHERE NOT EXISTS (
+  SELECT 1 FROM chat_hotword WHERE tenant_id = 1001 AND content = '劳动合同到期未续签是否有经济补偿？' AND deleted = 0
+);
+
+INSERT INTO chat_hotword (tenant_id, hotword_key, content, preset_answer, category, weight, sort_order, enabled, deleted, created_by, updated_by)
+SELECT 1001, 'contract_payment_liability_review', '合同付款条款和违约责任如何审查？', '审查付款条款时应关注付款节点、验收条件、发票要求、付款期限和逾期后果是否清晰；审查违约责任时应核对违约情形、违约金计算方式、损失赔偿范围、解除权和争议解决条款是否匹配业务风险。建议同步检查付款义务与交付、验收、质量保证之间是否存在冲突。', '合同审查', 90, 20, 1, 0, 1, 1
+WHERE NOT EXISTS (
+  SELECT 1 FROM chat_hotword WHERE tenant_id = 1001 AND content = '合同付款条款和违约责任如何审查？' AND deleted = 0
+);
+
+INSERT INTO chat_hotword (tenant_id, hotword_key, content, preset_answer, category, weight, sort_order, enabled, deleted, created_by, updated_by)
+SELECT 1001, 'reimbursement_invoice_risk', '报销制度缺少发票会有哪些风险？', '报销缺少合规发票可能带来税前扣除受限、增值税进项抵扣风险、费用真实性难以证明、内部舞弊和审计整改风险。建议制度中明确发票类型、抬头税号、报销凭证、例外审批、替代证明材料和抽查追责机制。', '报销合规', 80, 30, 1, 0, 1, 1
+WHERE NOT EXISTS (
+  SELECT 1 FROM chat_hotword WHERE tenant_id = 1001 AND content = '报销制度缺少发票会有哪些风险？' AND deleted = 0
+);
+
 CREATE TABLE IF NOT EXISTS kb_document (
   document_id BIGINT NOT NULL AUTO_INCREMENT COMMENT '文档主键ID',
   tenant_id BIGINT NOT NULL COMMENT '租户ID',

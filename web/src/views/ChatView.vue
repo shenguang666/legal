@@ -38,9 +38,18 @@
       </div>
 
       <div class="prompt-rail" aria-label="快捷问题">
-        <button v-for="prompt in quickPrompts" :key="prompt" type="button" class="prompt-chip" @click="usePrompt(prompt)">
-          {{ prompt }}
-        </button>
+        <div class="prompt-rail-head">
+          <span>热词推荐</span>
+          <button class="ghost-btn" type="button" :disabled="hotwordLoading" @click="loadQuickPrompts">
+            {{ hotwordLoading ? '刷新中…' : '换一组' }}
+          </button>
+        </div>
+        <div v-if="quickPrompts.length" class="prompt-list">
+          <button v-for="prompt in quickPrompts" :key="prompt.hotwordId" type="button" class="prompt-chip" @click="usePrompt(prompt)">
+            {{ prompt.content }}
+          </button>
+        </div>
+        <p v-else class="prompt-empty">暂无可用热词，可直接输入你的法律咨询。</p>
       </div>
 
       <div class="composer">
@@ -52,6 +61,7 @@
           rows="4"
           autocomplete="off"
           placeholder="输入你的法律问题，例如：劳动合同到期未续签是否有补偿？…"
+          @input="clearSelectedHotword"
         />
         <div class="composer-actions">
           <span>{{ question.trim().length }} 字</span>
@@ -123,21 +133,27 @@ interface Citation {
   fragment: string;
 }
 
+interface HotwordPrompt {
+  hotwordId: number;
+  hotwordKey: string;
+  content: string;
+  category?: string;
+}
+
 const route = useRoute();
 const sessionId = ref<string>('');
 const messages = ref<ChatMessage[]>([]);
 const question = ref('');
 const notice = ref('');
 const loading = ref(false);
+const hotwordLoading = ref(false);
 const latestCitations = ref<Citation[]>([]);
-const quickPrompts = [
-  '劳动合同到期未续签是否有经济补偿？',
-  '合同付款条款和违约责任如何审查？',
-  '报销制度缺少发票会有哪些风险？',
-];
+const quickPrompts = ref<HotwordPrompt[]>([]);
+const selectedHotwordKey = ref('');
 let cancelStream: null | (() => void) = null;
 
 onMounted(async () => {
+  await loadQuickPrompts();
   const querySessionId = route.query.sessionId as string | undefined;
   const cacheSessionId = localStorage.getItem('legal.activeSessionId');
   sessionId.value = querySessionId || cacheSessionId || '';
@@ -176,6 +192,7 @@ async function ask() {
       sessionId: sessionId.value,
       question: question.value.trim(),
       requestId: randomRequestId('chat-ask'),
+      hotwordKey: selectedHotwordKey.value || undefined,
     };
     const result = await apiPost<AskResponse>('/api/chat/ask', payload);
     await loadMessages();
@@ -207,6 +224,7 @@ async function askStream() {
     sessionId: sessionId.value,
     question: question.value.trim(),
     requestId: randomRequestId('chat-ask-stream'),
+    hotwordKey: selectedHotwordKey.value || undefined,
   };
 
   const userMsg: ChatMessage = {
@@ -247,6 +265,7 @@ async function askStream() {
       patchAssistant();
       loading.value = false;
       question.value = '';
+      selectedHotwordKey.value = '';
       cancelStream = null;
     } else if (name === 'error') {
       loading.value = false;
@@ -265,8 +284,25 @@ function stopStream() {
   }
 }
 
-function usePrompt(prompt: string) {
-  question.value = prompt;
+function usePrompt(prompt: HotwordPrompt) {
+  question.value = prompt.content;
+  selectedHotwordKey.value = prompt.hotwordKey;
+}
+
+function clearSelectedHotword() {
+  selectedHotwordKey.value = '';
+}
+
+async function loadQuickPrompts() {
+  hotwordLoading.value = true;
+  try {
+    quickPrompts.value = await apiGet<HotwordPrompt[]>('/api/hotwords/random?limit=3');
+  } catch (error) {
+    quickPrompts.value = [];
+    notice.value = error instanceof Error ? `热词加载失败：${error.message}` : '热词加载失败，可手动输入问题';
+  } finally {
+    hotwordLoading.value = false;
+  }
 }
 
 async function submitFeedback(messageId: number, helpful: boolean) {
@@ -408,10 +444,33 @@ function formatTime(input: string) {
 }
 
 .prompt-rail {
+  margin-top: 0.9rem;
+  border: 1px solid rgba(29, 43, 35, 0.1);
+  border-radius: 18px;
+  background: rgba(255, 255, 255, 0.34);
+  padding: 0.72rem;
+}
+
+.prompt-rail-head,
+.prompt-list {
   display: flex;
   gap: 0.6rem;
   flex-wrap: wrap;
-  margin-top: 0.9rem;
+}
+
+.prompt-rail-head {
+  align-items: center;
+  justify-content: space-between;
+  margin-bottom: 0.6rem;
+}
+
+.prompt-rail-head span {
+  color: var(--ink);
+  font-weight: 700;
+}
+
+.prompt-list {
+  align-items: center;
 }
 
 .prompt-chip {
@@ -428,6 +487,12 @@ function formatTime(input: string) {
   background: rgba(255, 250, 239, 0.76);
   color: var(--ink);
   transform: translateY(-1px);
+}
+
+.prompt-empty {
+  margin: 0;
+  color: var(--ink-soft);
+  font-size: 0.88rem;
 }
 
 .composer-actions {

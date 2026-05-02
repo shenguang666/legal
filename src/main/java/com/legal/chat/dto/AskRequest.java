@@ -15,6 +15,8 @@ public class AskRequest {
     @NotBlank(message = "requestId 不能为空")
     private String requestId;
 
+    private String hotwordKey;
+
     public String getSessionId() {
         return sessionId;
     }
@@ -37,5 +39,13 @@ public class AskRequest {
 
     public void setRequestId(String requestId) {
         this.requestId = requestId;
+    }
+
+    public String getHotwordKey() {
+        return hotwordKey;
+    }
+
+    public void setHotwordKey(String hotwordKey) {
+        this.hotwordKey = hotwordKey;
     }
 }

@@ -4,6 +4,7 @@ import LoginView from '../views/LoginView.vue';
 import ChatView from '../views/ChatView.vue';
 import SessionsView from '../views/SessionsView.vue';
 import KnowledgeView from '../views/KnowledgeView.vue';
+import HotwordView from '../views/HotwordView.vue';
 import RiskRuleView from '../views/RiskRuleView.vue';
 import RagMetricsView from '../views/RagMetricsView.vue';
 import TianyanView from '../views/TianyanView.vue';
@@ -22,6 +23,7 @@ const router = createRouter({
     { path: '/chat', component: ChatView },
     { path: '/sessions', component: SessionsView },
     { path: '/knowledge', component: KnowledgeView, meta: { adminOnly: true } },
+    { path: '/hotwords', component: HotwordView, meta: { adminOnly: true } },
     { path: '/risk-rules', component: RiskRuleView, meta: { adminOnly: true } },
     { path: '/rag-metrics', component: RagMetricsView, meta: { adminOnly: true } },
     { path: '/tianyan', component: TianyanView, meta: { adminOnly: true } },

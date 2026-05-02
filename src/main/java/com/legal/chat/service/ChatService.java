@@ -77,6 +77,7 @@ public class ChatService {
     private final CacheSafetyGuard cacheSafetyGuard;
     private final HighRiskGuard highRiskGuard;
     private final KbSnapshotService kbSnapshotService;
+    private final HotwordService hotwordService;
 
     public ChatService(ChatSessionMapper chatSessionMapper,
                        ChatMessageMapper chatMessageMapper,
@@ -91,7 +92,8 @@ public class ChatService {
                        AnswerCacheService answerCacheService,
                        CacheSafetyGuard cacheSafetyGuard,
                        HighRiskGuard highRiskGuard,
-                       KbSnapshotService kbSnapshotService) {
+                       KbSnapshotService kbSnapshotService,
+                       HotwordService hotwordService) {
         this.chatSessionMapper = chatSessionMapper;
         this.chatMessageMapper = chatMessageMapper;
         this.retrievalLogMapper = retrievalLogMapper;
@@ -108,6 +110,7 @@ public class ChatService {
         this.cacheSafetyGuard = cacheSafetyGuard;
         this.highRiskGuard = highRiskGuard;
         this.kbSnapshotService = kbSnapshotService;
+        this.hotwordService = hotwordService;
     }
 
 
@@ -223,6 +226,46 @@ public class ChatService {
 
         String kbSnapshotVersion = kbSnapshotService.getSnapshotVersion(principal.tenantId());
         String question = request.getQuestion();
+
+        Optional<String> hotwordAnswer = hotwordService.findPresetAnswer(principal.tenantId(), request.getHotwordKey());
+        if (hotwordAnswer.isPresent()) {
+            String answer = hotwordAnswer.get();
+            ChatMessageEntity assistantMessage = new ChatMessageEntity();
+            assistantMessage.setSessionId(session.getSessionId());
+            assistantMessage.setRole(ChatMessageRole.ASSISTANT);
+            assistantMessage.setContent(answer);
+            assistantMessage.setTokenUsage(0);
+            assistantMessage.setTraceId(traceId);
+            assistantMessage.setCreatedAt(LocalDateTime.now());
+            chatMessageMapper.insert(assistantMessage);
+
+            int latency = (int) (System.currentTimeMillis() - start);
+            assistantMessage.setLatencyMs(latency);
+            chatMessageMapper.updateById(assistantMessage);
+            chatMessageCacheService.appendIfPresent(principal.tenantId(), principal.userId(), session.getSessionId(), assistantMessage, msgTtl);
+            memoryTaskService.enqueueSummaryIfNeeded(principal.tenantId(), principal.userId(), session.getSessionId());
+            memoryTaskService.enqueuePostAskTasks(
+                    principal.tenantId(),
+                    principal.userId(),
+                    session.getSessionId(),
+                    userMessage.getMessageId(),
+                    assistantMessage.getMessageId(),
+                    question,
+                    answer
+            );
+            session.setLastActiveAt(LocalDateTime.now());
+            chatSessionMapper.updateById(session);
+
+            try {
+                emitter.send(SseEmitter.event().name("answer").data(new AskStreamEvent("answer", answer)));
+                emitter.send(SseEmitter.event().name("citations").data(new AskStreamEvent("citations", "[]")));
+                emitter.send(SseEmitter.event().name("done").data(new AskStreamEvent("done", "")));
+                emitter.complete();
+            } catch (Exception ex) {
+                emitter.completeWithError(ex);
+            }
+            return emitter;
+        }
 
         // 高风险问题：绕过缓存读写
         if (!highRiskGuard.isHighRisk(question)) {
