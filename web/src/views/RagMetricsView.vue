@@ -15,8 +15,8 @@
           <label>结束日期</label>
           <input v-model="endDate" type="date" />
         </div>
-        <button class="primary-btn" @click="loadAll">查询统计</button>
-        <button class="ghost-btn" @click="runToday">手动评估结束日期</button>
+        <button class="primary-btn" type="button" @click="loadAll">查询统计</button>
+        <button class="ghost-btn" type="button" @click="runToday">手动评估结束日期</button>
       </div>
     </article>
 
@@ -63,8 +63,8 @@
         </div>
         <div class="header-actions">
           <span v-if="viewMode === 'summary'" class="note">点击某条日汇总进入详情</span>
-          <button v-if="viewMode === 'detail'" class="ghost-btn" @click="backToSummaries">返回日汇总</button>
-          <button class="ghost-btn" @click="refreshCurrentPanel">{{ viewMode === 'summary' ? '刷新日汇总' : '刷新明细' }}</button>
+          <button v-if="viewMode === 'detail'" class="ghost-btn" type="button" @click="backToSummaries">返回日汇总</button>
+          <button class="ghost-btn" type="button" @click="refreshCurrentPanel">{{ viewMode === 'summary' ? '刷新日汇总' : '刷新明细' }}</button>
         </div>
       </div>
 
@@ -74,6 +74,7 @@
             v-for="item in dailySummaries"
             :key="item.id"
             class="summary-row"
+            type="button"
             @click="openDailySummary(item)"
           >
             <span>{{ item.metricDate }}</span>
@@ -88,9 +89,9 @@
           <p v-if="!dailySummaries.length" class="note">当前日期范围暂无日汇总结果。</p>
         </div>
         <div class="pager">
-          <button class="ghost-btn" :disabled="summaryPageNo <= 1" @click="prevSummaryPage">上一页</button>
+          <button class="ghost-btn" type="button" :disabled="summaryPageNo <= 1" @click="prevSummaryPage">上一页</button>
           <span>第 {{ summaryPageNo }} 页 / 共 {{ summaryTotal }} 条</span>
-          <button class="ghost-btn" :disabled="summaryPageNo * summaryPageSize >= summaryTotal" @click="nextSummaryPage">下一页</button>
+          <button class="ghost-btn" type="button" :disabled="summaryPageNo * summaryPageSize >= summaryTotal" @click="nextSummaryPage">下一页</button>
         </div>
       </template>
 
@@ -121,9 +122,9 @@
           <p v-if="!details.length" class="note">暂无消息级评估明细。</p>
         </div>
         <div class="pager">
-          <button class="ghost-btn" :disabled="detailPageNo <= 1" @click="prevDetailPage">上一页</button>
+          <button class="ghost-btn" type="button" :disabled="detailPageNo <= 1" @click="prevDetailPage">上一页</button>
           <span>第 {{ detailPageNo }} 页 / 共 {{ detailTotal }} 条</span>
-          <button class="ghost-btn" :disabled="detailPageNo * detailPageSize >= detailTotal" @click="nextDetailPage">下一页</button>
+          <button class="ghost-btn" type="button" :disabled="detailPageNo * detailPageSize >= detailTotal" @click="nextDetailPage">下一页</button>
         </div>
       </template>
     </article>
@@ -287,7 +288,7 @@ async function loadDetails() {
 }
 
 async function runToday() {
-  notice.value = '正在提交评估任务...';
+  notice.value = '正在提交评估任务…';
   const result = await apiPost<{ selected: number; success: number; failed: number; skipped: number }>(`/api/rag-metrics/run?date=${endDate.value}`);
   notice.value = `评估完成：选中 ${result.selected}，成功 ${result.success}，失败 ${result.failed}，跳过 ${result.skipped}`;
   await loadAll();

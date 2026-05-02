@@ -5,16 +5,18 @@
       <h2 class="section-title">上传文档并向量化</h2>
       <div class="grid form-grid">
         <div>
-          <label>标题</label>
-          <input v-model="title" placeholder="可选，不填则使用文件名" />
+          <label for="knowledge-title">标题</label>
+          <input id="knowledge-title" v-model="title" name="knowledgeTitle" autocomplete="off" placeholder="可选，不填则使用文件名…" />
         </div>
         <div>
-          <label>来源</label>
-          <input v-model="source" placeholder="可选，例如：国家法规库" />
+          <label for="knowledge-source">来源</label>
+          <input id="knowledge-source" v-model="source" name="knowledgeSource" autocomplete="off" placeholder="可选，例如：国家法规库…" />
         </div>
         <div>
-          <label>文件</label>
+          <label for="knowledge-file">文件</label>
           <input
+            id="knowledge-file"
+            name="knowledgeFile"
             type="file"
             accept=".pdf,.doc,.docx,.txt,.md"
             @change="onSelectFile"
@@ -22,30 +24,33 @@
         </div>
       </div>
       <div class="actions">
-        <button class="primary-btn" @click="importDocument">导入并索引</button>
+        <button class="primary-btn" type="button" @click="importDocument">导入并索引</button>
       </div>
       <p class="note">支持 pdf/doc/docx/txt/md，导入后由后台异步完成向量索引。</p>
     </article>
 
     <article class="card panel">
       <div class="header-row">
-        <h3>文档列表</h3>
-        <button class="ghost-btn" @click="refresh">刷新</button>
+        <div>
+          <p class="tag">知识资产</p>
+          <h3>文档列表</h3>
+        </div>
+        <button class="ghost-btn" type="button" @click="refresh">刷新</button>
       </div>
 
       <div class="doc-list">
         <div v-for="item in documents" :key="item.documentId" class="doc-item">
+          <span class="doc-status">{{ item.status }} / {{ item.indexStatus }}</span>
           <h4>{{ item.title }}</h4>
           <p>来源：{{ item.source }}</p>
-          <p>状态：{{ item.status }} / {{ item.indexStatus }}</p>
           <div class="doc-actions">
-            <button class="ghost-btn" @click="triggerIndex(item.documentId)">触发索引</button>
-            <button class="warn-btn" @click="remove(item.documentId)">删除</button>
+            <button class="ghost-btn" type="button" @click="triggerIndex(item.documentId)">触发索引</button>
+            <button class="warn-btn" type="button" @click="remove(item.documentId)">删除</button>
           </div>
         </div>
       </div>
       <p v-if="!documents.length" class="note">暂无文档，请先创建一条记录。</p>
-      <p v-if="notice" class="notice">{{ notice }}</p>
+      <p v-if="notice" class="notice" aria-live="polite">{{ notice }}</p>
     </article>
   </section>
 </template>
@@ -108,6 +113,9 @@ async function triggerIndex(documentId: number) {
 }
 
 async function remove(documentId: number) {
+  if (!window.confirm(`确认删除知识库文档 ${documentId}？`)) {
+    return;
+  }
   await apiDelete(`/api/knowledge/documents/${documentId}?requestId=${encodeURIComponent(randomRequestId('kb-delete'))}`);
   notice.value = `文档 ${documentId} 已标记删除`;
   await refresh();
@@ -122,7 +130,7 @@ async function remove(documentId: number) {
 }
 
 .panel {
-  padding: 1rem;
+  padding: clamp(1rem, 2vw, 1.25rem);
 }
 
 .form-grid {
@@ -147,10 +155,32 @@ async function remove(documentId: number) {
 }
 
 .doc-item {
+  position: relative;
   border-radius: 14px;
   border: 1px solid var(--line);
-  background: rgba(255, 255, 255, 0.6);
+  background:
+    radial-gradient(circle at 100% 0%, rgba(50, 92, 73, 0.12), transparent 36%),
+    rgba(255, 255, 255, 0.6);
   padding: 0.8rem;
+  min-width: 0;
+  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.52);
+}
+
+.doc-item:hover {
+  border-color: rgba(192, 147, 71, 0.42);
+  transform: translateY(-2px);
+  box-shadow: var(--lift-shadow);
+}
+
+.doc-status {
+  display: inline-flex;
+  margin-bottom: 0.5rem;
+  border-radius: 999px;
+  background: var(--forest-soft);
+  color: var(--forest-deep);
+  padding: 0.24rem 0.52rem;
+  font-size: 0.72rem;
+  font-variant-numeric: tabular-nums;
 }
 
 .doc-item h4 {
@@ -162,6 +192,7 @@ async function remove(documentId: number) {
   margin: 0.25rem 0;
   color: var(--ink-soft);
   font-size: 0.86rem;
+  overflow-wrap: anywhere;
 }
 
 .doc-actions {

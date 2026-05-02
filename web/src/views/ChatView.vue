@@ -5,11 +5,19 @@
         <div>
           <p class="tag">对话工作台</p>
           <h2 class="section-title">法律问答会话</h2>
+          <p class="subtle">以企业制度、法律知识库与会话上下文为基础，生成可追溯答案。</p>
         </div>
-        <button class="ghost-btn" @click="newSession">新建会话</button>
+        <button class="ghost-btn" type="button" @click="newSession">新建会话</button>
       </div>
 
-      <div class="messages">
+      <div v-if="!messages.length" class="empty-state chat-empty">
+        <div>
+          <strong>还没有消息</strong>
+          <p>选择下方快捷问题，或直接输入你的法律咨询。</p>
+        </div>
+      </div>
+
+      <div v-else class="messages" aria-live="polite">
         <article
           v-for="item in messages"
           :key="item.messageId"
@@ -23,30 +31,54 @@
           </details>
           <p class="text">{{ item.content }}</p>
           <div v-if="item.role === 'assistant'" class="feedback-line">
-            <button class="ghost-btn" @click="submitFeedback(item.messageId, true)">有帮助</button>
-            <button class="warn-btn" @click="submitFeedback(item.messageId, false)">没帮助</button>
+            <button class="ghost-btn" type="button" @click="submitFeedback(item.messageId, true)">有帮助</button>
+            <button class="warn-btn" type="button" @click="submitFeedback(item.messageId, false)">没帮助</button>
           </div>
         </article>
       </div>
 
+      <div class="prompt-rail" aria-label="快捷问题">
+        <button v-for="prompt in quickPrompts" :key="prompt" type="button" class="prompt-chip" @click="usePrompt(prompt)">
+          {{ prompt }}
+        </button>
+      </div>
+
       <div class="composer">
+        <label for="chat-question">咨询内容</label>
         <textarea
+          id="chat-question"
           v-model="question"
+          name="question"
           rows="4"
-          placeholder="输入你的法律问题，例如：劳动合同到期未续签是否有补偿？"
+          autocomplete="off"
+          placeholder="输入你的法律问题，例如：劳动合同到期未续签是否有补偿？…"
         />
-        <button class="primary-btn" :disabled="loading" @click="askStream">{{ loading ? '生成中...' : '发送问题(流式)' }}</button>
+        <div class="composer-actions">
+          <span>{{ question.trim().length }} 字</span>
+          <button v-if="loading" class="ghost-btn" type="button" @click="stopStream">停止生成</button>
+          <button class="primary-btn" type="button" :disabled="loading || !question.trim()" @click="askStream">{{ loading ? '生成中…' : '发送问题' }}</button>
+        </div>
       </div>
       <p class="note">当前 sessionId：{{ sessionId || '尚未创建' }}</p>
     </div>
 
     <aside class="right card panel">
+      <p class="tag">工作流</p>
       <h3>系统提示</h3>
-      <ul>
-        <li>当前问答已接入混合检索（向量 + BM25）。</li>
-        <li>答案下方可查看命中的知识库引用片段。</li>
-        <li>所有写接口都带 requestId，支持幂等。</li>
-      </ul>
+      <div class="insight-list">
+        <div>
+          <strong>混合检索</strong>
+          <span>向量 + BM25 联合召回</span>
+        </div>
+        <div>
+          <strong>引用追溯</strong>
+          <span>本轮命中片段实时展示</span>
+        </div>
+        <div>
+          <strong>幂等写入</strong>
+          <span>写接口携带 requestId</span>
+        </div>
+      </div>
       <div v-if="latestCitations.length" class="citation-panel">
         <h4>本轮引用</h4>
         <article v-for="(item, idx) in latestCitations" :key="`${item.documentId}-${idx}`" class="citation-item">
@@ -54,7 +86,7 @@
           <p class="citation-fragment">{{ item.fragment }}</p>
         </article>
       </div>
-      <p v-if="notice" class="notice">{{ notice }}</p>
+      <p v-if="notice" class="notice" aria-live="polite">{{ notice }}</p>
     </aside>
   </section>
 </template>
@@ -98,6 +130,11 @@ const question = ref('');
 const notice = ref('');
 const loading = ref(false);
 const latestCitations = ref<Citation[]>([]);
+const quickPrompts = [
+  '劳动合同到期未续签是否有经济补偿？',
+  '合同付款条款和违约责任如何审查？',
+  '报销制度缺少发票会有哪些风险？',
+];
 let cancelStream: null | (() => void) = null;
 
 onMounted(async () => {
@@ -219,6 +256,19 @@ async function askStream() {
   });
 }
 
+function stopStream() {
+  if (cancelStream) {
+    cancelStream();
+    cancelStream = null;
+    loading.value = false;
+    notice.value = '已停止本次生成';
+  }
+}
+
+function usePrompt(prompt: string) {
+  question.value = prompt;
+}
+
 async function submitFeedback(messageId: number, helpful: boolean) {
   try {
     await apiPost('/api/feedback', {
@@ -237,7 +287,12 @@ function formatTime(input: string) {
   if (!input) {
     return '';
   }
-  return new Date(input).toLocaleString();
+  return new Intl.DateTimeFormat('zh-CN', {
+    month: '2-digit',
+    day: '2-digit',
+    hour: '2-digit',
+    minute: '2-digit',
+  }).format(new Date(input));
 }
 </script>
 
@@ -249,7 +304,7 @@ function formatTime(input: string) {
 }
 
 .panel {
-  padding: 1rem;
+  padding: clamp(1rem, 2vw, 1.25rem);
 }
 
 .head-row {
@@ -257,6 +312,12 @@ function formatTime(input: string) {
   align-items: flex-start;
   justify-content: space-between;
   gap: 1rem;
+}
+
+.subtle {
+  margin: -0.25rem 0 0;
+  color: var(--ink-soft);
+  line-height: 1.55;
 }
 
 .messages {
@@ -268,18 +329,41 @@ function formatTime(input: string) {
   padding-right: 0.25rem;
 }
 
+.chat-empty {
+  margin-top: 0.9rem;
+}
+
+.chat-empty strong {
+  display: block;
+  color: var(--ink);
+  font-family: 'Cormorant Garamond', serif;
+  font-size: 1.5rem;
+}
+
+.chat-empty p {
+  margin: 0.3rem 0 0;
+}
+
 .bubble {
   border-radius: 14px;
   padding: 0.8rem;
   border: 1px solid var(--line);
+  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.46);
+  animation: rise 0.28s ease both;
 }
 
 .user {
-  background: rgba(50, 92, 73, 0.15);
+  margin-left: clamp(0rem, 8vw, 5rem);
+  background:
+    radial-gradient(circle at 0% 0%, rgba(255, 255, 255, 0.24), transparent 36%),
+    rgba(50, 92, 73, 0.15);
 }
 
 .assistant {
-  background: rgba(192, 147, 71, 0.13);
+  margin-right: clamp(0rem, 8vw, 5rem);
+  background:
+    radial-gradient(circle at 0% 0%, rgba(255, 255, 255, 0.3), transparent 38%),
+    rgba(192, 147, 71, 0.13);
 }
 
 .meta {
@@ -291,6 +375,8 @@ function formatTime(input: string) {
 .text {
   margin: 0.45rem 0 0;
   line-height: 1.58;
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
 }
 
 .feedback-line {
@@ -321,11 +407,65 @@ function formatTime(input: string) {
   gap: 0.65rem;
 }
 
-.right ul {
-  margin-top: 0.25rem;
-  margin-bottom: 0.8rem;
-  padding-left: 1rem;
-  line-height: 1.6;
+.prompt-rail {
+  display: flex;
+  gap: 0.6rem;
+  flex-wrap: wrap;
+  margin-top: 0.9rem;
+}
+
+.prompt-chip {
+  border: 1px solid rgba(29, 43, 35, 0.12);
+  border-radius: 999px;
+  background: rgba(255, 255, 255, 0.4);
+  color: var(--ink-soft);
+  padding: 0.52rem 0.74rem;
+  cursor: pointer;
+}
+
+.prompt-chip:hover {
+  border-color: rgba(192, 147, 71, 0.45);
+  background: rgba(255, 250, 239, 0.76);
+  color: var(--ink);
+  transform: translateY(-1px);
+}
+
+.composer-actions {
+  display: flex;
+  align-items: center;
+  justify-content: flex-end;
+  gap: 0.6rem;
+  flex-wrap: wrap;
+}
+
+.composer-actions span {
+  margin-right: auto;
+  color: var(--ink-soft);
+  font-size: 0.82rem;
+}
+
+.insight-list {
+  display: grid;
+  gap: 0.7rem;
+  margin: 0.7rem 0 1rem;
+}
+
+.insight-list div {
+  border: 1px solid rgba(29, 43, 35, 0.12);
+  border-radius: 16px;
+  background: rgba(255, 255, 255, 0.42);
+  padding: 0.78rem;
+}
+
+.insight-list strong,
+.insight-list span {
+  display: block;
+}
+
+.insight-list span {
+  margin-top: 0.24rem;
+  color: var(--ink-soft);
+  font-size: 0.84rem;
 }
 
 .notice {

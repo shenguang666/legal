@@ -27,9 +27,13 @@ debugger; /* PartiallyEnd: #3632/scriptSetup.vue */
 const __VLS_ctx = {};
 let __VLS_components;
 let __VLS_directives;
+/** @type {__VLS_StyleScopedClasses['skip-link']} */ ;
 /** @type {__VLS_StyleScopedClasses['menu-link']} */ ;
 /** @type {__VLS_StyleScopedClasses['menu-link']} */ ;
+/** @type {__VLS_StyleScopedClasses['identity']} */ ;
+/** @type {__VLS_StyleScopedClasses['identity-avatar']} */ ;
 /** @type {__VLS_StyleScopedClasses['topbar']} */ ;
+/** @type {__VLS_StyleScopedClasses['menu']} */ ;
 /** @type {__VLS_StyleScopedClasses['identity']} */ ;
 // CSS variable injection 
 // CSS variable injection end 
@@ -39,18 +43,28 @@ __VLS_asFunctionalElement(__VLS_intrinsicElements.div, __VLS_intrinsicElements.d
 __VLS_asFunctionalElement(__VLS_intrinsicElements.div, __VLS_intrinsicElements.div)({
     ...{ class: "shell-glow" },
 });
+__VLS_asFunctionalElement(__VLS_intrinsicElements.a, __VLS_intrinsicElements.a)({
+    ...{ class: "skip-link" },
+    href: "#main-content",
+});
 __VLS_asFunctionalElement(__VLS_intrinsicElements.header, __VLS_intrinsicElements.header)({
     ...{ class: "topbar card" },
 });
-__VLS_asFunctionalElement(__VLS_intrinsicElements.div, __VLS_intrinsicElements.div)({});
+__VLS_asFunctionalElement(__VLS_intrinsicElements.div, __VLS_intrinsicElements.div)({
+    ...{ class: "brand-block" },
+});
 __VLS_asFunctionalElement(__VLS_intrinsicElements.p, __VLS_intrinsicElements.p)({
     ...{ class: "eyebrow" },
 });
 __VLS_asFunctionalElement(__VLS_intrinsicElements.h1, __VLS_intrinsicElements.h1)({
     ...{ class: "brand" },
 });
+__VLS_asFunctionalElement(__VLS_intrinsicElements.p, __VLS_intrinsicElements.p)({
+    ...{ class: "brand-subtitle" },
+});
 __VLS_asFunctionalElement(__VLS_intrinsicElements.nav, __VLS_intrinsicElements.nav)({
     ...{ class: "menu" },
+    'aria-label': "主导航",
 });
 const __VLS_0 = {}.RouterLink;
 /** @type {[typeof __VLS_components.RouterLink, typeof __VLS_components.RouterLink, ]} */ ;
@@ -141,6 +155,10 @@ if (__VLS_ctx.isAdmin) {
 __VLS_asFunctionalElement(__VLS_intrinsicElements.div, __VLS_intrinsicElements.div)({
     ...{ class: "identity" },
 });
+__VLS_asFunctionalElement(__VLS_intrinsicElements.span, __VLS_intrinsicElements.span)({
+    ...{ class: "identity-avatar" },
+});
+(__VLS_ctx.displayName.slice(0, 1).toUpperCase());
 __VLS_asFunctionalElement(__VLS_intrinsicElements.span, __VLS_intrinsicElements.span)({});
 (__VLS_ctx.displayName);
 __VLS_asFunctionalElement(__VLS_intrinsicElements.span, __VLS_intrinsicElements.span)({});
@@ -152,8 +170,10 @@ __VLS_asFunctionalElement(__VLS_intrinsicElements.span, __VLS_intrinsicElements.
 __VLS_asFunctionalElement(__VLS_intrinsicElements.button, __VLS_intrinsicElements.button)({
     ...{ onClick: (__VLS_ctx.logout) },
     ...{ class: "ghost-btn" },
+    type: "button",
 });
 __VLS_asFunctionalElement(__VLS_intrinsicElements.main, __VLS_intrinsicElements.main)({
+    id: "main-content",
     ...{ class: "page card" },
 });
 const __VLS_24 = {}.RouterView;
@@ -163,10 +183,13 @@ const __VLS_25 = __VLS_asFunctionalComponent(__VLS_24, new __VLS_24({}));
 const __VLS_26 = __VLS_25({}, ...__VLS_functionalComponentArgsRest(__VLS_25));
 /** @type {__VLS_StyleScopedClasses['shell']} */ ;
 /** @type {__VLS_StyleScopedClasses['shell-glow']} */ ;
+/** @type {__VLS_StyleScopedClasses['skip-link']} */ ;
 /** @type {__VLS_StyleScopedClasses['topbar']} */ ;
 /** @type {__VLS_StyleScopedClasses['card']} */ ;
+/** @type {__VLS_StyleScopedClasses['brand-block']} */ ;
 /** @type {__VLS_StyleScopedClasses['eyebrow']} */ ;
 /** @type {__VLS_StyleScopedClasses['brand']} */ ;
+/** @type {__VLS_StyleScopedClasses['brand-subtitle']} */ ;
 /** @type {__VLS_StyleScopedClasses['menu']} */ ;
 /** @type {__VLS_StyleScopedClasses['menu-link']} */ ;
 /** @type {__VLS_StyleScopedClasses['menu-link']} */ ;
@@ -175,6 +198,7 @@ const __VLS_26 = __VLS_25({}, ...__VLS_functionalComponentArgsRest(__VLS_25));
 /** @type {__VLS_StyleScopedClasses['menu-link']} */ ;
 /** @type {__VLS_StyleScopedClasses['menu-link']} */ ;
 /** @type {__VLS_StyleScopedClasses['identity']} */ ;
+/** @type {__VLS_StyleScopedClasses['identity-avatar']} */ ;
 /** @type {__VLS_StyleScopedClasses['ghost-btn']} */ ;
 /** @type {__VLS_StyleScopedClasses['page']} */ ;
 /** @type {__VLS_StyleScopedClasses['card']} */ ;

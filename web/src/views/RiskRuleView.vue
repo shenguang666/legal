@@ -38,7 +38,7 @@
             <textarea v-model="manualRuleContent" rows="6" placeholder="请输入风险规则原文，保存后会同时写入 MySQL 与 ES。"></textarea>
           </div>
           <div class="actions">
-            <button class="primary-btn" @click="createManualRule">保存手工规则</button>
+            <button class="primary-btn" type="button" @click="createManualRule">保存手工规则</button>
           </div>
         </div>
 
@@ -79,7 +79,7 @@
             </div>
           </div>
           <div class="actions">
-            <button class="primary-btn" @click="importRuleDocument">导入规则文件</button>
+            <button class="primary-btn" type="button" @click="importRuleDocument">导入规则文件</button>
           </div>
         </div>
       </article>
@@ -90,7 +90,7 @@
             <p class="tag">风险规则列表</p>
             <h3>已入库规则</h3>
           </div>
-          <button class="ghost-btn" @click="refreshAll">刷新</button>
+          <button class="ghost-btn" type="button" @click="refreshAll">刷新</button>
         </div>
 
         <div class="item-list">
@@ -106,9 +106,9 @@
             <p class="note">来源：{{ item.documentSource || '-' }} | 阈值：{{ item.hitThreshold ?? '-' }}</p>
             <p v-if="item.ruleContent" class="evidence">{{ item.ruleContent }}</p>
             <div class="item-actions">
-              <button class="ghost-btn" @click="toggleRule(item)">{{ item.enabled ? '停用' : '启用' }}</button>
-              <button class="ghost-btn" :disabled="!item.documentId" @click="reindexRule(item)">重建索引</button>
-              <button class="warn-btn" @click="deleteRule(item)">删除</button>
+              <button class="ghost-btn" type="button" @click="toggleRule(item)">{{ item.enabled ? '停用' : '启用' }}</button>
+              <button class="ghost-btn" type="button" :disabled="!item.documentId" @click="reindexRule(item)">重建索引</button>
+              <button class="warn-btn" type="button" @click="deleteRule(item)">删除</button>
             </div>
           </div>
         </div>
@@ -123,7 +123,7 @@
           <p class="tag">抽取字段管理</p>
           <h3>配置天眼审查字段定义</h3>
         </div>
-        <button class="ghost-btn" @click="resetFieldForm">清空表单</button>
+        <button class="ghost-btn" type="button" @click="resetFieldForm">清空表单</button>
       </div>
 
       <div class="grid field-grid">
@@ -176,7 +176,7 @@
         <textarea v-model="fieldDescription" rows="2" placeholder="说明该字段的业务用途"></textarea>
       </div>
       <div class="actions">
-        <button class="primary-btn" @click="saveFieldDefinition">{{ editingFieldId ? '更新字段定义' : '新增字段定义' }}</button>
+        <button class="primary-btn" type="button" @click="saveFieldDefinition">{{ editingFieldId ? '更新字段定义' : '新增字段定义' }}</button>
       </div>
 
       <div class="item-list field-list">
@@ -193,9 +193,9 @@
           <p v-if="item.keywordConfig" class="note">关键字：{{ item.keywordConfig }}</p>
           <p v-if="item.description" class="note">说明：{{ item.description }}</p>
           <div class="item-actions">
-            <button class="ghost-btn" @click="beginEditField(item)" :disabled="item.systemDefault">编辑</button>
-            <button class="ghost-btn" @click="toggleField(item)" :disabled="item.systemDefault">{{ item.enabled ? '停用' : '启用' }}</button>
-            <button class="warn-btn" @click="deleteField(item)" :disabled="item.systemDefault">删除</button>
+            <button class="ghost-btn" type="button" @click="beginEditField(item)" :disabled="item.systemDefault">编辑</button>
+            <button class="ghost-btn" type="button" @click="toggleField(item)" :disabled="item.systemDefault">{{ item.enabled ? '停用' : '启用' }}</button>
+            <button class="warn-btn" type="button" @click="deleteField(item)" :disabled="item.systemDefault">删除</button>
           </div>
         </div>
       </div>
@@ -349,6 +349,9 @@ async function reindexRule(item: RiskRuleItem) {
 }
 
 async function deleteRule(item: RiskRuleItem) {
+  if (!window.confirm(`确认删除风险规则 ${item.ruleCode}？`)) {
+    return;
+  }
   await apiDelete(`/api/risk-rules/${item.ruleId}?requestId=${encodeURIComponent(randomRequestId('risk-rule-delete'))}`);
   notice.value = `风险规则 ${item.ruleCode} 已删除`;
   await refreshAll();
@@ -421,6 +424,9 @@ async function toggleField(item: FieldDefinitionItem) {
 }
 
 async function deleteField(item: FieldDefinitionItem) {
+  if (!window.confirm(`确认删除字段定义 ${item.fieldCode}？`)) {
+    return;
+  }
   await apiDelete(`/api/risk-rules/fields/${item.fieldDefinitionId}?requestId=${encodeURIComponent(randomRequestId('field-definition-delete'))}`);
   notice.value = `字段定义 ${item.fieldCode} 已删除`;
   await refreshAll();

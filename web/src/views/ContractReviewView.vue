@@ -7,10 +7,10 @@
         <p class="note">对审查文档中的核心字段、金额、日期、责任条款与风险点进行结构化识别和规则校验。</p>
       </div>
       <div class="hero-actions">
-        <button class="ghost-btn" @click="goBack">返回天眼审查</button>
-        <button class="ghost-btn" @click="refresh">刷新</button>
-        <button class="primary-btn" @click="startReview">开始审查</button>
-        <button v-if="review" class="warn-btn" @click="rerunReview">重新审查</button>
+        <button class="ghost-btn" type="button" @click="goBack">返回天眼审查</button>
+        <button class="ghost-btn" type="button" @click="refresh">刷新</button>
+        <button class="primary-btn" type="button" @click="startReview">开始审查</button>
+        <button v-if="review" class="warn-btn" type="button" @click="rerunReview">重新审查</button>
       </div>
     </article>
 
