@@ -105,6 +105,7 @@ CREATE TABLE IF NOT EXISTS kb_document (
   parse_method VARCHAR(32) NOT NULL DEFAULT 'NATIVE' COMMENT '文档解析方式（NATIVE原生解析/MINERU_PRECISE MinerU精准解析）',
   parse_status VARCHAR(32) NOT NULL DEFAULT 'COMPLETED' COMMENT '文档解析状态（PENDING待解析/PROCESSING解析中/COMPLETED完成/FAILED失败）',
   parse_failure_reason VARCHAR(1000) DEFAULT NULL COMMENT '文档解析失败原因，用于前端展示和排查',
+  cleaning_enabled TINYINT(1) NOT NULL DEFAULT 0 COMMENT '是否在本次文档版本解析中启用内容清洗，1启用、0关闭',
   mineru_batch_id VARCHAR(128) DEFAULT NULL COMMENT 'MinerU批次ID，用于关联外部精准解析任务',
   mineru_data_id VARCHAR(128) DEFAULT NULL COMMENT 'MinerU文件数据ID，用于关联批次内单个文件',
   mineru_full_zip_url VARCHAR(1000) DEFAULT NULL COMMENT 'MinerU完整解析结果压缩包地址，仅后端使用',
@@ -124,6 +125,7 @@ CREATE TABLE IF NOT EXISTS kb_document_parse_task (
   doc_version INT NOT NULL COMMENT '文档版本号',
   parse_method VARCHAR(32) NOT NULL COMMENT '文档解析方式（NATIVE/MINERU_PRECISE）',
   parse_status VARCHAR(32) NOT NULL DEFAULT 'PENDING' COMMENT '解析任务状态（PENDING/PROCESSING/COMPLETED/FAILED）',
+  cleaning_enabled TINYINT(1) NOT NULL DEFAULT 0 COMMENT '是否在该解析任务中启用内容清洗，1启用、0关闭',
   file_name VARCHAR(255) NOT NULL COMMENT '上传文件名',
   file_content LONGBLOB DEFAULT NULL COMMENT '待解析文件内容，仅用于异步提交 MinerU',
   mineru_batch_id VARCHAR(128) DEFAULT NULL COMMENT 'MinerU批次ID',
@@ -140,6 +142,25 @@ CREATE TABLE IF NOT EXISTS kb_document_parse_task (
   KEY idx_parse_task_status_retry (parse_status, next_retry_at, retry_count),
   KEY idx_parse_task_document (tenant_id, document_id, doc_version)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COMMENT='文档解析任务表';
+
+CREATE TABLE IF NOT EXISTS kb_document_cleaning_log (
+  cleaning_log_id BIGINT NOT NULL AUTO_INCREMENT COMMENT '文档清洗日志主键ID',
+  tenant_id BIGINT NOT NULL COMMENT '租户ID',
+  document_id BIGINT NOT NULL COMMENT '文档ID',
+  doc_version INT NOT NULL COMMENT '文档版本号',
+  parse_method VARCHAR(32) NOT NULL COMMENT '文档解析方式（NATIVE/MINERU_PRECISE）',
+  content_format VARCHAR(32) NOT NULL COMMENT '清洗内容格式（TEXT纯文本/MARKDOWN Markdown）',
+  original_chars INT NOT NULL DEFAULT 0 COMMENT '清洗前字符数',
+  cleaned_chars INT NOT NULL DEFAULT 0 COMMENT '清洗后字符数',
+  removed_line_count INT NOT NULL DEFAULT 0 COMMENT '被清洗删除的行数',
+  removed_chunk_count INT NOT NULL DEFAULT 0 COMMENT '被过滤删除的低质量切片数量',
+  reason_summary_json TEXT COMMENT '清洗原因统计JSON',
+  removed_samples_json MEDIUMTEXT COMMENT '被清洗内容样例JSON，按配置限制数量和长度',
+  created_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP COMMENT '创建时间',
+  PRIMARY KEY (cleaning_log_id),
+  KEY idx_cleaning_log_document (tenant_id, document_id, doc_version),
+  KEY idx_cleaning_log_created (tenant_id, created_at)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COMMENT='文档内容清洗日志表';
 
 CREATE TABLE IF NOT EXISTS kb_chunk (
   chunk_id BIGINT NOT NULL AUTO_INCREMENT COMMENT '切片主键ID',

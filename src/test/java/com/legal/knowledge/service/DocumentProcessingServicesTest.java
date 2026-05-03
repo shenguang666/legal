@@ -70,15 +70,15 @@ class DocumentProcessingServicesTest {
         DocumentImportService service = new DocumentImportService(documentMapper, capabilityService, nativeDocumentParser, parseTaskService);
         MockMultipartFile file = new MockMultipartFile("file", "contract.txt", "text/plain", "合同内容".getBytes(StandardCharsets.UTF_8));
         when(nativeDocumentParser.parse(any(DocumentParseRequest.class)))
-                .thenReturn(new DocumentParseResult(DocumentParseMethod.NATIVE, "合同内容", null, List.of("合同内容"), null, null, null));
+                .thenReturn(new DocumentParseResult(DocumentParseMethod.NATIVE, "合同内容", null, List.of("合同内容"), null, null, null, null));
 
-        KbDocumentEntity document = service.importDocument(principal(), file, null, null, KbDocumentBizType.KNOWLEDGE, null, null, null, "内容过短");
+        KbDocumentEntity document = service.importDocument(principal(), file, null, null, KbDocumentBizType.KNOWLEDGE, null, null, null, false, "内容过短");
 
         assertThat(document.getParseMethod()).isEqualTo(DocumentParseMethod.NATIVE);
         assertThat(document.getParseStatus()).isEqualTo(DocumentParseStatus.PROCESSING);
         assertThat(document.getStatus()).isEqualTo(KbDocumentStatus.PROCESSING);
         verify(documentMapper).insert(document);
-        verify(parseTaskService).completeNative(eq(document), eq(List.of("合同内容")));
+        verify(parseTaskService).completeNative(eq(document), eq(List.of("合同内容")), eq(null));
         verify(parseTaskService, never()).createTask(any(), any(), any());
     }
 
@@ -99,7 +99,7 @@ class DocumentProcessingServicesTest {
         MockMultipartFile file = new MockMultipartFile("file", "contract.pdf", "application/pdf", "PDF".getBytes(StandardCharsets.UTF_8));
 
         KbDocumentEntity document = service.importDocument(principal(), file, "精准合同", "上传", KbDocumentBizType.KNOWLEDGE,
-                "MINERU_PRECISE", null, null, "内容过短");
+                "MINERU_PRECISE", null, null, false, "内容过短");
 
         assertThat(document.getParseMethod()).isEqualTo(DocumentParseMethod.MINERU_PRECISE);
         assertThat(document.getParseStatus()).isEqualTo(DocumentParseStatus.PENDING);
@@ -118,8 +118,10 @@ class DocumentProcessingServicesTest {
         NativeDocumentParser nativeDocumentParser = mock(NativeDocumentParser.class);
         MineruClient mineruClient = mock(MineruClient.class);
         SemanticDocumentChunker semanticDocumentChunker = mock(SemanticDocumentChunker.class);
+        DocumentProcessingProperties properties = new DocumentProcessingProperties();
         DocumentParseTaskService service = new DocumentParseTaskService(documentMapper, chunkMapper, outboxMapper, taskMapper,
-                nativeDocumentParser, mineruClient, semanticDocumentChunker, new DocumentProcessingProperties());
+                nativeDocumentParser, mineruClient, semanticDocumentChunker, new DocumentContentCleaner(properties),
+                mock(DocumentCleaningLogService.class), properties);
         KbDocumentEntity document = mineruDocument(KbDocumentBizType.KNOWLEDGE);
         KbDocumentParseTaskEntity task = mineruTask();
         when(documentMapper.selectOne(any())).thenReturn(document);
@@ -144,8 +146,10 @@ class DocumentProcessingServicesTest {
         KbDocumentMapper documentMapper = mock(KbDocumentMapper.class);
         KbDocumentParseTaskMapper taskMapper = mock(KbDocumentParseTaskMapper.class);
         MineruClient mineruClient = mock(MineruClient.class);
+        DocumentProcessingProperties properties = new DocumentProcessingProperties();
         DocumentParseTaskService service = new DocumentParseTaskService(documentMapper, mock(KbChunkMapper.class), mock(KbIndexOutboxMapper.class),
-                taskMapper, mock(NativeDocumentParser.class), mineruClient, mock(SemanticDocumentChunker.class), new DocumentProcessingProperties());
+                taskMapper, mock(NativeDocumentParser.class), mineruClient, mock(SemanticDocumentChunker.class),
+                new DocumentContentCleaner(properties), mock(DocumentCleaningLogService.class), properties);
         KbDocumentEntity document = mineruDocument(KbDocumentBizType.KNOWLEDGE);
         KbDocumentParseTaskEntity task = mineruTask();
         when(documentMapper.selectOne(any())).thenReturn(document);

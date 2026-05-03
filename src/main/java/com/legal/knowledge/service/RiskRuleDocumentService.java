@@ -71,7 +71,7 @@ public class RiskRuleDocumentService {
                                       String source,
                                       Integer chunkSize,
                                       Integer chunkOverlap) {
-        return importDocument(principal, requestId, file, title, source, chunkSize, chunkOverlap, null);
+        return importDocument(principal, requestId, file, title, source, chunkSize, chunkOverlap, null, false);
     }
 
     @Transactional
@@ -82,7 +82,8 @@ public class RiskRuleDocumentService {
                                       String source,
                                       Integer chunkSize,
                                       Integer chunkOverlap,
-                                      String parseMethod) {
+                                      String parseMethod,
+                                      Boolean cleaningEnabled) {
         ensureElasticsearchEnabled();
         idempotencyService.ensureUnique(principal, "risk-rule:import-document", requestId);
         KbDocumentEntity document = documentImportService.importDocument(
@@ -94,6 +95,7 @@ public class RiskRuleDocumentService {
                 parseMethod,
                 chunkSize,
                 chunkOverlap,
+                cleaningEnabled,
                 "文档内容过短，无法生成风险规则切片"
         );
         return toDto(document);

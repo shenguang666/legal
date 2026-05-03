@@ -100,7 +100,7 @@ public class KnowledgeService {
                                       String source,
                                       Integer chunkSize,
                                       Integer chunkOverlap) {
-        return importDocument(principal, requestId, file, title, source, chunkSize, chunkOverlap, null);
+        return importDocument(principal, requestId, file, title, source, chunkSize, chunkOverlap, null, false);
     }
 
     @Transactional
@@ -111,7 +111,8 @@ public class KnowledgeService {
                                       String source,
                                       Integer chunkSize,
                                       Integer chunkOverlap,
-                                      String parseMethod) {
+                                      String parseMethod,
+                                      Boolean cleaningEnabled) {
         ensureElasticsearchEnabled();
         idempotencyService.ensureUnique(principal, "knowledge:import-document", requestId);
         KbDocumentEntity document = documentImportService.importDocument(
@@ -123,6 +124,7 @@ public class KnowledgeService {
                 parseMethod,
                 chunkSize,
                 chunkOverlap,
+                cleaningEnabled,
                 "文档内容过短，无法生成可检索切片"
         );
         return toDto(document);
@@ -373,6 +375,7 @@ public class KnowledgeService {
         dto.setParseMethod(entity.getParseMethod() == null ? null : entity.getParseMethod().getCode());
         dto.setParseStatus(entity.getParseStatus() == null ? null : entity.getParseStatus().getCode());
         dto.setParseFailureReason(entity.getParseFailureReason());
+        dto.setCleaningEnabled(Boolean.TRUE.equals(entity.getCleaningEnabled()));
         dto.setCreatedAt(entity.getCreatedAt());
         dto.setUpdatedAt(entity.getUpdatedAt());
         return dto;

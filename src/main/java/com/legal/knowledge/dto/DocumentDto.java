@@ -13,6 +13,7 @@ public class DocumentDto {
     private String parseMethod;
     private String parseStatus;
     private String parseFailureReason;
+    private Boolean cleaningEnabled;
     private LocalDateTime createdAt;
     private LocalDateTime updatedAt;
 
@@ -86,6 +87,14 @@ public class DocumentDto {
 
     public void setParseFailureReason(String parseFailureReason) {
         this.parseFailureReason = parseFailureReason;
+    }
+
+    public Boolean getCleaningEnabled() {
+        return cleaningEnabled;
+    }
+
+    public void setCleaningEnabled(Boolean cleaningEnabled) {
+        this.cleaningEnabled = cleaningEnabled;
     }
 
     public LocalDateTime getCreatedAt() {

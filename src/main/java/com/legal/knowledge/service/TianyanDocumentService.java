@@ -60,7 +60,7 @@ public class TianyanDocumentService {
                                       String source,
                                       Integer chunkSize,
                                       Integer chunkOverlap) {
-        return importDocument(principal, requestId, file, title, source, chunkSize, chunkOverlap, null);
+        return importDocument(principal, requestId, file, title, source, chunkSize, chunkOverlap, null, false);
     }
 
     @Transactional
@@ -71,7 +71,8 @@ public class TianyanDocumentService {
                                       String source,
                                       Integer chunkSize,
                                       Integer chunkOverlap,
-                                      String parseMethod) {
+                                      String parseMethod,
+                                      Boolean cleaningEnabled) {
         idempotencyService.ensureUnique(principal, "tianyan:import-document", requestId);
         KbDocumentEntity document = documentImportService.importDocument(
                 principal,
@@ -82,6 +83,7 @@ public class TianyanDocumentService {
                 parseMethod,
                 chunkSize,
                 chunkOverlap,
+                cleaningEnabled,
                 "文档内容过短，无法生成天眼审查切片"
         );
         return toDto(document);

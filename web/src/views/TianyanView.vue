@@ -28,6 +28,12 @@
             <option v-for="method in parseMethods" :key="method" :value="method">{{ parseMethodLabel(method) }}</option>
           </select>
         </div>
+        <div v-if="cleaningAvailable" class="selection-row">
+          <label class="selection-chip selection-chip--soft" :class="{ 'selection-chip--active': cleaningEnabled }">
+            <input v-model="cleaningEnabled" type="checkbox" />
+            <span>启用文档清洗</span>
+          </label>
+        </div>
       </div>
       <div class="actions">
         <button class="primary-btn" type="button" @click="importDocument">导入审查文档</button>
@@ -49,6 +55,7 @@
           <span class="doc-status">{{ item.status }} / {{ item.indexStatus }} / {{ item.parseStatus || 'COMPLETED' }}</span>
           <h4>{{ item.title }}</h4>
           <p>来源：{{ item.source }}</p>
+          <p>文档清洗：{{ item.cleaningEnabled ? '已启用' : '未启用' }}</p>
           <div class="doc-actions">
             <button class="primary-btn" type="button" :disabled="Boolean(item.parseStatus && item.parseStatus !== 'COMPLETED')" @click="openReview(item)">进入审查</button>
             <button v-if="item.parseStatus === 'FAILED'" class="ghost-btn" type="button" @click="retryParse(item.documentId)">重试解析</button>
@@ -78,12 +85,14 @@ interface DocumentItem {
   parseMethod?: string;
   parseStatus?: string;
   parseFailureReason?: string;
+  cleaningEnabled?: boolean;
 }
 
 interface DocumentProcessingCapabilities {
   defaultParseMethod: string;
   maxUploadDocuments: number;
   availableParseMethods: string[];
+  cleaningAvailable: boolean;
 }
 
 const router = useRouter();
@@ -95,6 +104,8 @@ const notice = ref('');
 const parseMethod = ref('NATIVE');
 const parseMethods = ref<string[]>(['NATIVE']);
 const maxUploadDocuments = ref(1);
+const cleaningAvailable = ref(false);
+const cleaningEnabled = ref(false);
 
 onMounted(async () => {
   await loadCapabilities();
@@ -106,6 +117,8 @@ async function loadCapabilities() {
   parseMethods.value = capabilities.availableParseMethods?.length ? capabilities.availableParseMethods : ['NATIVE'];
   parseMethod.value = capabilities.defaultParseMethod || parseMethods.value[0];
   maxUploadDocuments.value = capabilities.maxUploadDocuments || 1;
+  cleaningAvailable.value = Boolean(capabilities.cleaningAvailable);
+  cleaningEnabled.value = false;
 }
 
 async function refresh() {
@@ -132,10 +145,12 @@ async function importDocument() {
     formData.append('source', source.value.trim());
   }
   formData.append('parseMethod', parseMethod.value);
+  formData.append('cleaningEnabled', String(cleaningAvailable.value && cleaningEnabled.value));
   await apiPostForm('/api/tianyan/documents/import', formData);
   title.value = '';
   source.value = '';
   selectedFile.value = null;
+  cleaningEnabled.value = false;
   notice.value = parseMethod.value === 'MINERU_PRECISE' ? '审查文档已导入，MinerU 精准解析完成后可发起天眼审查' : '审查文档已导入，可立即发起天眼审查';
   await refresh();
 }

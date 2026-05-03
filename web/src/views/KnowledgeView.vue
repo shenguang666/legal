@@ -29,6 +29,12 @@
             <option v-for="method in parseMethods" :key="method" :value="method">{{ parseMethodLabel(method) }}</option>
           </select>
         </div>
+        <div v-if="cleaningAvailable" class="selection-row">
+          <label class="selection-chip selection-chip--soft" :class="{ 'selection-chip--active': cleaningEnabled }">
+            <input v-model="cleaningEnabled" type="checkbox" />
+            <span>启用文档清洗</span>
+          </label>
+        </div>
       </div>
       <div class="actions">
         <button class="primary-btn" type="button" :disabled="busy" @click="importDocument">导入并索引</button>
@@ -68,6 +74,7 @@
           <h4>{{ item.title }}</h4>
           <p>来源：{{ item.source }}</p>
           <p>解析方式：{{ parseMethodLabel(item.parseMethod || 'NATIVE') }}</p>
+          <p>文档清洗：{{ item.cleaningEnabled ? '已启用' : '未启用' }}</p>
           <div class="doc-actions">
             <button class="ghost-btn" type="button" :disabled="busy" @click="triggerIndex(item.documentId)">触发索引</button>
             <button v-if="item.parseStatus === 'FAILED'" class="ghost-btn" type="button" :disabled="busy" @click="retryParse(item.documentId)">重试解析</button>
@@ -95,12 +102,14 @@ interface DocumentItem {
   parseMethod?: string;
   parseStatus?: string;
   parseFailureReason?: string;
+  cleaningEnabled?: boolean;
 }
 
 interface DocumentProcessingCapabilities {
   defaultParseMethod: string;
   maxUploadDocuments: number;
   availableParseMethods: string[];
+  cleaningAvailable: boolean;
 }
 
 interface QaIndexConfig {
@@ -118,6 +127,8 @@ const notice = ref('');
 const parseMethod = ref('NATIVE');
 const parseMethods = ref<string[]>(['NATIVE']);
 const maxUploadDocuments = ref(1);
+const cleaningAvailable = ref(false);
+const cleaningEnabled = ref(false);
 const busy = ref(false);
 const qaIndexScope = ref('NATIVE_ONLY');
 const qaIndexScopes = ref<string[]>(['NATIVE_ONLY', 'MINERU_ONLY', 'BOTH']);
@@ -135,6 +146,8 @@ async function loadCapabilities() {
   parseMethods.value = capabilities.availableParseMethods?.length ? capabilities.availableParseMethods : ['NATIVE'];
   parseMethod.value = capabilities.defaultParseMethod || parseMethods.value[0];
   maxUploadDocuments.value = capabilities.maxUploadDocuments || 1;
+  cleaningAvailable.value = Boolean(capabilities.cleaningAvailable);
+  cleaningEnabled.value = false;
 }
 
 async function refresh() {
@@ -196,11 +209,13 @@ async function importDocument() {
         formData.append('source', source.value.trim());
       }
       formData.append('parseMethod', parseMethod.value);
+      formData.append('cleaningEnabled', String(cleaningAvailable.value && cleaningEnabled.value));
       await apiPostForm('/api/knowledge/documents/import', formData);
     }
     title.value = '';
     source.value = '';
     selectedFiles.value = [];
+    cleaningEnabled.value = false;
     notice.value = parseMethod.value === 'MINERU_PRECISE' ? '文档已导入，正在后台进行 MinerU 精准解析' : '文档已导入，正在后台建立向量索引';
     await refresh();
   } finally {

@@ -176,6 +176,34 @@ legal:
       min-chunk-size: ${LEGAL_DOCUMENT_CHUNKING_MIN_CHUNK_SIZE:180}
       # 超长语义块兜底字符切分时的重叠字符数。
       fallback-overlap: ${LEGAL_DOCUMENT_CHUNKING_FALLBACK_OVERLAP:80}
+    # 文档内容清洗配置，前端上传时默认关闭，用户主动开启后才执行。
+    cleaning:
+      # 是否开放文档清洗能力，关闭后前端即使提交开启参数也不会执行清洗。
+      enabled: ${LEGAL_DOCUMENT_CLEANING_ENABLED:true}
+      # 重复页眉页脚检测时扫描每页开头和结尾的行数。
+      header-footer-scan-lines: ${LEGAL_DOCUMENT_CLEANING_HEADER_FOOTER_SCAN_LINES:3}
+      # 重复行被判定为页眉页脚候选时需要达到的最小出现次数。
+      repeated-line-min-occurrences: ${LEGAL_DOCUMENT_CLEANING_REPEATED_LINE_MIN_OCCURRENCES:3}
+      # 重复行被判定为页眉页脚候选时需要覆盖的最小页面比例。
+      repeated-line-page-ratio: ${LEGAL_DOCUMENT_CLEANING_REPEATED_LINE_PAGE_RATIO:0.6}
+      # 重复短行参与页眉页脚候选判断的最大字符长度。
+      repeated-line-max-length: ${LEGAL_DOCUMENT_CLEANING_REPEATED_LINE_MAX_LENGTH:80}
+      # 切块后保留切片的最小有效字符数，法律短标题和编号条款不受该限制。
+      min-effective-chunk-length: ${LEGAL_DOCUMENT_CLEANING_MIN_EFFECTIVE_CHUNK_LENGTH:20}
+      # 每个文档最多保存多少条被清洗内容样例。
+      removed-sample-limit: ${LEGAL_DOCUMENT_CLEANING_REMOVED_SAMPLE_LIMIT:50}
+      # 每条被清洗内容样例最多保存多少个字符。
+      removed-sample-max-chars: ${LEGAL_DOCUMENT_CLEANING_REMOVED_SAMPLE_MAX_CHARS:500}
+      # 是否启用页码类噪声过滤规则。
+      remove-page-numbers: ${LEGAL_DOCUMENT_CLEANING_REMOVE_PAGE_NUMBERS:true}
+      # 是否启用版权声明类噪声过滤规则。
+      remove-copyright-lines: ${LEGAL_DOCUMENT_CLEANING_REMOVE_COPYRIGHT_LINES:true}
+      # 是否启用官网或系统导出元数据过滤规则。
+      remove-export-metadata: ${LEGAL_DOCUMENT_CLEANING_REMOVE_EXPORT_METADATA:true}
+      # 是否启用孤立 URL 行过滤规则。
+      remove-standalone-urls: ${LEGAL_DOCUMENT_CLEANING_REMOVE_STANDALONE_URLS:true}
+      # 是否启用重复页眉页脚过滤规则。
+      remove-repeated-header-footer: ${LEGAL_DOCUMENT_CLEANING_REMOVE_REPEATED_HEADER_FOOTER:true}
     # MinerU 精准解析配置，Token 只能通过后端环境变量注入。
     mineru:
       # 是否启用 MinerU 精准解析能力。

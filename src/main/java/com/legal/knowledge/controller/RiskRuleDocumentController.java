@@ -37,9 +37,10 @@ public class RiskRuleDocumentController {
                                                @RequestParam(value = "source", required = false) String source,
                                                @RequestParam(value = "chunkSize", required = false) Integer chunkSize,
                                                @RequestParam(value = "chunkOverlap", required = false) Integer chunkOverlap,
-                                               @RequestParam(value = "parseMethod", required = false) String parseMethod) {
+                                               @RequestParam(value = "parseMethod", required = false) String parseMethod,
+                                               @RequestParam(value = "cleaningEnabled", required = false) Boolean cleaningEnabled) {
         AuthPrincipal principal = AuthContextHolder.getRequired();
-        return ApiResponse.ok(riskRuleDocumentService.importDocument(principal, requestId, file, title, source, chunkSize, chunkOverlap, parseMethod));
+        return ApiResponse.ok(riskRuleDocumentService.importDocument(principal, requestId, file, title, source, chunkSize, chunkOverlap, parseMethod, cleaningEnabled));
     }
 
     @GetMapping

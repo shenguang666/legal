@@ -29,6 +29,8 @@ public class KbDocumentParseTaskEntity {
     private DocumentParseMethod parseMethod;
     /** 解析任务状态（PENDING/PROCESSING/COMPLETED/FAILED）。 */
     private DocumentParseStatus parseStatus;
+    /** 是否在该解析任务中启用内容清洗。 */
+    private Boolean cleaningEnabled;
     /** 上传文件名。 */
     private String fileName;
     /** 待解析文件内容，仅用于异步提交 MinerU。 */

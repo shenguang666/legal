@@ -38,6 +38,8 @@ public class DocumentParseTaskService {
     private final NativeDocumentParser nativeDocumentParser;
     private final MineruClient mineruClient;
     private final SemanticDocumentChunker semanticDocumentChunker;
+    private final DocumentContentCleaner documentContentCleaner;
+    private final DocumentCleaningLogService cleaningLogService;
     private final DocumentProcessingProperties properties;
 
     public DocumentParseTaskService(KbDocumentMapper kbDocumentMapper,
@@ -47,6 +49,8 @@ public class DocumentParseTaskService {
                                     NativeDocumentParser nativeDocumentParser,
                                     MineruClient mineruClient,
                                     SemanticDocumentChunker semanticDocumentChunker,
+                                    DocumentContentCleaner documentContentCleaner,
+                                    DocumentCleaningLogService cleaningLogService,
                                     DocumentProcessingProperties properties) {
         this.kbDocumentMapper = kbDocumentMapper;
         this.kbChunkMapper = kbChunkMapper;
@@ -55,6 +59,8 @@ public class DocumentParseTaskService {
         this.nativeDocumentParser = nativeDocumentParser;
         this.mineruClient = mineruClient;
         this.semanticDocumentChunker = semanticDocumentChunker;
+        this.documentContentCleaner = documentContentCleaner;
+        this.cleaningLogService = cleaningLogService;
         this.properties = properties;
     }
 
@@ -67,6 +73,7 @@ public class DocumentParseTaskService {
         task.setDocVersion(document.getDocVersion());
         task.setParseMethod(document.getParseMethod());
         task.setParseStatus(DocumentParseStatus.PENDING);
+        task.setCleaningEnabled(Boolean.TRUE.equals(document.getCleaningEnabled()));
         task.setFileName(StringUtils.hasText(fileName) ? fileName : "未命名文档");
         task.setFileContent(fileContent);
         task.setRetryCount(0);
@@ -77,8 +84,8 @@ public class DocumentParseTaskService {
     }
 
     @Transactional
-    public void completeNative(KbDocumentEntity document, List<String> chunks) {
-        completeDocument(document, chunks, null, null, null);
+    public void completeNative(KbDocumentEntity document, List<String> chunks, DocumentCleaningReport cleaningReport) {
+        completeDocument(document, chunks, cleaningReport, "TEXT", null, null, null);
     }
 
     public List<String> buildNativeChunks(String text, Integer chunkSize, Integer chunkOverlap) {
@@ -104,11 +111,15 @@ public class DocumentParseTaskService {
                 throw AppException.badRequest(safeError(result.errorMessage()));
             }
             String markdown = mineruClient.downloadMarkdown(result.fullZipUrl());
-            List<String> chunks = semanticDocumentChunker.chunkMarkdown(markdown);
+            boolean cleaningEnabled = Boolean.TRUE.equals(task.getCleaningEnabled()) && properties.getCleaning().isEnabled();
+            DocumentCleaningResult cleaningResult = cleaningEnabled ? documentContentCleaner.cleanMarkdown(markdown) : null;
+            String chunkSource = cleaningResult == null ? markdown : cleaningResult.getContent();
+            List<String> chunks = semanticDocumentChunker.chunkMarkdown(chunkSource);
             if (chunks.isEmpty()) {
                 throw AppException.badRequest("MinerU 解析结果过短，无法生成切片");
             }
-            completeDocument(document, chunks, session.batchId(), session.dataId(), result.fullZipUrl());
+            completeDocument(document, chunks, cleaningResult == null ? null : cleaningResult.getReport(), "MARKDOWN",
+                    session.batchId(), session.dataId(), result.fullZipUrl());
             parseTaskMapper.markCompleted(task.getTaskId());
             clearTaskFileContent(task.getTaskId());
         } catch (RuntimeException ex) {
@@ -159,12 +170,27 @@ public class DocumentParseTaskService {
 
     private void completeDocument(KbDocumentEntity document,
                                   List<String> chunks,
+                                  DocumentCleaningReport cleaningReport,
+                                  String contentFormat,
                                   String mineruBatchId,
                                   String mineruDataId,
                                   String mineruFullZipUrl) {
         LocalDateTime now = LocalDateTime.now();
         kbChunkMapper.deleteByDocVersion(document.getTenantId(), document.getDocumentId(), document.getDocVersion());
-        persistChunks(document.getTenantId(), document.getDocumentId(), document.getDocVersion(), chunks, now);
+        DocumentCleaningReport chunkFilterReport = persistChunks(
+                document.getTenantId(),
+                document.getDocumentId(),
+                document.getDocVersion(),
+                chunks,
+                now,
+                Boolean.TRUE.equals(document.getCleaningEnabled())
+        );
+        if (cleaningReport != null) {
+            cleaningReport.merge(chunkFilterReport, properties.getCleaning().getRemovedSampleLimit(), properties.getCleaning().getRemovedSampleMaxChars());
+            cleaningLogService.save(document, contentFormat, cleaningReport);
+        } else if (chunkFilterReport.hasRemovedContent()) {
+            cleaningLogService.save(document, contentFormat == null ? "TEXT" : contentFormat, chunkFilterReport);
+        }
         document.setParseStatus(DocumentParseStatus.COMPLETED);
         document.setParseFailureReason(null);
         document.setMineruBatchId(mineruBatchId);
@@ -216,18 +242,37 @@ public class DocumentParseTaskService {
                                int docVersion,
                                List<String> chunks,
                                LocalDateTime now) {
-        for (int i = 0; i < chunks.size(); i++) {
-            String content = chunks.get(i);
+        persistChunks(tenantId, documentId, docVersion, chunks, now, false);
+    }
+
+    private DocumentCleaningReport persistChunks(Long tenantId,
+                                                 Long documentId,
+                                                 int docVersion,
+                                                 List<String> chunks,
+                                                 LocalDateTime now,
+                                                 boolean filterLowQuality) {
+        DocumentCleaningReport report = new DocumentCleaningReport(chunks.stream().mapToInt(value -> value == null ? 0 : value.length()).sum());
+        int order = 1;
+        for (String content : chunks) {
+            if (filterLowQuality && documentContentCleaner.isLowQualityChunk(content)) {
+                report.addRemovedChunk("LOW_QUALITY_CHUNK", content, properties.getCleaning().getRemovedSampleLimit(), properties.getCleaning().getRemovedSampleMaxChars());
+                continue;
+            }
             KbChunkEntity entity = new KbChunkEntity();
             entity.setTenantId(tenantId);
             entity.setDocumentId(documentId);
             entity.setDocVersion(docVersion);
-            entity.setChunkOrder(i + 1);
+            entity.setChunkOrder(order++);
             entity.setContent(content);
             entity.setContentHash(sha256(content));
             entity.setCreatedAt(now);
             kbChunkMapper.insert(entity);
         }
+        report.setCleanedChars(chunks.stream()
+                .filter(content -> !filterLowQuality || !documentContentCleaner.isLowQualityChunk(content))
+                .mapToInt(value -> value == null ? 0 : value.length())
+                .sum());
+        return report;
     }
 
     private void enqueueOutbox(Long tenantId,

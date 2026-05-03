@@ -9,15 +9,18 @@ public class DocumentParseRequest {
     private final DocumentParseMethod parseMethod;
     private final Integer chunkSize;
     private final Integer chunkOverlap;
+    private final boolean cleaningEnabled;
 
     public DocumentParseRequest(MultipartFile file,
                                 DocumentParseMethod parseMethod,
                                 Integer chunkSize,
-                                Integer chunkOverlap) {
+                                Integer chunkOverlap,
+                                boolean cleaningEnabled) {
         this.file = file;
         this.parseMethod = parseMethod;
         this.chunkSize = chunkSize;
         this.chunkOverlap = chunkOverlap;
+        this.cleaningEnabled = cleaningEnabled;
     }
 
     public MultipartFile getFile() {
@@ -34,5 +37,9 @@ public class DocumentParseRequest {
 
     public Integer getChunkOverlap() {
         return chunkOverlap;
+    }
+
+    public boolean isCleaningEnabled() {
+        return cleaningEnabled;
     }
 }

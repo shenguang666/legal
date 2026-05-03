@@ -83,6 +83,12 @@
                 <option v-for="method in parseMethods" :key="method" :value="method">{{ parseMethodLabel(method) }}</option>
               </select>
             </div>
+            <div v-if="cleaningAvailable" class="selection-row">
+              <label class="selection-chip selection-chip--soft" :class="{ 'selection-chip--active': cleaningEnabled }">
+                <input v-model="cleaningEnabled" type="checkbox" />
+                <span>启用文档清洗</span>
+              </label>
+            </div>
           </div>
           <p class="note">单次最多上传 {{ maxUploadDocuments }} 个文档。MinerU 精准解析会在后台完成后再投递风险规则索引。</p>
           <div class="actions">
@@ -239,6 +245,7 @@ interface DocumentProcessingCapabilities {
   defaultParseMethod: string;
   maxUploadDocuments: number;
   availableParseMethods: string[];
+  cleaningAvailable: boolean;
 }
 
 interface FieldDefinitionItem {
@@ -264,6 +271,8 @@ const notice = ref('');
 const parseMethod = ref('NATIVE');
 const parseMethods = ref<string[]>(['NATIVE']);
 const maxUploadDocuments = ref(1);
+const cleaningAvailable = ref(false);
+const cleaningEnabled = ref(false);
 
 const manualRuleName = ref('');
 const manualRuleCode = ref('');
@@ -301,6 +310,8 @@ async function loadCapabilities() {
   parseMethods.value = capabilities.availableParseMethods?.length ? capabilities.availableParseMethods : ['NATIVE'];
   parseMethod.value = capabilities.defaultParseMethod || parseMethods.value[0];
   maxUploadDocuments.value = capabilities.maxUploadDocuments || 1;
+  cleaningAvailable.value = Boolean(capabilities.cleaningAvailable);
+  cleaningEnabled.value = false;
 }
 
 async function refreshAll() {
@@ -356,6 +367,7 @@ async function importRuleDocument() {
   formData.append('severity', importSeverity.value);
   formData.append('hitThreshold', String(importHitThreshold.value));
   formData.append('parseMethod', parseMethod.value);
+  formData.append('cleaningEnabled', String(cleaningAvailable.value && cleaningEnabled.value));
   await apiPostForm('/api/risk-rules/import', formData);
   importTitle.value = '';
   importRuleName.value = '';
@@ -363,6 +375,7 @@ async function importRuleDocument() {
   importSource.value = '';
   importSeverity.value = 'MEDIUM';
   importHitThreshold.value = 0.78;
+  cleaningEnabled.value = false;
   selectedFile.value = null;
   notice.value = parseMethod.value === 'MINERU_PRECISE' ? '风险规则文件已导入，MinerU 精准解析完成后会自动投递索引' : '风险规则文件已导入，规则元数据与 ES 索引已同步创建';
   await refreshAll();

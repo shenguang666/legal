@@ -43,9 +43,11 @@ public class DocumentImportService {
                                            String parseMethodValue,
                                            Integer chunkSize,
                                            Integer chunkOverlap,
+                                           Boolean cleaningEnabledValue,
                                            String emptyChunkMessage) {
         capabilityService.validateUploadCount(1);
         DocumentParseMethod parseMethod = capabilityService.resolveParseMethod(parseMethodValue);
+        boolean cleaningEnabled = capabilityService.resolveCleaningEnabled(cleaningEnabledValue);
         String originalName = file.getOriginalFilename();
         String documentTitle = StringUtils.hasText(title) ? title.trim() : fallbackTitle(originalName, bizType);
         String documentSource = StringUtils.hasText(source) ? source.trim() : fallbackSource(originalName);
@@ -64,18 +66,19 @@ public class DocumentImportService {
                 : KbIndexStatus.PENDING);
         document.setParseMethod(parseMethod);
         document.setParseStatus(parseMethod == DocumentParseMethod.NATIVE ? DocumentParseStatus.PROCESSING : DocumentParseStatus.PENDING);
+        document.setCleaningEnabled(cleaningEnabled);
         document.setParseStartedAt(now);
         document.setCreatedAt(now);
         document.setUpdatedAt(now);
         kbDocumentMapper.insert(document);
 
         if (parseMethod == DocumentParseMethod.NATIVE) {
-            DocumentParseResult result = nativeDocumentParser.parse(new DocumentParseRequest(file, parseMethod, chunkSize, chunkOverlap));
+            DocumentParseResult result = nativeDocumentParser.parse(new DocumentParseRequest(file, parseMethod, chunkSize, chunkOverlap, cleaningEnabled));
             List<String> chunks = result.getChunks();
             if (chunks.isEmpty()) {
                 throw AppException.badRequest(emptyChunkMessage);
             }
-            parseTaskService.completeNative(document, chunks);
+            parseTaskService.completeNative(document, chunks, result.getCleaningReport());
             return document;
         }
 

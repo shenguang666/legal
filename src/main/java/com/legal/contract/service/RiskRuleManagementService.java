@@ -99,8 +99,9 @@ public class RiskRuleManagementService {
                                             Double hitThreshold,
                                             Integer chunkSize,
                                             Integer chunkOverlap,
-                                            String parseMethod) {
-        DocumentDto document = riskRuleDocumentService.importDocument(principal, requestId, file, title, source, chunkSize, chunkOverlap, parseMethod);
+                                            String parseMethod,
+                                            Boolean cleaningEnabled) {
+        DocumentDto document = riskRuleDocumentService.importDocument(principal, requestId, file, title, source, chunkSize, chunkOverlap, parseMethod, cleaningEnabled);
         String resolvedRuleName = StringUtils.hasText(ruleName) ? ruleName.trim() : document.getTitle();
         ContractRuleDefinitionEntity entity = createDocumentRetrievalRule(
                 principal,

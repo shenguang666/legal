@@ -10,6 +10,7 @@ public class DocumentParseResult {
     private final String text;
     private final String markdown;
     private final List<String> chunks;
+    private final DocumentCleaningReport cleaningReport;
     private final String mineruBatchId;
     private final String mineruDataId;
     private final String mineruFullZipUrl;
@@ -18,6 +19,7 @@ public class DocumentParseResult {
                                String text,
                                String markdown,
                                List<String> chunks,
+                               DocumentCleaningReport cleaningReport,
                                String mineruBatchId,
                                String mineruDataId,
                                String mineruFullZipUrl) {
@@ -25,6 +27,7 @@ public class DocumentParseResult {
         this.text = text;
         this.markdown = markdown;
         this.chunks = chunks == null ? List.of() : List.copyOf(chunks);
+        this.cleaningReport = cleaningReport;
         this.mineruBatchId = mineruBatchId;
         this.mineruDataId = mineruDataId;
         this.mineruFullZipUrl = mineruFullZipUrl;
@@ -44,6 +47,10 @@ public class DocumentParseResult {
 
     public List<String> getChunks() {
         return chunks;
+    }
+
+    public DocumentCleaningReport getCleaningReport() {
+        return cleaningReport;
     }
 
     public String getMineruBatchId() {

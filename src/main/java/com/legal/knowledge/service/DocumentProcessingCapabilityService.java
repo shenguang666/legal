@@ -24,7 +24,12 @@ public class DocumentProcessingCapabilityService {
         dto.setDefaultParseMethod(resolveDefaultParseMethod().getCode());
         dto.setMaxUploadDocuments(properties.getMaxUploadDocuments());
         dto.setAvailableParseMethods(availableParseMethods().stream().map(DocumentParseMethod::getCode).toList());
+        dto.setCleaningAvailable(properties.getCleaning().isEnabled());
         return dto;
+    }
+
+    public boolean resolveCleaningEnabled(Boolean value) {
+        return properties.getCleaning().isEnabled() && Boolean.TRUE.equals(value);
     }
 
     public List<DocumentParseMethod> availableParseMethods() {

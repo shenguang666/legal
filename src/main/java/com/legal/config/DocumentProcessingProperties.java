@@ -22,6 +22,9 @@ public class DocumentProcessingProperties {
     /** 结构化语义切片配置。 */
     private Chunking chunking = new Chunking();
 
+    /** 文档内容清洗配置。 */
+    private Cleaning cleaning = new Cleaning();
+
     /** MinerU 精准解析配置。 */
     private Mineru mineru = new Mineru();
 
@@ -42,6 +45,52 @@ public class DocumentProcessingProperties {
 
         /** 语义块超长后使用安全字符窗口兜底时的重叠字符数。 */
         private int fallbackOverlap = 80;
+    }
+
+    /**
+     * 文档内容清洗配置。
+     */
+    @Data
+    public static class Cleaning {
+
+        /** 是否开放文档清洗能力，关闭后即使前端传入开启参数也不会清洗。 */
+        private boolean enabled = true;
+
+        /** 重复页眉页脚检测时扫描每页开头和结尾的行数。 */
+        private int headerFooterScanLines = 3;
+
+        /** 重复行被判定为页眉页脚候选时需要达到的最小出现次数。 */
+        private int repeatedLineMinOccurrences = 3;
+
+        /** 重复行被判定为页眉页脚候选时需要覆盖的最小页面比例。 */
+        private double repeatedLinePageRatio = 0.6d;
+
+        /** 重复短行参与页眉页脚候选判断的最大字符长度。 */
+        private int repeatedLineMaxLength = 80;
+
+        /** 切块后保留切片的最小有效字符数，法律短标题和编号条款不受该限制。 */
+        private int minEffectiveChunkLength = 20;
+
+        /** 每个文档最多保存多少条被清洗内容样例。 */
+        private int removedSampleLimit = 50;
+
+        /** 每条被清洗内容样例最多保存多少个字符。 */
+        private int removedSampleMaxChars = 300;
+
+        /** 是否启用页码类噪声过滤规则。 */
+        private boolean removePageNumbers = true;
+
+        /** 是否启用版权声明类噪声过滤规则。 */
+        private boolean removeCopyrightLines = true;
+
+        /** 是否启用官网或系统导出元数据过滤规则。 */
+        private boolean removeExportMetadata = true;
+
+        /** 是否启用孤立 URL 行过滤规则。 */
+        private boolean removeStandaloneUrls = true;
+
+        /** 是否启用重复页眉页脚过滤规则。 */
+        private boolean removeRepeatedHeaderFooter = true;
     }
 
     /**

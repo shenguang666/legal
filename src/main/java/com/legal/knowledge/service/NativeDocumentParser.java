@@ -10,10 +10,14 @@ public class NativeDocumentParser implements DocumentParser {
 
     private final DocumentTextExtractor documentTextExtractor;
     private final DocumentChunker documentChunker;
+    private final DocumentContentCleaner documentContentCleaner;
 
-    public NativeDocumentParser(DocumentTextExtractor documentTextExtractor, DocumentChunker documentChunker) {
+    public NativeDocumentParser(DocumentTextExtractor documentTextExtractor,
+                                DocumentChunker documentChunker,
+                                DocumentContentCleaner documentContentCleaner) {
         this.documentTextExtractor = documentTextExtractor;
         this.documentChunker = documentChunker;
+        this.documentContentCleaner = documentContentCleaner;
     }
 
     @Override
@@ -24,8 +28,11 @@ public class NativeDocumentParser implements DocumentParser {
     @Override
     public DocumentParseResult parse(DocumentParseRequest request) {
         String extractedText = documentTextExtractor.extract(request.getFile());
-        List<String> chunks = buildChunks(extractedText, request.getChunkSize(), request.getChunkOverlap());
-        return new DocumentParseResult(method(), extractedText, null, chunks, null, null, null);
+        DocumentCleaningResult cleaningResult = request.isCleaningEnabled() ? documentContentCleaner.cleanText(extractedText) : null;
+        String chunkSource = cleaningResult == null ? extractedText : cleaningResult.getContent();
+        List<String> chunks = buildChunks(chunkSource, request.getChunkSize(), request.getChunkOverlap());
+        return new DocumentParseResult(method(), chunkSource, null, chunks,
+                cleaningResult == null ? null : cleaningResult.getReport(), null, null, null);
     }
 
     public List<String> buildChunks(String extractedText, Integer chunkSize, Integer chunkOverlap) {

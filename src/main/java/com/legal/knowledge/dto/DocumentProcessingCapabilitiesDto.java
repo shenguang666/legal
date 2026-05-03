@@ -7,6 +7,7 @@ public class DocumentProcessingCapabilitiesDto {
     private String defaultParseMethod;
     private int maxUploadDocuments;
     private List<String> availableParseMethods;
+    private boolean cleaningAvailable;
 
     public String getDefaultParseMethod() {
         return defaultParseMethod;
@@ -30,5 +31,13 @@ public class DocumentProcessingCapabilitiesDto {
 
     public void setAvailableParseMethods(List<String> availableParseMethods) {
         this.availableParseMethods = availableParseMethods;
+    }
+
+    public boolean isCleaningAvailable() {
+        return cleaningAvailable;
+    }
+
+    public void setCleaningAvailable(boolean cleaningAvailable) {
+        this.cleaningAvailable = cleaningAvailable;
     }
 }

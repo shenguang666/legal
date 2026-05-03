@@ -44,6 +44,8 @@ public class KbDocumentEntity {
     private DocumentParseStatus parseStatus;
     /** 文档解析失败原因，用于前端展示和排查。 */
     private String parseFailureReason;
+    /** 是否在本次文档版本解析中启用内容清洗。 */
+    private Boolean cleaningEnabled;
     /** MinerU 批次ID，用于关联外部精准解析任务。 */
     private String mineruBatchId;
     /** MinerU 文件数据ID，用于关联批次内单个文件。 */
