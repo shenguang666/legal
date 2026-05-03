@@ -3,6 +3,7 @@ package com.legal.config;
 import lombok.Data;
 import org.springframework.boot.context.properties.ConfigurationProperties;
 import org.springframework.util.StringUtils;
+import com.legal.enums.QaKnowledgeIndexScope;
 
 import java.time.Duration;
 import java.util.ArrayList;
@@ -37,6 +38,8 @@ public class ElasticsearchProperties {
 
         /** 知识库文档切片索引名称。 */
         private String kbChunks = "legal_kb_chunks_v1";
+        /** MinerU 精准解析知识库文档切片索引名称。 */
+        private String kbChunksMineru = "legal_kb_chunks_mineru";
         /** 风险规则文档切片索引名称。 */
         private String riskRule = "legal_risk_rule";
         /** 用户外挂知识索引名称。 */
@@ -51,6 +54,8 @@ public class ElasticsearchProperties {
         private int vectorTopK = 80;
         private int bm25TopK = 80;
         private int rrfK = 60;
+        /** 智能问答默认知识库检索索引范围。 */
+        private QaKnowledgeIndexScope defaultKnowledgeIndexScope = QaKnowledgeIndexScope.NATIVE_ONLY;
     }
 
     @Data

@@ -157,7 +157,7 @@ legal:
       # MinerU API 基础地址。
       base-url: ${LEGAL_MINERU_BASE_URL:https://mineru.net}
       # MinerU API Token，禁止在仓库中写入真实 Token。
-      api-token: ${LEGAL_MINERU_API_TOKEN:eyJ0eXBlIjoiSldUIiwiYWxnIjoiSFM1MTIifQ.eyJqdGkiOiIxMDEwMDM3MCIsInJvbCI6IlJPTEVfUkVHSVNURVIiLCJpc3MiOiJPcGVuWExhYiIsImlhdCI6MTc3NzcxNzU5NSwiY2xpZW50SWQiOiJsa3pkeDU3bnZ5MjJqa3BxOXgydyIsInBob25lIjoiIiwib3BlbklkIjpudWxsLCJ1dWlkIjoiODgzMjUxZTYtYTcwYy00NDgzLTk4OTAtN2MxMTRiZGRhNzVjIiwiZW1haWwiOiIiLCJleHAiOjE3ODU0OTM1OTV9.5pWUbeVKlYmBNaeZ8eY7dHoX8uj-lhQSZP7UNugMve4aYdUi-daqLJua3K3fDZR8VGXWFZhoFcVcwfGtnX8XFQ}
+      api-token: ${LEGAL_MINERU_API_TOKEN:}
       # MinerU 模型版本，vlm 表示默认精准解析模型。
       model-version: ${LEGAL_MINERU_MODEL_VERSION:vlm}
       # MinerU 文档语言配置，ch 表示中文。
@@ -265,6 +265,8 @@ elasticsearch:
   index:
     # 知识库文档切片索引名称。
     kb-chunks: ${LEGAL_ES_INDEX_KB_CHUNKS:legal_kb_chunks_v1}
+    # MinerU 精准解析知识库文档切片索引名称。
+    kb-chunks-mineru: ${LEGAL_ES_INDEX_KB_CHUNKS_MINERU:legal_kb_chunks_mineru}
     # 风险规则文档切片索引名称。
     risk-rule: ${LEGAL_ES_INDEX_RISK_RULE:legal_risk_rule}
     # 用户外挂知识索引名称。
@@ -276,6 +278,8 @@ elasticsearch:
     vector-top-k: ${LEGAL_ES_VECTOR_TOP_K:80}
     bm25-top-k: ${LEGAL_ES_BM25_TOP_K:80}
     rrf-k: ${LEGAL_ES_RRF_K:60}
+    # 智能问答默认知识库检索索引范围，支持 NATIVE_ONLY、MINERU_ONLY、BOTH。
+    default-knowledge-index-scope: ${LEGAL_QA_KNOWLEDGE_INDEX_SCOPE:NATIVE_ONLY}
     rerank-top-n: ${LEGAL_ES_RERANK_TOP_N:20}
 
   worker:

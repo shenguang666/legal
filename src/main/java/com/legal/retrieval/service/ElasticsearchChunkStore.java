@@ -99,9 +99,21 @@ public class ElasticsearchChunkStore {
         if (!isEnabled()) {
             return;
         }
+        deleteIndex(properties.getIndex().getKbChunks());
+    }
+
+    public void deleteKnowledgeIndexes() {
+        if (!isEnabled()) {
+            return;
+        }
+        deleteIndex(properties.getIndex().getKbChunks());
+        deleteIndex(properties.getIndex().getKbChunksMineru());
+    }
+
+    private void deleteIndex(String indexName) {
         try {
             restClient.delete()
-                    .uri("/" + properties.getIndex().getKbChunks())
+                    .uri("/" + indexName)
                     .retrieve()
                     .toBodilessEntity();
         } catch (RestClientResponseException ex) {
@@ -137,16 +149,30 @@ public class ElasticsearchChunkStore {
                                                 List<Float> questionVector,
                                                 double minVectorSimilarity,
                                                 int topK) {
+        return hybridSearchRrf(tenantId, question, questionVector, minVectorSimilarity, topK, List.of(properties.getIndex().getKbChunks()));
+    }
+
+    public List<ChunkSearchHit> hybridSearchRrf(Long tenantId,
+                                                String question,
+                                                List<Float> questionVector,
+                                                double minVectorSimilarity,
+                                                int topK,
+                                                List<String> indexNames) {
         if (!isEnabled()) {
             return List.of();
         }
-        ensureIndex(properties.getIndex().getKbChunks());
+        List<String> targets = indexNames == null || indexNames.isEmpty() ? List.of(properties.getIndex().getKbChunks()) : indexNames;
 
-        List<ChunkSearchHit> vectorHits = vectorSearch(tenantId, questionVector)
-                .stream()
-                .filter(hit -> hit.getScore() >= minVectorSimilarity)
-                .toList();
-        List<ChunkSearchHit> bm25Hits = bm25Search(tenantId, question);
+        List<ChunkSearchHit> vectorHits = new ArrayList<>();
+        List<ChunkSearchHit> bm25Hits = new ArrayList<>();
+        for (String indexName : targets) {
+            ensureIndex(indexName);
+            vectorHits.addAll(vectorSearch(tenantId, questionVector, indexName)
+                    .stream()
+                    .filter(hit -> hit.getScore() >= minVectorSimilarity)
+                    .toList());
+            bm25Hits.addAll(bm25Search(tenantId, question, indexName));
+        }
         return rrfMerge(vectorHits, bm25Hits, properties.getSearch().getRrfK(), topK);
     }
 
@@ -182,6 +208,11 @@ public class ElasticsearchChunkStore {
         return doVectorSearch(tenantId, questionVector, vectorTopK, properties.getIndex().getKbChunks());
     }
 
+    private List<ChunkSearchHit> vectorSearch(Long tenantId, List<Float> questionVector, String indexName) {
+        int vectorTopK = Math.max(1, properties.getSearch().getVectorTopK());
+        return doVectorSearch(tenantId, questionVector, vectorTopK, indexName);
+    }
+
     private List<ChunkSearchHit> doVectorSearch(Long tenantId,
                                                 List<Float> questionVector,
                                                 int vectorTopK,
@@ -207,6 +238,10 @@ public class ElasticsearchChunkStore {
     }
 
     private List<ChunkSearchHit> bm25Search(Long tenantId, String question) {
+        return bm25Search(tenantId, question, properties.getIndex().getKbChunks());
+    }
+
+    private List<ChunkSearchHit> bm25Search(Long tenantId, String question, String indexName) {
         int bm25TopK = Math.max(1, properties.getSearch().getBm25TopK());
         Map<String, Object> body = Map.of(
                 "size", bm25TopK,
@@ -224,7 +259,7 @@ public class ElasticsearchChunkStore {
                 "_source", List.of("chunk_id", "document_id", "chunk_order", "source", "content")
         );
         JsonNode response = restClient.post()
-                .uri("/" + properties.getIndex().getKbChunks() + "/_search")
+                .uri("/" + indexName + "/_search")
                 .body(body)
                 .retrieve()
                 .body(JsonNode.class);

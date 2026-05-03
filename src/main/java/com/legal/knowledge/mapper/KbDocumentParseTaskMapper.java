@@ -81,4 +81,15 @@ public interface KbDocumentParseTaskMapper extends BaseMapper<KbDocumentParseTas
             WHERE task_id = #{taskId}
             """)
     int clearFileContent(@Param("taskId") Long taskId);
+
+    @Update("""
+            UPDATE kb_document_parse_task
+            SET parse_status = 'PENDING',
+                retry_count = 0,
+                error_message = NULL,
+                next_retry_at = NULL,
+                updated_at = NOW()
+            WHERE task_id = #{taskId}
+            """)
+    int resetForManualRetry(@Param("taskId") Long taskId);
 }

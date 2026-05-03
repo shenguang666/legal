@@ -31,9 +31,26 @@
         </div>
       </div>
       <div class="actions">
-        <button class="primary-btn" type="button" @click="importDocument">导入并索引</button>
+        <button class="primary-btn" type="button" :disabled="busy" @click="importDocument">导入并索引</button>
       </div>
       <p class="note">支持 pdf/doc/docx/txt/md，单次最多上传 {{ maxUploadDocuments }} 个文档，导入后由后台异步完成解析与向量索引。</p>
+    </article>
+
+    <article class="card panel">
+      <p class="tag">智能问答配置</p>
+      <h3>知识库检索索引范围</h3>
+      <div class="grid form-grid">
+        <div>
+          <label for="qa-index-scope">问答检索范围</label>
+          <select id="qa-index-scope" v-model="qaIndexScope" class="console-select">
+            <option v-for="scope in qaIndexScopes" :key="scope" :value="scope">{{ qaIndexScopeLabel(scope) }}</option>
+          </select>
+        </div>
+      </div>
+      <p class="note">原生索引：{{ nativeIndexName || '-' }}；MinerU 索引：{{ mineruIndexName || '-' }}</p>
+      <div class="actions">
+        <button class="primary-btn" type="button" :disabled="busy" @click="saveQaIndexConfig">保存问答检索范围</button>
+      </div>
     </article>
 
     <article class="card panel">
@@ -42,7 +59,7 @@
           <p class="tag">知识资产</p>
           <h3>文档列表</h3>
         </div>
-        <button class="ghost-btn" type="button" @click="refresh">刷新</button>
+        <button class="ghost-btn" type="button" :disabled="busy" @click="refresh">刷新</button>
       </div>
 
       <div class="doc-list">
@@ -50,10 +67,11 @@
           <span class="doc-status">{{ item.status }} / {{ item.indexStatus }} / {{ item.parseStatus || 'COMPLETED' }}</span>
           <h4>{{ item.title }}</h4>
           <p>来源：{{ item.source }}</p>
+          <p>解析方式：{{ parseMethodLabel(item.parseMethod || 'NATIVE') }}</p>
           <div class="doc-actions">
-            <button class="ghost-btn" type="button" @click="triggerIndex(item.documentId)">触发索引</button>
-            <button v-if="item.parseStatus === 'FAILED'" class="ghost-btn" type="button" @click="retryParse(item.documentId)">重试解析</button>
-            <button class="warn-btn" type="button" @click="remove(item.documentId)">删除</button>
+            <button class="ghost-btn" type="button" :disabled="busy" @click="triggerIndex(item.documentId)">触发索引</button>
+            <button v-if="item.parseStatus === 'FAILED'" class="ghost-btn" type="button" :disabled="busy" @click="retryParse(item.documentId)">重试解析</button>
+            <button class="warn-btn" type="button" :disabled="busy" @click="remove(item.documentId)">删除</button>
           </div>
           <p v-if="item.parseFailureReason" class="note">解析失败：{{ item.parseFailureReason }}</p>
         </div>
@@ -85,6 +103,13 @@ interface DocumentProcessingCapabilities {
   availableParseMethods: string[];
 }
 
+interface QaIndexConfig {
+  indexScope: string;
+  availableScopes: string[];
+  nativeIndexName: string;
+  mineruIndexName: string;
+}
+
 const title = ref('');
 const source = ref('');
 const selectedFiles = ref<File[]>([]);
@@ -93,9 +118,15 @@ const notice = ref('');
 const parseMethod = ref('NATIVE');
 const parseMethods = ref<string[]>(['NATIVE']);
 const maxUploadDocuments = ref(1);
+const busy = ref(false);
+const qaIndexScope = ref('NATIVE_ONLY');
+const qaIndexScopes = ref<string[]>(['NATIVE_ONLY', 'MINERU_ONLY', 'BOTH']);
+const nativeIndexName = ref('');
+const mineruIndexName = ref('');
 
 onMounted(async () => {
   await loadCapabilities();
+  await loadQaIndexConfig();
   await refresh();
 });
 
@@ -108,6 +139,29 @@ async function loadCapabilities() {
 
 async function refresh() {
   documents.value = await apiGet<DocumentItem[]>('/api/knowledge/documents');
+}
+
+async function loadQaIndexConfig() {
+  const config = await apiGet<QaIndexConfig>('/api/knowledge/admin/qa-index-config');
+  qaIndexScope.value = config.indexScope || 'NATIVE_ONLY';
+  qaIndexScopes.value = config.availableScopes?.length ? config.availableScopes : ['NATIVE_ONLY', 'MINERU_ONLY', 'BOTH'];
+  nativeIndexName.value = config.nativeIndexName || '';
+  mineruIndexName.value = config.mineruIndexName || '';
+}
+
+async function saveQaIndexConfig() {
+  if (!window.confirm(`确认将智能问答知识库检索范围切换为“${qaIndexScopeLabel(qaIndexScope.value)}”？`)) {
+    return;
+  }
+  busy.value = true;
+  notice.value = '正在保存智能问答检索范围…';
+  try {
+    await apiPost<QaIndexConfig>('/api/knowledge/admin/qa-index-config', { indexScope: qaIndexScope.value });
+    notice.value = `智能问答知识库检索范围已切换为：${qaIndexScopeLabel(qaIndexScope.value)}`;
+    await loadQaIndexConfig();
+  } finally {
+    busy.value = false;
+  }
 }
 
 function onSelectFile(event: Event) {
@@ -124,36 +178,64 @@ async function importDocument() {
     notice.value = `单次最多上传 ${maxUploadDocuments.value} 个文档`;
     return;
   }
-  for (const file of selectedFiles.value) {
-    const formData = new FormData();
-    formData.append('requestId', randomRequestId('kb-import'));
-    formData.append('file', file);
-    if (title.value.trim() && selectedFiles.value.length === 1) {
-      formData.append('title', title.value.trim());
-    }
-    if (source.value.trim()) {
-      formData.append('source', source.value.trim());
-    }
-    formData.append('parseMethod', parseMethod.value);
-    await apiPostForm('/api/knowledge/documents/import', formData);
+  const methodLabel = parseMethodLabel(parseMethod.value);
+  if (!window.confirm(`确认使用“${methodLabel}”导入 ${selectedFiles.value.length} 个文档？`)) {
+    return;
   }
-  title.value = '';
-  source.value = '';
-  selectedFiles.value = [];
-  notice.value = parseMethod.value === 'MINERU_PRECISE' ? '文档已导入，正在后台进行 MinerU 精准解析' : '文档已导入，正在后台建立向量索引';
-  await refresh();
+  busy.value = true;
+  notice.value = `正在导入 ${selectedFiles.value.length} 个文档…`;
+  try {
+    for (const file of selectedFiles.value) {
+      const formData = new FormData();
+      formData.append('requestId', randomRequestId('kb-import'));
+      formData.append('file', file);
+      if (title.value.trim() && selectedFiles.value.length === 1) {
+        formData.append('title', title.value.trim());
+      }
+      if (source.value.trim()) {
+        formData.append('source', source.value.trim());
+      }
+      formData.append('parseMethod', parseMethod.value);
+      await apiPostForm('/api/knowledge/documents/import', formData);
+    }
+    title.value = '';
+    source.value = '';
+    selectedFiles.value = [];
+    notice.value = parseMethod.value === 'MINERU_PRECISE' ? '文档已导入，正在后台进行 MinerU 精准解析' : '文档已导入，正在后台建立向量索引';
+    await refresh();
+  } finally {
+    busy.value = false;
+  }
 }
 
 async function triggerIndex(documentId: number) {
-  await apiPost(`/api/knowledge/documents/${documentId}/index?requestId=${encodeURIComponent(randomRequestId('kb-index'))}`);
-  notice.value = `文档 ${documentId} 已投递索引任务`;
-  await refresh();
+  if (!window.confirm(`确认重新触发文档 ${documentId} 的向量索引任务？`)) {
+    return;
+  }
+  busy.value = true;
+  notice.value = `正在投递文档 ${documentId} 的索引任务…`;
+  try {
+    await apiPost(`/api/knowledge/documents/${documentId}/index?requestId=${encodeURIComponent(randomRequestId('kb-index'))}`);
+    notice.value = `文档 ${documentId} 已投递索引任务`;
+    await refresh();
+  } finally {
+    busy.value = false;
+  }
 }
 
 async function retryParse(documentId: number) {
-  await apiPost(`/api/knowledge/documents/${documentId}/retry-parse?requestId=${encodeURIComponent(randomRequestId('kb-retry-parse'))}`);
-  notice.value = `文档 ${documentId} 已重新提交解析`;
-  await refresh();
+  if (!window.confirm(`确认重新提交文档 ${documentId} 的解析任务？`)) {
+    return;
+  }
+  busy.value = true;
+  notice.value = `正在重新提交文档 ${documentId} 的解析任务…`;
+  try {
+    await apiPost(`/api/knowledge/documents/${documentId}/retry-parse?requestId=${encodeURIComponent(randomRequestId('kb-retry-parse'))}`);
+    notice.value = `文档 ${documentId} 已重新提交解析`;
+    await refresh();
+  } finally {
+    busy.value = false;
+  }
 }
 
 function parseMethodLabel(method: string) {
@@ -163,13 +245,29 @@ function parseMethodLabel(method: string) {
   return '原生解析';
 }
 
+function qaIndexScopeLabel(scope: string) {
+  if (scope === 'MINERU_ONLY') {
+    return '仅查询 MinerU 精准解析索引';
+  }
+  if (scope === 'BOTH') {
+    return '同时查询原生索引和 MinerU 索引';
+  }
+  return '仅查询原生解析索引';
+}
+
 async function remove(documentId: number) {
   if (!window.confirm(`确认删除知识库文档 ${documentId}？`)) {
     return;
   }
-  await apiDelete(`/api/knowledge/documents/${documentId}?requestId=${encodeURIComponent(randomRequestId('kb-delete'))}`);
-  notice.value = `文档 ${documentId} 已标记删除`;
-  await refresh();
+  busy.value = true;
+  notice.value = `正在删除文档 ${documentId} 及其切片…`;
+  try {
+    await apiDelete(`/api/knowledge/documents/${documentId}?requestId=${encodeURIComponent(randomRequestId('kb-delete'))}`);
+    notice.value = `文档 ${documentId} 已删除，数据库切片和 Elasticsearch 切片已同步清理`;
+    await refresh();
+  } finally {
+    busy.value = false;
+  }
 }
 </script>
 

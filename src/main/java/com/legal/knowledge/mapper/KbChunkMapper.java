@@ -73,6 +73,14 @@ public interface KbChunkMapper extends BaseMapper<KbChunkEntity> {
                            @Param("documentId") Long documentId,
                            @Param("docVersion") int docVersion);
 
+    @Delete("""
+            DELETE FROM kb_chunk
+            WHERE tenant_id = #{tenantId}
+              AND document_id = #{documentId}
+            """)
+    int deleteByDocument(@Param("tenantId") Long tenantId,
+                         @Param("documentId") Long documentId);
+
     @Insert("""
             INSERT INTO kb_chunk (tenant_id, document_id, doc_version, chunk_order, content, content_hash, created_at)
             SELECT tenant_id,

@@ -68,7 +68,7 @@ public class RagRetrievalMetricService {
         LocalDate metricDate = scheduledMetricDate();
         RagRetrievalMetricDtos.RunResult result = hasProcessableLogs(null, metricDate)
                 ? processDate(null, metricDate, false, false)
-                : emptyRunResult(metricDate, false, "当前归档日期暂无待处�?RAG 消息");
+                : emptyRunResult(metricDate, false, "当前归档日期暂无待处理RAG消息");
         if (!hasProcessableLogs(null, metricDate)) {
             LocalDate backfillDate = findOlderProcessableDate(metricDate);
             if (backfillDate != null) {

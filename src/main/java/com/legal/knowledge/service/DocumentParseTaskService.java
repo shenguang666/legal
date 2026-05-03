@@ -138,15 +138,8 @@ public class DocumentParseTaskService {
         if (task.getFileContent() == null) {
             throw AppException.badRequest("解析文件内容已清理，请重新上传文档");
         }
-        task.setParseStatus(DocumentParseStatus.PENDING);
-        task.setNextRetryAt(null);
-        task.setUpdatedAt(LocalDateTime.now());
-        parseTaskMapper.updateById(task);
-        document.setParseStatus(DocumentParseStatus.PENDING);
-        document.setParseFailureReason(null);
-        document.setStatus(KbDocumentStatus.PENDING);
-        document.setUpdatedAt(LocalDateTime.now());
-        kbDocumentMapper.updateById(document);
+        parseTaskMapper.resetForManualRetry(task.getTaskId());
+        kbDocumentMapper.resetParseFailure(tenantId, documentId, DocumentParseStatus.PENDING, KbDocumentStatus.PENDING);
     }
 
     private void updateMineruSession(KbDocumentParseTaskEntity task,

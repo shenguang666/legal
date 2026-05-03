@@ -1,5 +1,6 @@
 package com.legal.knowledge.service;
 
+import com.fasterxml.jackson.core.JsonProcessingException;
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.legal.common.AppException;
@@ -11,10 +12,15 @@ import org.springframework.stereotype.Component;
 import org.springframework.util.StringUtils;
 import org.springframework.web.client.RestClient;
 import org.springframework.web.client.RestClientException;
+import org.springframework.web.client.RestClientResponseException;
 
 import java.io.ByteArrayInputStream;
 import java.io.ByteArrayOutputStream;
 import java.io.IOException;
+import java.net.URI;
+import java.net.http.HttpClient;
+import java.net.http.HttpRequest;
+import java.net.http.HttpResponse;
 import java.nio.charset.StandardCharsets;
 import java.time.Instant;
 import java.util.ArrayList;
@@ -49,17 +55,21 @@ public class MineruClient {
             throw AppException.badRequest("MinerU Token 未配置，无法使用 MinerU 精准解析");
         }
         String dataId = UUID.randomUUID().toString().replace("-", "");
-        Map<String, Object> payload = Map.of(
-                "files", List.of(Map.of("name", fileName, "data_id", dataId)),
-                "model_version", properties.getMineru().getModelVersion(),
-                "language", properties.getMineru().getLanguage(),
-                "enable_table", properties.getMineru().isEnableTable(),
-                "enable_formula", properties.getMineru().isEnableFormula(),
-                "ocr", properties.getMineru().isOcr()
+        MineruFileUrlRequest payload = new MineruFileUrlRequest(
+                List.of(new MineruFileDescriptor(fileName, dataId)),
+                properties.getMineru().getModelVersion()
         );
-        JsonNode response = postJson("/api/v4/file-urls/batch", payload);
-        String batchId = firstText(response, "batch_id", "batchId");
-        String uploadUrl = findUploadUrl(response, dataId);
+        JsonNode response = postFileUrlsJson(payload);
+        validateMineruSuccess(response, "申请 MinerU 上传地址失败");
+        JsonNode dataNode = response == null ? null : response.path("data");
+        String batchId = firstText(dataNode, "batch_id", "batchId");
+        String uploadUrl = firstFileUrl(dataNode);
+        if (!StringUtils.hasText(batchId)) {
+            batchId = firstText(response, "batch_id", "batchId");
+        }
+        if (!StringUtils.hasText(uploadUrl)) {
+            uploadUrl = findUploadUrl(response, dataId);
+        }
         if (!StringUtils.hasText(batchId) || !StringUtils.hasText(uploadUrl)) {
             throw AppException.badRequest("MinerU 未返回有效上传地址");
         }
@@ -116,16 +126,37 @@ public class MineruClient {
     }
 
     private JsonNode postJson(String path, Object payload) {
+        String jsonPayload = toJsonPayload(payload);
         try {
             return restClient.post()
                     .uri(path)
                     .header(HttpHeaders.AUTHORIZATION, "Bearer " + properties.getMineru().getApiToken())
                     .contentType(MediaType.APPLICATION_JSON)
-                    .body(payload)
+                    .body(jsonPayload)
                     .retrieve()
                     .body(JsonNode.class);
         } catch (RestClientException ex) {
-            throw AppException.badRequest("调用 MinerU 创建解析任务失败");
+            throw mineruRequestException("调用 MinerU 创建解析任务失败", ex);
+        }
+    }
+
+    private JsonNode postFileUrlsJson(Object payload) {
+        String jsonPayload = toJsonPayload(payload);
+        try {
+            return restClient.post()
+                    .uri(uriBuilder -> uriBuilder
+                            .path("/api/v4/file-urls/batch")
+                            .queryParam("enable_formula", properties.getMineru().isEnableFormula())
+                            .queryParam("enable_table", properties.getMineru().isEnableTable())
+                            .queryParam("language", properties.getMineru().getLanguage())
+                            .build())
+                    .header(HttpHeaders.AUTHORIZATION, "Bearer " + properties.getMineru().getApiToken())
+                    .contentType(MediaType.APPLICATION_JSON)
+                    .body(jsonPayload)
+                    .retrieve()
+                    .body(JsonNode.class);
+        } catch (RestClientException ex) {
+            throw mineruRequestException("申请 MinerU 上传地址失败", ex);
         }
     }
 
@@ -137,22 +168,101 @@ public class MineruClient {
                     .retrieve()
                     .body(JsonNode.class);
         } catch (RestClientException ex) {
-            throw AppException.badRequest("查询 MinerU 解析结果失败");
+            throw mineruRequestException("查询 MinerU 解析结果失败", ex);
         }
     }
 
     private void uploadFile(String uploadUrl, byte[] bytes) {
         try {
-            RestClient.create()
-                    .put()
-                    .uri(uploadUrl)
-                    .contentType(MediaType.APPLICATION_OCTET_STREAM)
-                    .body(bytes)
-                    .retrieve()
-                    .toBodilessEntity();
-        } catch (RestClientException ex) {
-            throw AppException.badRequest("上传文件到 MinerU 失败");
+            HttpRequest request = HttpRequest.newBuilder(URI.create(uploadUrl))
+                    .timeout(properties.getMineru().getReadTimeout())
+                    .PUT(HttpRequest.BodyPublishers.ofByteArray(bytes))
+                    .build();
+            HttpResponse<Void> response = HttpClient.newHttpClient()
+                    .send(request, HttpResponse.BodyHandlers.discarding());
+            if (response.statusCode() < 200 || response.statusCode() >= 300) {
+                throw AppException.badRequest("上传文件到 MinerU 失败：HTTP " + response.statusCode());
+            }
+        } catch (InterruptedException ex) {
+            Thread.currentThread().interrupt();
+            throw AppException.badRequest("上传文件到 MinerU 失败：" + truncateError(ex.getMessage()));
+        } catch (IOException | IllegalArgumentException ex) {
+            throw AppException.badRequest("上传文件到 MinerU 失败：" + truncateError(ex.getMessage()));
         }
+    }
+
+    private AppException mineruRequestException(String action, RestClientException ex) {
+        String detail = ex.getMessage();
+        if (ex instanceof RestClientResponseException responseEx) {
+            String body = responseEx.getResponseBodyAsString();
+            String status = "HTTP " + responseEx.getStatusCode().value();
+            if (StringUtils.hasText(responseEx.getStatusText())) {
+                status = status + " " + responseEx.getStatusText();
+            }
+            detail = StringUtils.hasText(body) ? status + "，" + body : status;
+        }
+        return AppException.badRequest(StringUtils.hasText(detail) ? action + "：" + truncateError(detail) : action);
+    }
+
+    private String toJsonPayload(Object payload) {
+        try {
+            return objectMapper.writeValueAsString(payload);
+        } catch (JsonProcessingException ex) {
+            throw AppException.badRequest("构造 MinerU 请求体失败：" + truncateError(ex.getMessage()));
+        }
+    }
+
+    private String truncateError(String message) {
+        if (!StringUtils.hasText(message)) {
+            return "";
+        }
+        String value = message.trim();
+        return value.length() > 1000 ? value.substring(0, 1000) : value;
+    }
+
+    private void validateMineruSuccess(JsonNode response, String fallbackMessage) {
+        if (response == null || response.isNull() || response.isMissingNode()) {
+            throw AppException.badRequest(fallbackMessage);
+        }
+        JsonNode codeNode = response.get("code");
+        if (codeNode == null || codeNode.isNull() || codeNode.isMissingNode() || "0".equals(codeNode.asText())) {
+            return;
+        }
+        String message = firstText(response, "msg", "message", "error", "err_msg");
+        throw AppException.badRequest(StringUtils.hasText(message) ? fallbackMessage + "：" + message : fallbackMessage);
+    }
+
+    private String firstFileUrl(JsonNode dataNode) {
+        String directUrl = firstText(dataNode, "upload_url", "uploadUrl", "file_url", "fileUrl", "url");
+        if (isHttpUrl(directUrl)) {
+            return directUrl;
+        }
+        for (String name : List.of("file_urls", "fileUrls", "upload_urls", "uploadUrls", "urls")) {
+            String found = firstUrlFromNode(findField(dataNode, name));
+            if (StringUtils.hasText(found)) {
+                return found;
+            }
+        }
+        return null;
+    }
+
+    private String firstUrlFromNode(JsonNode node) {
+        if (node == null || node.isNull() || node.isMissingNode()) {
+            return null;
+        }
+        if (node.isTextual() && isHttpUrl(node.asText())) {
+            return node.asText();
+        }
+        if (node.isArray() || node.isObject()) {
+            Iterator<JsonNode> values = node.elements();
+            while (values.hasNext()) {
+                String found = firstUrlFromNode(values.next());
+                if (StringUtils.hasText(found)) {
+                    return found;
+                }
+            }
+        }
+        return null;
     }
 
     private String readMarkdownFromZip(byte[] zipBytes) {
@@ -198,18 +308,25 @@ public class MineruClient {
     }
 
     private String findUploadUrl(JsonNode response, String dataId) {
+        String directUploadUrl = firstText(response, "upload_url", "uploadUrl", "file_url", "fileUrl", "url");
+        if (isHttpUrl(directUploadUrl)) {
+            return directUploadUrl;
+        }
         List<JsonNode> arrays = new ArrayList<>();
         collectArrays(response, arrays);
         for (JsonNode array : arrays) {
             for (JsonNode item : array) {
+                if (item != null && item.isTextual() && isHttpUrl(item.asText())) {
+                    return item.asText();
+                }
                 String itemDataId = firstText(item, "data_id", "dataId");
-                String uploadUrl = firstText(item, "upload_url", "uploadUrl", "url");
-                if (StringUtils.hasText(uploadUrl) && (!StringUtils.hasText(itemDataId) || dataId.equals(itemDataId))) {
+                String uploadUrl = firstText(item, "upload_url", "uploadUrl", "file_url", "fileUrl", "url");
+                if (isHttpUrl(uploadUrl) && (!StringUtils.hasText(itemDataId) || dataId.equals(itemDataId))) {
                     return uploadUrl;
                 }
             }
         }
-        return firstText(response, "upload_url", "uploadUrl", "url");
+        return findHttpUrl(response);
     }
 
     private void collectArrays(JsonNode node, List<JsonNode> arrays) {
@@ -239,6 +356,33 @@ public class MineruClient {
             }
         }
         return null;
+    }
+
+    private String findHttpUrl(JsonNode node) {
+        if (node == null) {
+            return null;
+        }
+        if (node.isTextual() && isHttpUrl(node.asText())) {
+            return node.asText();
+        }
+        if (node.isObject() || node.isArray()) {
+            Iterator<JsonNode> values = node.elements();
+            while (values.hasNext()) {
+                String found = findHttpUrl(values.next());
+                if (StringUtils.hasText(found)) {
+                    return found;
+                }
+            }
+        }
+        return null;
+    }
+
+    private boolean isHttpUrl(String value) {
+        if (!StringUtils.hasText(value)) {
+            return false;
+        }
+        String text = value.trim().toLowerCase();
+        return text.startsWith("http://") || text.startsWith("https://");
     }
 
     private JsonNode findField(JsonNode node, String name) {
@@ -279,6 +423,12 @@ public class MineruClient {
     }
 
     public record MineruUploadSession(String batchId, String dataId) {
+    }
+
+    private record MineruFileUrlRequest(List<MineruFileDescriptor> files, String model_version) {
+    }
+
+    private record MineruFileDescriptor(String name, String data_id) {
     }
 
     public record MineruExtractResult(boolean done, boolean failed, String fullZipUrl, String errorMessage) {

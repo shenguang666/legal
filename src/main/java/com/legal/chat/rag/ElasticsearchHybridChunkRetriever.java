@@ -4,6 +4,8 @@ import com.legal.retrieval.service.ChunkSearchHit;
 import com.legal.retrieval.service.ElasticsearchChunkStore;
 import com.legal.retrieval.service.OpenAiEmbeddingClient;
 import com.legal.config.RagProperties;
+import com.legal.enums.QaKnowledgeIndexScope;
+import com.legal.knowledge.service.KnowledgeQaIndexConfigService;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.slf4j.MDC;
@@ -22,15 +24,18 @@ public class ElasticsearchHybridChunkRetriever implements ChunkRetriever {
     private final OpenAiEmbeddingClient embeddingClient;
     private final KeywordChunkRetriever keywordChunkRetriever;
     private final RagProperties ragProperties;
+    private final KnowledgeQaIndexConfigService qaIndexConfigService;
 
     public ElasticsearchHybridChunkRetriever(ElasticsearchChunkStore elasticsearchChunkStore,
                                              OpenAiEmbeddingClient embeddingClient,
                                              KeywordChunkRetriever keywordChunkRetriever,
-                                             RagProperties ragProperties) {
+                                             RagProperties ragProperties,
+                                             KnowledgeQaIndexConfigService qaIndexConfigService) {
         this.elasticsearchChunkStore = elasticsearchChunkStore;
         this.embeddingClient = embeddingClient;
         this.keywordChunkRetriever = keywordChunkRetriever;
         this.ragProperties = ragProperties;
+        this.qaIndexConfigService = qaIndexConfigService;
     }
 
     @Override
@@ -45,8 +50,10 @@ public class ElasticsearchHybridChunkRetriever implements ChunkRetriever {
         // 不再强制返回 topK：由 topK 控制“最多返回多少条”，不足不补齐。
         int fetchK = Math.max(1, Math.max(topK, 20));
         double minSimilarity = ragProperties.getMinVectorSimilarity();
+        QaKnowledgeIndexScope indexScope = qaIndexConfigService.resolveScope(tenantId);
+        List<String> indexNames = qaIndexConfigService.resolveIndexNames(indexScope);
         // 注意：hybridSearchRrf 内部会做向量阈值过滤，并用 rrfMerge 合并后再截断。
-        List<ChunkSearchHit> candidates = elasticsearchChunkStore.hybridSearchRrf(tenantId, question, queryVector, minSimilarity, fetchK);
+        List<ChunkSearchHit> candidates = elasticsearchChunkStore.hybridSearchRrf(tenantId, question, queryVector, minSimilarity, fetchK, indexNames);
         List<ChunkSearchHit> filtered = candidates
                 .stream()
                 .limit(topK)
@@ -58,12 +65,14 @@ public class ElasticsearchHybridChunkRetriever implements ChunkRetriever {
         int latencyMs = (int) (System.currentTimeMillis() - start);
 
         String traceId = MDC.get("traceId");
-        log.info("RAG retrieve(rrf) traceId={} tenantId={} topK={} fetchK={} threshold={} retrieved={} returned={} latencyMs={} question={}",
+        log.info("RAG retrieve(rrf) traceId={} tenantId={} topK={} fetchK={} threshold={} indexScope={} indexes={} retrieved={} returned={} latencyMs={} question={}",
                 traceId,
                 tenantId,
                 topK,
                 fetchK,
                 String.format("%.2f", minSimilarity),
+                indexScope.getCode(),
+                indexNames,
                 retrievedCount,
                 returnedCount,
                 latencyMs,

@@ -3,6 +3,7 @@ package com.legal.knowledge.service;
 import com.baomidou.mybatisplus.core.conditions.query.LambdaQueryWrapper;
 import com.legal.common.AppException;
 import com.legal.config.ElasticsearchProperties;
+import com.legal.enums.DocumentParseMethod;
 import com.legal.enums.KbDocumentBizType;
 import com.legal.enums.KbDocumentStatus;
 import com.legal.enums.KbIndexStatus;
@@ -79,7 +80,7 @@ public class KnowledgeIndexService {
 
         List<ChunkIndexPayload> payloads = new ArrayList<>(chunks.size());
         String source = document.getTitle() + "（" + document.getSource() + "）";
-        String targetIndex = resolveIndexName(document.getBizType());
+        String targetIndex = resolveIndexName(document);
         for (KbChunkEntity chunk : chunks) {
             List<Float> vector = embeddingClient.embed(chunk.getContent());
             int expectedDims = elasticsearchProperties.getIndex().getVectorDims();
@@ -100,7 +101,7 @@ public class KnowledgeIndexService {
             ));
         }
 
-        elasticsearchChunkStore.deleteByDocument(task.getTenantId(), task.getDocumentId(), targetIndex);
+        deleteKnowledgeDocumentFromAllIndexes(task.getTenantId(), task.getDocumentId(), document.getBizType());
         elasticsearchChunkStore.upsertChunks(payloads, targetIndex);
         document.setStatus(KbDocumentStatus.ACTIVE);
         document.setIndexStatus(KbIndexStatus.COMPLETED);
@@ -114,7 +115,7 @@ public class KnowledgeIndexService {
         if (document == null) {
             return;
         }
-        elasticsearchChunkStore.deleteByDocument(task.getTenantId(), task.getDocumentId(), resolveIndexName(document.getBizType()));
+        deleteKnowledgeDocumentFromAllIndexes(task.getTenantId(), task.getDocumentId(), document.getBizType());
         if (document.getDocVersion() <= task.getDocVersion()) {
             document.setIndexStatus(KbIndexStatus.COMPLETED);
             document.setUpdatedAt(LocalDateTime.now());
@@ -131,13 +132,26 @@ public class KnowledgeIndexService {
         );
     }
 
-    private String resolveIndexName(KbDocumentBizType bizType) {
+    private String resolveIndexName(KbDocumentEntity document) {
+        KbDocumentBizType bizType = document.getBizType();
         if (bizType == KbDocumentBizType.RISK_RULE) {
             return elasticsearchProperties.getIndex().getRiskRule();
         }
         if (bizType == KbDocumentBizType.KNOWLEDGE || bizType == null) {
+            if (document.getParseMethod() == DocumentParseMethod.MINERU_PRECISE) {
+                return elasticsearchProperties.getIndex().getKbChunksMineru();
+            }
             return elasticsearchProperties.getIndex().getKbChunks();
         }
         throw AppException.badRequest("当前文档类型不支持索引: " + bizType.getCode());
+    }
+
+    private void deleteKnowledgeDocumentFromAllIndexes(Long tenantId, Long documentId, KbDocumentBizType bizType) {
+        if (bizType == KbDocumentBizType.KNOWLEDGE || bizType == null) {
+            elasticsearchChunkStore.deleteByDocument(tenantId, documentId, elasticsearchProperties.getIndex().getKbChunks());
+            elasticsearchChunkStore.deleteByDocument(tenantId, documentId, elasticsearchProperties.getIndex().getKbChunksMineru());
+            return;
+        }
+        elasticsearchChunkStore.deleteByDocument(tenantId, documentId, elasticsearchProperties.getIndex().getRiskRule());
     }
 }

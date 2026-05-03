@@ -19,6 +19,7 @@ import com.legal.enums.KbIndexStatus;
 import com.legal.enums.KbOutboxOp;
 import com.legal.enums.KbOutboxStatus;
 import com.legal.retrieval.service.ElasticsearchChunkStore;
+import com.legal.config.ElasticsearchProperties;
 import com.legal.security.AuthPrincipal;
 import com.legal.security.IdempotencyService;
 import org.springframework.stereotype.Service;
@@ -47,6 +48,7 @@ public class KnowledgeService {
     private final ElasticsearchChunkStore elasticsearchChunkStore;
     private final DocumentImportService documentImportService;
     private final DocumentParseTaskService documentParseTaskService;
+    private final ElasticsearchProperties elasticsearchProperties;
 
     public KnowledgeService(KbDocumentMapper kbDocumentMapper,
                             KbChunkMapper kbChunkMapper,
@@ -56,7 +58,8 @@ public class KnowledgeService {
                             DocumentChunker documentChunker,
                             ElasticsearchChunkStore elasticsearchChunkStore,
                             DocumentImportService documentImportService,
-                            DocumentParseTaskService documentParseTaskService) {
+                            DocumentParseTaskService documentParseTaskService,
+                            ElasticsearchProperties elasticsearchProperties) {
         this.kbDocumentMapper = kbDocumentMapper;
         this.kbChunkMapper = kbChunkMapper;
         this.kbIndexOutboxMapper = kbIndexOutboxMapper;
@@ -66,6 +69,7 @@ public class KnowledgeService {
         this.elasticsearchChunkStore = elasticsearchChunkStore;
         this.documentImportService = documentImportService;
         this.documentParseTaskService = documentParseTaskService;
+        this.elasticsearchProperties = elasticsearchProperties;
     }
 
     @Transactional
@@ -165,7 +169,7 @@ public class KnowledgeService {
     @Transactional
     public Map<String, Object> resetForEvaluation(AuthPrincipal principal, boolean purgeDb) {
         ensureElasticsearchEnabled();
-        elasticsearchChunkStore.deleteKbChunksIndex();
+        elasticsearchChunkStore.deleteKnowledgeIndexes();
         if (purgeDb) {
             List<Long> knowledgeDocumentIds = kbDocumentMapper.selectList(
                             new LambdaQueryWrapper<KbDocumentEntity>()
@@ -254,6 +258,9 @@ public class KnowledgeService {
         document.setUpdatedAt(LocalDateTime.now());
         kbDocumentMapper.updateById(document);
 
+        kbChunkMapper.deleteByDocument(principal.tenantId(), documentId);
+        elasticsearchChunkStore.deleteByDocument(principal.tenantId(), documentId, elasticsearchProperties.getIndex().getKbChunks());
+        elasticsearchChunkStore.deleteByDocument(principal.tenantId(), documentId, elasticsearchProperties.getIndex().getKbChunksMineru());
         enqueueOutbox(principal.tenantId(), documentId, nextVersion, KbOutboxOp.DELETE, LocalDateTime.now());
         return toDto(document);
     }
