@@ -1,8 +1,6 @@
 package com.legal.config;
 
-import cn.dev33.satoken.context.SaHolder;
 import cn.dev33.satoken.interceptor.SaInterceptor;
-import cn.dev33.satoken.router.SaRouter;
 import cn.dev33.satoken.stp.StpUtil;
 import jakarta.servlet.DispatcherType;
 import org.springframework.web.context.request.RequestContextHolder;
@@ -29,9 +27,10 @@ public class WebMvcConfig implements WebMvcConfigurer {
             if ("OPTIONS".equalsIgnoreCase(request.getMethod())) {
                 return;
             }
-            SaRouter.match("/api/**")
-                    .notMatch("/api/auth/login")
-                    .check(r -> StpUtil.checkLogin());
+            String uri = request.getRequestURI();
+            if (uri != null && uri.startsWith("/api/") && !uri.equals("/api/auth/login")) {
+                StpUtil.checkLogin();
+            }
         })).addPathPatterns("/**");
     }
 

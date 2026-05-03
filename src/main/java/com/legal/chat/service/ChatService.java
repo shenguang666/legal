@@ -48,10 +48,13 @@ import org.springframework.transaction.annotation.Transactional;
 import org.springframework.util.StringUtils;
 
 import java.math.BigDecimal;
+import java.net.SocketException;
 import java.util.Optional;
 
 import java.time.LocalDateTime;
 import java.util.concurrent.CompletableFuture;
+import java.util.concurrent.CompletionException;
+import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.List;
 import java.util.UUID;
 import java.util.stream.Collectors;
@@ -206,6 +209,15 @@ public class ChatService {
         // 流式连接可能较久，超时设长一点
         SseEmitter emitter = new SseEmitter(5 * 60 * 1000L);
         long start = System.currentTimeMillis();
+        AtomicBoolean streamClosed = new AtomicBoolean(false);
+        emitter.onCompletion(() -> streamClosed.set(true));
+        emitter.onTimeout(() -> streamClosed.set(true));
+        emitter.onError(error -> {
+            streamClosed.set(true);
+            if (isClientDisconnect(error)) {
+                log.debug("streaming ask client disconnected traceId={}", traceId);
+            }
+        });
 
         // 仍保持幂等语义：开始即占用 requestId
         idempotencyService.ensureUnique(principal, "chat:ask:stream", request.getRequestId());
@@ -257,12 +269,13 @@ public class ChatService {
             chatSessionMapper.updateById(session);
 
             try {
-                emitter.send(SseEmitter.event().name("answer").data(new AskStreamEvent("answer", answer)));
-                emitter.send(SseEmitter.event().name("citations").data(new AskStreamEvent("citations", "[]")));
-                emitter.send(SseEmitter.event().name("done").data(new AskStreamEvent("done", "")));
-                emitter.complete();
+                safeSend(emitter, streamClosed, traceId, "answer", answer);
+                safeSend(emitter, streamClosed, traceId, "citations", "[]");
+                safeSend(emitter, streamClosed, traceId, "done", "");
             } catch (Exception ex) {
-                emitter.completeWithError(ex);
+                log.warn("streaming hotword response failed traceId={}", traceId, ex);
+            } finally {
+                safeComplete(emitter, streamClosed);
             }
             return emitter;
         }
@@ -328,12 +341,13 @@ public class ChatService {
 
 
                 try {
-                    emitter.send(SseEmitter.event().name("answer").data(new AskStreamEvent("answer", payload.getAnswer())));
-                    emitter.send(SseEmitter.event().name("citations").data(new AskStreamEvent("citations", JsonUtils.toJson(payload.getCitations()))));
-                    emitter.send(SseEmitter.event().name("done").data(new AskStreamEvent("done", "")));
-                    emitter.complete();
+                    safeSend(emitter, streamClosed, traceId, "answer", payload.getAnswer());
+                    safeSend(emitter, streamClosed, traceId, "citations", JsonUtils.toJson(payload.getCitations()));
+                    safeSend(emitter, streamClosed, traceId, "done", "");
                 } catch (Exception ex) {
-                    emitter.completeWithError(ex);
+                    log.warn("streaming cached response failed traceId={}", traceId, ex);
+                } finally {
+                    safeComplete(emitter, streamClosed);
                 }
                 return emitter;
             }
@@ -450,31 +464,86 @@ public class ChatService {
                 // citations 一次性发给前端
                 send("citations", JsonUtils.toJson(ragAnswer.getCitations()));
                 send("done", "");
-                emitter.complete();
+                safeComplete(emitter, streamClosed);
             }
 
             @Override
             public void onError(Throwable error) {
-                log.error("streaming ask failed traceId={}", traceId, error);
+                if (isClientDisconnect(error)) {
+                    log.debug("streaming ask connection closed traceId={}", traceId);
+                } else {
+                    log.warn("streaming ask failed traceId={}", traceId, error);
+                }
                 try {
-                    send("error", error.getMessage() == null ? "stream error" : error.getMessage());
+                    send("error", "流式问答连接已中断，请稍后重试");
                 } finally {
-                    emitter.completeWithError(error);
+                    safeComplete(emitter, streamClosed);
                 }
             }
 
             private void send(String type, String data) {
-                try {
-                    emitter.send(SseEmitter.event()
-                            .name(type)
-                            .data(new AskStreamEvent(type, data)));
-                } catch (Exception ex) {
-                    emitter.completeWithError(ex);
-                }
+                safeSend(emitter, streamClosed, traceId, type, data);
             }
         }));
 
         return emitter;
+    }
+
+    private void safeSend(SseEmitter emitter, AtomicBoolean streamClosed, String traceId, String type, String data) {
+        if (streamClosed.get()) {
+            return;
+        }
+        try {
+            emitter.send(SseEmitter.event()
+                    .name(type)
+                    .data(new AskStreamEvent(type, data)));
+        } catch (Exception ex) {
+            if (isClientDisconnect(ex)) {
+                log.debug("streaming ask client disconnected traceId={} event={}", traceId, type);
+            } else {
+                log.warn("streaming ask send failed traceId={} event={}", traceId, type, ex);
+            }
+            safeComplete(emitter, streamClosed);
+        }
+    }
+
+    private void safeComplete(SseEmitter emitter, AtomicBoolean streamClosed) {
+        if (!streamClosed.compareAndSet(false, true)) {
+            return;
+        }
+        try {
+            emitter.complete();
+        } catch (Exception ignored) {
+        }
+    }
+
+    private boolean isClientDisconnect(Throwable error) {
+        Throwable current = error;
+        while (current != null) {
+            if (current instanceof SocketException) {
+                return true;
+            }
+            String message = current.getMessage();
+            if (message != null) {
+                String lowerMessage = message.toLowerCase();
+                if (lowerMessage.contains("connection reset")
+                        || lowerMessage.contains("broken pipe")
+                        || lowerMessage.contains("connection aborted")
+                        || lowerMessage.contains("远程主机强迫关闭")
+                        || lowerMessage.contains("你的主机中的软件中止了一个已建立的连接")) {
+                    return true;
+                }
+            }
+            String className = current.getClass().getName();
+            if (className.contains("ClientAbortException")
+                    || className.contains("AsyncRequestNotUsableException")) {
+                return true;
+            }
+            current = current instanceof CompletionException && current.getCause() != null
+                    ? current.getCause()
+                    : current.getCause();
+        }
+        return false;
     }
 
     @Transactional
