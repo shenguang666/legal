@@ -24,6 +24,7 @@ import org.springframework.util.StringUtils;
         LegalMemoryProperties.class,
         ContractReviewProperties.class,
         RagRetrievalMetricProperties.class,
+        TokenUsageMetricProperties.class,
         DocumentProcessingProperties.class
 })
 public class LangChain4jConfig {

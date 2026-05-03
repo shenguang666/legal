@@ -275,6 +275,53 @@ CREATE TABLE IF NOT EXISTS rag_retrieval_metric_evaluation (
   CONSTRAINT fk_rag_metric_eval_daily_summary FOREIGN KEY (daily_summary_id) REFERENCES rag_retrieval_metric_daily_summary (id)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COMMENT='RAG检索质量评估结果表';
 
+CREATE TABLE IF NOT EXISTS token_usage_metric_daily_summary (
+  id BIGINT NOT NULL AUTO_INCREMENT COMMENT 'Token消耗日汇总主键ID',
+  tenant_id BIGINT NOT NULL COMMENT '租户ID',
+  metric_date DATE NOT NULL COMMENT '指标业务日期',
+  metric_version VARCHAR(128) NOT NULL COMMENT '统计版本，用于隔离不同统计口径',
+  total_token_usage BIGINT NOT NULL DEFAULT 0 COMMENT '当天统计到的Token总消耗',
+  message_count BIGINT NOT NULL DEFAULT 0 COMMENT '当天参与Token统计的助手消息数量',
+  active_user_count BIGINT NOT NULL DEFAULT 0 COMMENT '当天产生Token消耗的活跃用户数量',
+  average_tokens_per_message DECIMAL(18,2) NOT NULL DEFAULT 0.00 COMMENT '当天平均每条助手消息消耗的Token数',
+  top_user_limit INT NOT NULL DEFAULT 10 COMMENT '本次日汇总保留的Top用户数量配置',
+  top_user_count INT NOT NULL DEFAULT 0 COMMENT '实际写入的Top用户明细数量',
+  status VARCHAR(32) NOT NULL DEFAULT 'PROCESSING' COMMENT '日汇总任务状态（PROCESSING处理中/COMPLETED已完成/PARTIAL_FAILED部分失败/FAILED失败）',
+  error_message VARCHAR(1000) DEFAULT NULL COMMENT '日汇总任务失败或部分失败说明',
+  retry_count INT NOT NULL DEFAULT 0 COMMENT '日汇总任务失败重试次数',
+  started_at DATETIME DEFAULT NULL COMMENT '日汇总任务首次开始处理时间',
+  completed_at DATETIME DEFAULT NULL COMMENT '日汇总任务最近完成时间',
+  created_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP COMMENT '记录创建时间',
+  updated_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP COMMENT '记录更新时间',
+  PRIMARY KEY (id),
+  UNIQUE KEY uk_token_usage_daily_tenant_date_version (tenant_id, metric_date, metric_version),
+  KEY idx_token_usage_daily_date_status (metric_date, status),
+  KEY idx_token_usage_daily_tenant_date (tenant_id, metric_date)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COMMENT='Token消耗指标日汇总表';
+
+CREATE TABLE IF NOT EXISTS token_usage_metric_top_user (
+  id BIGINT NOT NULL AUTO_INCREMENT COMMENT 'Token消耗Top用户明细主键ID',
+  daily_summary_id BIGINT NOT NULL COMMENT '所属Token消耗日汇总ID',
+  tenant_id BIGINT NOT NULL COMMENT '租户ID',
+  metric_date DATE NOT NULL COMMENT '指标业务日期',
+  user_id BIGINT NOT NULL COMMENT '用户ID',
+  username VARCHAR(64) DEFAULT NULL COMMENT '登录用户名快照',
+  display_name VARCHAR(128) DEFAULT NULL COMMENT '用户显示名称快照',
+  rank_no INT NOT NULL COMMENT '用户在该日Token消耗排行榜中的名次',
+  token_usage BIGINT NOT NULL DEFAULT 0 COMMENT '该用户当天Token消耗总量',
+  message_count BIGINT NOT NULL DEFAULT 0 COMMENT '该用户当天参与Token统计的助手消息数量',
+  usage_ratio DECIMAL(10,4) NOT NULL DEFAULT 0.0000 COMMENT '该用户Token消耗占当日租户总消耗比例',
+  metric_version VARCHAR(128) NOT NULL COMMENT '统计版本，用于隔离不同统计口径',
+  created_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP COMMENT '记录创建时间',
+  updated_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP COMMENT '记录更新时间',
+  PRIMARY KEY (id),
+  UNIQUE KEY uk_token_usage_top_summary_user (daily_summary_id, user_id),
+  KEY idx_token_usage_top_summary_rank (daily_summary_id, rank_no),
+  KEY idx_token_usage_top_tenant_date (tenant_id, metric_date, token_usage),
+  KEY idx_token_usage_top_user (tenant_id, user_id, metric_date),
+  CONSTRAINT fk_token_usage_top_daily_summary FOREIGN KEY (daily_summary_id) REFERENCES token_usage_metric_daily_summary (id)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COMMENT='Token消耗指标Top用户明细表';
+
 CREATE TABLE IF NOT EXISTS chat_memory_summary (
   id BIGINT NOT NULL AUTO_INCREMENT COMMENT '摘要主键ID',
   tenant_id BIGINT NOT NULL COMMENT '租户ID',

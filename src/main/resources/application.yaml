@@ -133,6 +133,32 @@ rag:
         # 单次模型判断最多输出 token 数。
         max-output-tokens: ${RAG_METRIC_RETRIEVAL_MAX_OUTPUT_TOKENS:1200}
 
+token:
+  # Token 消耗指标配置。
+  metric:
+    # 在线问答 Token 消耗日统计配置。
+    usage:
+      # 是否启用 Token 消耗统计定时任务。
+      enabled: ${TOKEN_METRIC_USAGE_ENABLED:true}
+      # Token 消耗统计版本，用于隔离不同统计口径。
+      version: ${TOKEN_METRIC_USAGE_VERSION:token-usage-v1}
+      # Token 消耗统计定时任务配置。
+      worker:
+        # Token 消耗统计定时任务 Cron 表达式，默认低峰期 02:00-05:59 每 5 分钟执行一次。
+        cron: ${TOKEN_METRIC_USAGE_WORKER_CRON:0 0/5 2-5 * * ?}
+        # 单次定时任务最多处理的租户数量。
+        batch-size: ${TOKEN_METRIC_USAGE_WORKER_BATCH_SIZE:20}
+        # 定时任务默认处理距离当前日期多少天的业务日期，1 表示处理上一自然日。
+        metric-date-offset-days: ${TOKEN_METRIC_USAGE_WORKER_METRIC_DATE_OFFSET_DAYS:1}
+        # 单个租户日期统计失败后允许的最大重试次数。
+        max-retries: ${TOKEN_METRIC_USAGE_WORKER_MAX_RETRIES:3}
+        # 单个租户日期统计任务超时时间。
+        timeout: ${TOKEN_METRIC_USAGE_WORKER_TIMEOUT:90s}
+      # Token 消耗 Top 用户排行配置。
+      top-users:
+        # 每个指标日期保留 Token 消耗最高的用户数量。
+        limit: ${TOKEN_METRIC_USAGE_TOP_USERS_LIMIT:10}
+
 
 # 记忆管理配置（agent 上下文记忆：短期/摘要/长期）。
 legal:

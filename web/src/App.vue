@@ -15,6 +15,7 @@
         <RouterLink v-if="isAdmin" to="/hotwords" class="menu-link">热词管理</RouterLink>
         <RouterLink v-if="isAdmin" to="/risk-rules" class="menu-link">风险规则</RouterLink>
         <RouterLink v-if="isAdmin" to="/rag-metrics" class="menu-link">RAG指标</RouterLink>
+        <RouterLink v-if="isAdmin" to="/token-usage-metrics" class="menu-link">Token指标</RouterLink>
         <RouterLink v-if="isAdmin" to="/tianyan" class="menu-link">天眼审查</RouterLink>
       </nav>
       <div class="identity">
