@@ -2,50 +2,155 @@ import { onMounted, ref } from 'vue';
 import { apiDelete, apiGet, apiPost, apiPostForm, randomRequestId } from '../api/client';
 const title = ref('');
 const source = ref('');
-const selectedFile = ref(null);
+const selectedFiles = ref([]);
 const documents = ref([]);
 const notice = ref('');
-onMounted(refresh);
+const parseMethod = ref('NATIVE');
+const parseMethods = ref(['NATIVE']);
+const maxUploadDocuments = ref(1);
+const busy = ref(false);
+const qaIndexScope = ref('NATIVE_ONLY');
+const qaIndexScopes = ref(['NATIVE_ONLY', 'MINERU_ONLY', 'BOTH']);
+const nativeIndexName = ref('');
+const mineruIndexName = ref('');
+onMounted(async () => {
+    await loadCapabilities();
+    await loadQaIndexConfig();
+    await refresh();
+});
+async function loadCapabilities() {
+    const capabilities = await apiGet('/api/document-processing/capabilities');
+    parseMethods.value = capabilities.availableParseMethods?.length ? capabilities.availableParseMethods : ['NATIVE'];
+    parseMethod.value = capabilities.defaultParseMethod || parseMethods.value[0];
+    maxUploadDocuments.value = capabilities.maxUploadDocuments || 1;
+}
 async function refresh() {
     documents.value = await apiGet('/api/knowledge/documents');
 }
+async function loadQaIndexConfig() {
+    const config = await apiGet('/api/knowledge/admin/qa-index-config');
+    qaIndexScope.value = config.indexScope || 'NATIVE_ONLY';
+    qaIndexScopes.value = config.availableScopes?.length ? config.availableScopes : ['NATIVE_ONLY', 'MINERU_ONLY', 'BOTH'];
+    nativeIndexName.value = config.nativeIndexName || '';
+    mineruIndexName.value = config.mineruIndexName || '';
+}
+async function saveQaIndexConfig() {
+    if (!window.confirm(`确认将智能问答知识库检索范围切换为“${qaIndexScopeLabel(qaIndexScope.value)}”？`)) {
+        return;
+    }
+    busy.value = true;
+    notice.value = '正在保存智能问答检索范围…';
+    try {
+        await apiPost('/api/knowledge/admin/qa-index-config', { indexScope: qaIndexScope.value });
+        notice.value = `智能问答知识库检索范围已切换为：${qaIndexScopeLabel(qaIndexScope.value)}`;
+        await loadQaIndexConfig();
+    }
+    finally {
+        busy.value = false;
+    }
+}
 function onSelectFile(event) {
     const input = event.target;
-    selectedFile.value = input.files?.[0] || null;
+    selectedFiles.value = Array.from(input.files || []);
 }
 async function importDocument() {
-    if (!selectedFile.value) {
+    if (!selectedFiles.value.length) {
         notice.value = '请先选择文件';
         return;
     }
-    const formData = new FormData();
-    formData.append('requestId', randomRequestId('kb-import'));
-    formData.append('file', selectedFile.value);
-    if (title.value.trim()) {
-        formData.append('title', title.value.trim());
+    if (selectedFiles.value.length > maxUploadDocuments.value) {
+        notice.value = `单次最多上传 ${maxUploadDocuments.value} 个文档`;
+        return;
     }
-    if (source.value.trim()) {
-        formData.append('source', source.value.trim());
+    const methodLabel = parseMethodLabel(parseMethod.value);
+    if (!window.confirm(`确认使用“${methodLabel}”导入 ${selectedFiles.value.length} 个文档？`)) {
+        return;
     }
-    await apiPostForm('/api/knowledge/documents/import', formData);
-    title.value = '';
-    source.value = '';
-    selectedFile.value = null;
-    notice.value = '文档已导入，正在后台建立向量索引';
-    await refresh();
+    busy.value = true;
+    notice.value = `正在导入 ${selectedFiles.value.length} 个文档…`;
+    try {
+        for (const file of selectedFiles.value) {
+            const formData = new FormData();
+            formData.append('requestId', randomRequestId('kb-import'));
+            formData.append('file', file);
+            if (title.value.trim() && selectedFiles.value.length === 1) {
+                formData.append('title', title.value.trim());
+            }
+            if (source.value.trim()) {
+                formData.append('source', source.value.trim());
+            }
+            formData.append('parseMethod', parseMethod.value);
+            await apiPostForm('/api/knowledge/documents/import', formData);
+        }
+        title.value = '';
+        source.value = '';
+        selectedFiles.value = [];
+        notice.value = parseMethod.value === 'MINERU_PRECISE' ? '文档已导入，正在后台进行 MinerU 精准解析' : '文档已导入，正在后台建立向量索引';
+        await refresh();
+    }
+    finally {
+        busy.value = false;
+    }
 }
 async function triggerIndex(documentId) {
-    await apiPost(`/api/knowledge/documents/${documentId}/index?requestId=${encodeURIComponent(randomRequestId('kb-index'))}`);
-    notice.value = `文档 ${documentId} 已投递索引任务`;
-    await refresh();
+    if (!window.confirm(`确认重新触发文档 ${documentId} 的向量索引任务？`)) {
+        return;
+    }
+    busy.value = true;
+    notice.value = `正在投递文档 ${documentId} 的索引任务…`;
+    try {
+        await apiPost(`/api/knowledge/documents/${documentId}/index?requestId=${encodeURIComponent(randomRequestId('kb-index'))}`);
+        notice.value = `文档 ${documentId} 已投递索引任务`;
+        await refresh();
+    }
+    finally {
+        busy.value = false;
+    }
+}
+async function retryParse(documentId) {
+    if (!window.confirm(`确认重新提交文档 ${documentId} 的解析任务？`)) {
+        return;
+    }
+    busy.value = true;
+    notice.value = `正在重新提交文档 ${documentId} 的解析任务…`;
+    try {
+        await apiPost(`/api/knowledge/documents/${documentId}/retry-parse?requestId=${encodeURIComponent(randomRequestId('kb-retry-parse'))}`);
+        notice.value = `文档 ${documentId} 已重新提交解析`;
+        await refresh();
+    }
+    finally {
+        busy.value = false;
+    }
+}
+function parseMethodLabel(method) {
+    if (method === 'MINERU_PRECISE') {
+        return 'MinerU 精准解析';
+    }
+    return '原生解析';
+}
+function qaIndexScopeLabel(scope) {
+    if (scope === 'MINERU_ONLY') {
+        return '仅查询 MinerU 精准解析索引';
+    }
+    if (scope === 'BOTH') {
+        return '同时查询原生索引和 MinerU 索引';
+    }
+    return '仅查询原生解析索引';
 }
 async function remove(documentId) {
     if (!window.confirm(`确认删除知识库文档 ${documentId}？`)) {
         return;
     }
-    await apiDelete(`/api/knowledge/documents/${documentId}?requestId=${encodeURIComponent(randomRequestId('kb-delete'))}`);
-    notice.value = `文档 ${documentId} 已标记删除`;
-    await refresh();
+    busy.value = true;
+    notice.value = `正在删除文档 ${documentId} 及其切片…`;
+    try {
+        await apiDelete(`/api/knowledge/documents/${documentId}?requestId=${encodeURIComponent(randomRequestId('kb-delete'))}`);
+        notice.value = `文档 ${documentId} 已删除，数据库切片和 Elasticsearch 切片已同步清理`;
+        await refresh();
+    }
+    finally {
+        busy.value = false;
+    }
 }
 debugger; /* PartiallyEnd: #3632/scriptSetup.vue */
 const __VLS_ctx = {};
@@ -103,8 +208,25 @@ __VLS_asFunctionalElement(__VLS_intrinsicElements.input)({
     id: "knowledge-file",
     name: "knowledgeFile",
     type: "file",
+    multiple: true,
     accept: ".pdf,.doc,.docx,.txt,.md",
 });
+__VLS_asFunctionalElement(__VLS_intrinsicElements.div, __VLS_intrinsicElements.div)({});
+__VLS_asFunctionalElement(__VLS_intrinsicElements.label, __VLS_intrinsicElements.label)({
+    for: "knowledge-parse-method",
+});
+__VLS_asFunctionalElement(__VLS_intrinsicElements.select, __VLS_intrinsicElements.select)({
+    id: "knowledge-parse-method",
+    value: (__VLS_ctx.parseMethod),
+    ...{ class: "console-select" },
+});
+for (const [method] of __VLS_getVForSourceType((__VLS_ctx.parseMethods))) {
+    __VLS_asFunctionalElement(__VLS_intrinsicElements.option, __VLS_intrinsicElements.option)({
+        key: (method),
+        value: (method),
+    });
+    (__VLS_ctx.parseMethodLabel(method));
+}
 __VLS_asFunctionalElement(__VLS_intrinsicElements.div, __VLS_intrinsicElements.div)({
     ...{ class: "actions" },
 });
@@ -112,9 +234,51 @@ __VLS_asFunctionalElement(__VLS_intrinsicElements.button, __VLS_intrinsicElement
     ...{ onClick: (__VLS_ctx.importDocument) },
     ...{ class: "primary-btn" },
     type: "button",
+    disabled: (__VLS_ctx.busy),
 });
 __VLS_asFunctionalElement(__VLS_intrinsicElements.p, __VLS_intrinsicElements.p)({
     ...{ class: "note" },
+});
+(__VLS_ctx.maxUploadDocuments);
+__VLS_asFunctionalElement(__VLS_intrinsicElements.article, __VLS_intrinsicElements.article)({
+    ...{ class: "card panel" },
+});
+__VLS_asFunctionalElement(__VLS_intrinsicElements.p, __VLS_intrinsicElements.p)({
+    ...{ class: "tag" },
+});
+__VLS_asFunctionalElement(__VLS_intrinsicElements.h3, __VLS_intrinsicElements.h3)({});
+__VLS_asFunctionalElement(__VLS_intrinsicElements.div, __VLS_intrinsicElements.div)({
+    ...{ class: "grid form-grid" },
+});
+__VLS_asFunctionalElement(__VLS_intrinsicElements.div, __VLS_intrinsicElements.div)({});
+__VLS_asFunctionalElement(__VLS_intrinsicElements.label, __VLS_intrinsicElements.label)({
+    for: "qa-index-scope",
+});
+__VLS_asFunctionalElement(__VLS_intrinsicElements.select, __VLS_intrinsicElements.select)({
+    id: "qa-index-scope",
+    value: (__VLS_ctx.qaIndexScope),
+    ...{ class: "console-select" },
+});
+for (const [scope] of __VLS_getVForSourceType((__VLS_ctx.qaIndexScopes))) {
+    __VLS_asFunctionalElement(__VLS_intrinsicElements.option, __VLS_intrinsicElements.option)({
+        key: (scope),
+        value: (scope),
+    });
+    (__VLS_ctx.qaIndexScopeLabel(scope));
+}
+__VLS_asFunctionalElement(__VLS_intrinsicElements.p, __VLS_intrinsicElements.p)({
+    ...{ class: "note" },
+});
+(__VLS_ctx.nativeIndexName || '-');
+(__VLS_ctx.mineruIndexName || '-');
+__VLS_asFunctionalElement(__VLS_intrinsicElements.div, __VLS_intrinsicElements.div)({
+    ...{ class: "actions" },
+});
+__VLS_asFunctionalElement(__VLS_intrinsicElements.button, __VLS_intrinsicElements.button)({
+    ...{ onClick: (__VLS_ctx.saveQaIndexConfig) },
+    ...{ class: "primary-btn" },
+    type: "button",
+    disabled: (__VLS_ctx.busy),
 });
 __VLS_asFunctionalElement(__VLS_intrinsicElements.article, __VLS_intrinsicElements.article)({
     ...{ class: "card panel" },
@@ -131,6 +295,7 @@ __VLS_asFunctionalElement(__VLS_intrinsicElements.button, __VLS_intrinsicElement
     ...{ onClick: (__VLS_ctx.refresh) },
     ...{ class: "ghost-btn" },
     type: "button",
+    disabled: (__VLS_ctx.busy),
 });
 __VLS_asFunctionalElement(__VLS_intrinsicElements.div, __VLS_intrinsicElements.div)({
     ...{ class: "doc-list" },
@@ -145,10 +310,13 @@ for (const [item] of __VLS_getVForSourceType((__VLS_ctx.documents))) {
     });
     (item.status);
     (item.indexStatus);
+    (item.parseStatus || 'COMPLETED');
     __VLS_asFunctionalElement(__VLS_intrinsicElements.h4, __VLS_intrinsicElements.h4)({});
     (item.title);
     __VLS_asFunctionalElement(__VLS_intrinsicElements.p, __VLS_intrinsicElements.p)({});
     (item.source);
+    __VLS_asFunctionalElement(__VLS_intrinsicElements.p, __VLS_intrinsicElements.p)({});
+    (__VLS_ctx.parseMethodLabel(item.parseMethod || 'NATIVE'));
     __VLS_asFunctionalElement(__VLS_intrinsicElements.div, __VLS_intrinsicElements.div)({
         ...{ class: "doc-actions" },
     });
@@ -158,14 +326,34 @@ for (const [item] of __VLS_getVForSourceType((__VLS_ctx.documents))) {
             } },
         ...{ class: "ghost-btn" },
         type: "button",
+        disabled: (__VLS_ctx.busy),
     });
+    if (item.parseStatus === 'FAILED') {
+        __VLS_asFunctionalElement(__VLS_intrinsicElements.button, __VLS_intrinsicElements.button)({
+            ...{ onClick: (...[$event]) => {
+                    if (!(item.parseStatus === 'FAILED'))
+                        return;
+                    __VLS_ctx.retryParse(item.documentId);
+                } },
+            ...{ class: "ghost-btn" },
+            type: "button",
+            disabled: (__VLS_ctx.busy),
+        });
+    }
     __VLS_asFunctionalElement(__VLS_intrinsicElements.button, __VLS_intrinsicElements.button)({
         ...{ onClick: (...[$event]) => {
                 __VLS_ctx.remove(item.documentId);
             } },
         ...{ class: "warn-btn" },
         type: "button",
+        disabled: (__VLS_ctx.busy),
     });
+    if (item.parseFailureReason) {
+        __VLS_asFunctionalElement(__VLS_intrinsicElements.p, __VLS_intrinsicElements.p)({
+            ...{ class: "note" },
+        });
+        (item.parseFailureReason);
+    }
 }
 if (!__VLS_ctx.documents.length) {
     __VLS_asFunctionalElement(__VLS_intrinsicElements.p, __VLS_intrinsicElements.p)({
@@ -186,9 +374,19 @@ if (__VLS_ctx.notice) {
 /** @type {__VLS_StyleScopedClasses['section-title']} */ ;
 /** @type {__VLS_StyleScopedClasses['grid']} */ ;
 /** @type {__VLS_StyleScopedClasses['form-grid']} */ ;
+/** @type {__VLS_StyleScopedClasses['console-select']} */ ;
 /** @type {__VLS_StyleScopedClasses['actions']} */ ;
 /** @type {__VLS_StyleScopedClasses['primary-btn']} */ ;
 /** @type {__VLS_StyleScopedClasses['note']} */ ;
+/** @type {__VLS_StyleScopedClasses['card']} */ ;
+/** @type {__VLS_StyleScopedClasses['panel']} */ ;
+/** @type {__VLS_StyleScopedClasses['tag']} */ ;
+/** @type {__VLS_StyleScopedClasses['grid']} */ ;
+/** @type {__VLS_StyleScopedClasses['form-grid']} */ ;
+/** @type {__VLS_StyleScopedClasses['console-select']} */ ;
+/** @type {__VLS_StyleScopedClasses['note']} */ ;
+/** @type {__VLS_StyleScopedClasses['actions']} */ ;
+/** @type {__VLS_StyleScopedClasses['primary-btn']} */ ;
 /** @type {__VLS_StyleScopedClasses['card']} */ ;
 /** @type {__VLS_StyleScopedClasses['panel']} */ ;
 /** @type {__VLS_StyleScopedClasses['header-row']} */ ;
@@ -199,7 +397,9 @@ if (__VLS_ctx.notice) {
 /** @type {__VLS_StyleScopedClasses['doc-status']} */ ;
 /** @type {__VLS_StyleScopedClasses['doc-actions']} */ ;
 /** @type {__VLS_StyleScopedClasses['ghost-btn']} */ ;
+/** @type {__VLS_StyleScopedClasses['ghost-btn']} */ ;
 /** @type {__VLS_StyleScopedClasses['warn-btn']} */ ;
+/** @type {__VLS_StyleScopedClasses['note']} */ ;
 /** @type {__VLS_StyleScopedClasses['note']} */ ;
 /** @type {__VLS_StyleScopedClasses['notice']} */ ;
 var __VLS_dollars;
@@ -210,10 +410,22 @@ const __VLS_self = (await import('vue')).defineComponent({
             source: source,
             documents: documents,
             notice: notice,
+            parseMethod: parseMethod,
+            parseMethods: parseMethods,
+            maxUploadDocuments: maxUploadDocuments,
+            busy: busy,
+            qaIndexScope: qaIndexScope,
+            qaIndexScopes: qaIndexScopes,
+            nativeIndexName: nativeIndexName,
+            mineruIndexName: mineruIndexName,
             refresh: refresh,
+            saveQaIndexConfig: saveQaIndexConfig,
             onSelectFile: onSelectFile,
             importDocument: importDocument,
             triggerIndex: triggerIndex,
+            retryParse: retryParse,
+            parseMethodLabel: parseMethodLabel,
+            qaIndexScopeLabel: qaIndexScopeLabel,
             remove: remove,
         };
     },

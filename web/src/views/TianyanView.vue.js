@@ -1,13 +1,25 @@
 import { onMounted, ref } from 'vue';
 import { useRouter } from 'vue-router';
-import { apiDelete, apiGet, apiPostForm, randomRequestId } from '../api/client';
+import { apiDelete, apiGet, apiPost, apiPostForm, randomRequestId } from '../api/client';
 const router = useRouter();
 const title = ref('');
 const source = ref('');
 const selectedFile = ref(null);
 const documents = ref([]);
 const notice = ref('');
-onMounted(refresh);
+const parseMethod = ref('NATIVE');
+const parseMethods = ref(['NATIVE']);
+const maxUploadDocuments = ref(1);
+onMounted(async () => {
+    await loadCapabilities();
+    await refresh();
+});
+async function loadCapabilities() {
+    const capabilities = await apiGet('/api/document-processing/capabilities');
+    parseMethods.value = capabilities.availableParseMethods?.length ? capabilities.availableParseMethods : ['NATIVE'];
+    parseMethod.value = capabilities.defaultParseMethod || parseMethods.value[0];
+    maxUploadDocuments.value = capabilities.maxUploadDocuments || 1;
+}
 async function refresh() {
     documents.value = await apiGet('/api/tianyan/documents');
 }
@@ -29,11 +41,12 @@ async function importDocument() {
     if (source.value.trim()) {
         formData.append('source', source.value.trim());
     }
+    formData.append('parseMethod', parseMethod.value);
     await apiPostForm('/api/tianyan/documents/import', formData);
     title.value = '';
     source.value = '';
     selectedFile.value = null;
-    notice.value = '审查文档已导入，可立即发起天眼审查';
+    notice.value = parseMethod.value === 'MINERU_PRECISE' ? '审查文档已导入，MinerU 精准解析完成后可发起天眼审查' : '审查文档已导入，可立即发起天眼审查';
     await refresh();
 }
 async function remove(documentId) {
@@ -45,12 +58,27 @@ async function remove(documentId) {
     await refresh();
 }
 function openReview(item) {
+    if (item.parseStatus && item.parseStatus !== 'COMPLETED') {
+        notice.value = '文档解析未完成，暂不能发起天眼审查';
+        return;
+    }
     router.push({
         path: `/tianyan/reviews/${item.documentId}`,
         query: {
             title: item.title,
         },
     });
+}
+async function retryParse(documentId) {
+    await apiPost(`/api/tianyan/documents/${documentId}/retry-parse?requestId=${encodeURIComponent(randomRequestId('tianyan-retry-parse'))}`);
+    notice.value = `审查文档 ${documentId} 已重新提交解析`;
+    await refresh();
+}
+function parseMethodLabel(method) {
+    if (method === 'MINERU_PRECISE') {
+        return 'MinerU 精准解析';
+    }
+    return '原生解析';
 }
 debugger; /* PartiallyEnd: #3632/scriptSetup.vue */
 const __VLS_ctx = {};
@@ -110,6 +138,22 @@ __VLS_asFunctionalElement(__VLS_intrinsicElements.input)({
     type: "file",
     accept: ".pdf,.doc,.docx,.txt,.md",
 });
+__VLS_asFunctionalElement(__VLS_intrinsicElements.div, __VLS_intrinsicElements.div)({});
+__VLS_asFunctionalElement(__VLS_intrinsicElements.label, __VLS_intrinsicElements.label)({
+    for: "tianyan-parse-method",
+});
+__VLS_asFunctionalElement(__VLS_intrinsicElements.select, __VLS_intrinsicElements.select)({
+    id: "tianyan-parse-method",
+    value: (__VLS_ctx.parseMethod),
+    ...{ class: "console-select" },
+});
+for (const [method] of __VLS_getVForSourceType((__VLS_ctx.parseMethods))) {
+    __VLS_asFunctionalElement(__VLS_intrinsicElements.option, __VLS_intrinsicElements.option)({
+        key: (method),
+        value: (method),
+    });
+    (__VLS_ctx.parseMethodLabel(method));
+}
 __VLS_asFunctionalElement(__VLS_intrinsicElements.div, __VLS_intrinsicElements.div)({
     ...{ class: "actions" },
 });
@@ -121,6 +165,7 @@ __VLS_asFunctionalElement(__VLS_intrinsicElements.button, __VLS_intrinsicElement
 __VLS_asFunctionalElement(__VLS_intrinsicElements.p, __VLS_intrinsicElements.p)({
     ...{ class: "note" },
 });
+(__VLS_ctx.maxUploadDocuments);
 __VLS_asFunctionalElement(__VLS_intrinsicElements.article, __VLS_intrinsicElements.article)({
     ...{ class: "card panel" },
 });
@@ -150,6 +195,7 @@ for (const [item] of __VLS_getVForSourceType((__VLS_ctx.documents))) {
     });
     (item.status);
     (item.indexStatus);
+    (item.parseStatus || 'COMPLETED');
     __VLS_asFunctionalElement(__VLS_intrinsicElements.h4, __VLS_intrinsicElements.h4)({});
     (item.title);
     __VLS_asFunctionalElement(__VLS_intrinsicElements.p, __VLS_intrinsicElements.p)({});
@@ -163,7 +209,19 @@ for (const [item] of __VLS_getVForSourceType((__VLS_ctx.documents))) {
             } },
         ...{ class: "primary-btn" },
         type: "button",
+        disabled: (Boolean(item.parseStatus && item.parseStatus !== 'COMPLETED')),
     });
+    if (item.parseStatus === 'FAILED') {
+        __VLS_asFunctionalElement(__VLS_intrinsicElements.button, __VLS_intrinsicElements.button)({
+            ...{ onClick: (...[$event]) => {
+                    if (!(item.parseStatus === 'FAILED'))
+                        return;
+                    __VLS_ctx.retryParse(item.documentId);
+                } },
+            ...{ class: "ghost-btn" },
+            type: "button",
+        });
+    }
     __VLS_asFunctionalElement(__VLS_intrinsicElements.button, __VLS_intrinsicElements.button)({
         ...{ onClick: (...[$event]) => {
                 __VLS_ctx.remove(item.documentId);
@@ -171,6 +229,12 @@ for (const [item] of __VLS_getVForSourceType((__VLS_ctx.documents))) {
         ...{ class: "warn-btn" },
         type: "button",
     });
+    if (item.parseFailureReason) {
+        __VLS_asFunctionalElement(__VLS_intrinsicElements.p, __VLS_intrinsicElements.p)({
+            ...{ class: "note" },
+        });
+        (item.parseFailureReason);
+    }
 }
 if (!__VLS_ctx.documents.length) {
     __VLS_asFunctionalElement(__VLS_intrinsicElements.p, __VLS_intrinsicElements.p)({
@@ -191,6 +255,7 @@ if (__VLS_ctx.notice) {
 /** @type {__VLS_StyleScopedClasses['section-title']} */ ;
 /** @type {__VLS_StyleScopedClasses['grid']} */ ;
 /** @type {__VLS_StyleScopedClasses['form-grid']} */ ;
+/** @type {__VLS_StyleScopedClasses['console-select']} */ ;
 /** @type {__VLS_StyleScopedClasses['actions']} */ ;
 /** @type {__VLS_StyleScopedClasses['primary-btn']} */ ;
 /** @type {__VLS_StyleScopedClasses['note']} */ ;
@@ -204,7 +269,9 @@ if (__VLS_ctx.notice) {
 /** @type {__VLS_StyleScopedClasses['doc-status']} */ ;
 /** @type {__VLS_StyleScopedClasses['doc-actions']} */ ;
 /** @type {__VLS_StyleScopedClasses['primary-btn']} */ ;
+/** @type {__VLS_StyleScopedClasses['ghost-btn']} */ ;
 /** @type {__VLS_StyleScopedClasses['warn-btn']} */ ;
+/** @type {__VLS_StyleScopedClasses['note']} */ ;
 /** @type {__VLS_StyleScopedClasses['note']} */ ;
 /** @type {__VLS_StyleScopedClasses['notice']} */ ;
 var __VLS_dollars;
@@ -215,11 +282,16 @@ const __VLS_self = (await import('vue')).defineComponent({
             source: source,
             documents: documents,
             notice: notice,
+            parseMethod: parseMethod,
+            parseMethods: parseMethods,
+            maxUploadDocuments: maxUploadDocuments,
             refresh: refresh,
             onSelectFile: onSelectFile,
             importDocument: importDocument,
             remove: remove,
             openReview: openReview,
+            retryParse: retryParse,
+            parseMethodLabel: parseMethodLabel,
         };
     },
 });

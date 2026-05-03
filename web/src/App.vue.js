@@ -1,4 +1,4 @@
-import { computed } from 'vue';
+import { computed, nextTick, onBeforeUnmount, onMounted, ref, watch } from 'vue';
 import { useRoute, useRouter, RouterLink, RouterView } from 'vue-router';
 import { apiLogout, currentRole, hasToken } from './api/client';
 const router = useRouter();
@@ -17,6 +17,52 @@ const userId = computed(() => authState.value.userId);
 const displayName = computed(() => authState.value.displayName);
 const roleCode = computed(() => authState.value.roleCode);
 const isAdmin = computed(() => roleCode.value === 'ADMIN');
+const menuRef = ref(null);
+const canScrollMenuLeft = ref(false);
+const canScrollMenuRight = ref(false);
+function updateMenuScrollState() {
+    const menu = menuRef.value;
+    if (!menu) {
+        canScrollMenuLeft.value = false;
+        canScrollMenuRight.value = false;
+        return;
+    }
+    const maxScrollLeft = menu.scrollWidth - menu.clientWidth;
+    canScrollMenuLeft.value = menu.scrollLeft > 1;
+    canScrollMenuRight.value = maxScrollLeft > 1 && menu.scrollLeft < maxScrollLeft - 1;
+}
+function scrollMenu(direction) {
+    const menu = menuRef.value;
+    if (!menu) {
+        return;
+    }
+    menu.scrollBy({
+        left: direction * Math.max(menu.clientWidth * 0.72, 180),
+        behavior: 'smooth',
+    });
+    window.setTimeout(updateMenuScrollState, 260);
+}
+function centerActiveMenuItem() {
+    const menu = menuRef.value;
+    const activeLink = menu?.querySelector('.router-link-active');
+    if (!menu || !activeLink) {
+        updateMenuScrollState();
+        return;
+    }
+    menu.scrollTo({
+        left: activeLink.offsetLeft - (menu.clientWidth - activeLink.offsetWidth) / 2,
+        behavior: 'smooth',
+    });
+    window.setTimeout(updateMenuScrollState, 260);
+}
+onMounted(() => {
+    nextTick(centerActiveMenuItem);
+    window.addEventListener('resize', centerActiveMenuItem);
+});
+onBeforeUnmount(() => {
+    window.removeEventListener('resize', centerActiveMenuItem);
+});
+watch(() => route.fullPath, () => nextTick(centerActiveMenuItem));
 async function logout() {
     if (hasToken()) {
         await apiLogout();
@@ -28,12 +74,16 @@ const __VLS_ctx = {};
 let __VLS_components;
 let __VLS_directives;
 /** @type {__VLS_StyleScopedClasses['skip-link']} */ ;
+/** @type {__VLS_StyleScopedClasses['menu-arrow']} */ ;
+/** @type {__VLS_StyleScopedClasses['menu-arrow']} */ ;
+/** @type {__VLS_StyleScopedClasses['menu']} */ ;
 /** @type {__VLS_StyleScopedClasses['menu-link']} */ ;
 /** @type {__VLS_StyleScopedClasses['menu-link']} */ ;
 /** @type {__VLS_StyleScopedClasses['identity']} */ ;
 /** @type {__VLS_StyleScopedClasses['identity-avatar']} */ ;
 /** @type {__VLS_StyleScopedClasses['topbar']} */ ;
-/** @type {__VLS_StyleScopedClasses['menu']} */ ;
+/** @type {__VLS_StyleScopedClasses['menu-shell']} */ ;
+/** @type {__VLS_StyleScopedClasses['menu-arrow']} */ ;
 /** @type {__VLS_StyleScopedClasses['identity']} */ ;
 // CSS variable injection 
 // CSS variable injection end 
@@ -62,10 +112,25 @@ __VLS_asFunctionalElement(__VLS_intrinsicElements.h1, __VLS_intrinsicElements.h1
 __VLS_asFunctionalElement(__VLS_intrinsicElements.p, __VLS_intrinsicElements.p)({
     ...{ class: "brand-subtitle" },
 });
+__VLS_asFunctionalElement(__VLS_intrinsicElements.div, __VLS_intrinsicElements.div)({
+    ...{ class: "menu-shell" },
+});
+__VLS_asFunctionalElement(__VLS_intrinsicElements.button, __VLS_intrinsicElements.button)({
+    ...{ onClick: (...[$event]) => {
+            __VLS_ctx.scrollMenu(-1);
+        } },
+    ...{ class: "menu-arrow" },
+    type: "button",
+    disabled: (!__VLS_ctx.canScrollMenuLeft),
+    'aria-label': "向左切换导航",
+});
 __VLS_asFunctionalElement(__VLS_intrinsicElements.nav, __VLS_intrinsicElements.nav)({
+    ...{ onScroll: (__VLS_ctx.updateMenuScrollState) },
+    ref: "menuRef",
     ...{ class: "menu" },
     'aria-label': "主导航",
 });
+/** @type {typeof __VLS_ctx.menuRef} */ ;
 const __VLS_0 = {}.RouterLink;
 /** @type {[typeof __VLS_components.RouterLink, typeof __VLS_components.RouterLink, ]} */ ;
 // @ts-ignore
@@ -157,16 +222,40 @@ if (__VLS_ctx.isAdmin) {
     /** @type {[typeof __VLS_components.RouterLink, typeof __VLS_components.RouterLink, ]} */ ;
     // @ts-ignore
     const __VLS_25 = __VLS_asFunctionalComponent(__VLS_24, new __VLS_24({
-        to: "/tianyan",
+        to: "/token-usage-metrics",
         ...{ class: "menu-link" },
     }));
     const __VLS_26 = __VLS_25({
-        to: "/tianyan",
+        to: "/token-usage-metrics",
         ...{ class: "menu-link" },
     }, ...__VLS_functionalComponentArgsRest(__VLS_25));
     __VLS_27.slots.default;
     var __VLS_27;
 }
+if (__VLS_ctx.isAdmin) {
+    const __VLS_28 = {}.RouterLink;
+    /** @type {[typeof __VLS_components.RouterLink, typeof __VLS_components.RouterLink, ]} */ ;
+    // @ts-ignore
+    const __VLS_29 = __VLS_asFunctionalComponent(__VLS_28, new __VLS_28({
+        to: "/tianyan",
+        ...{ class: "menu-link" },
+    }));
+    const __VLS_30 = __VLS_29({
+        to: "/tianyan",
+        ...{ class: "menu-link" },
+    }, ...__VLS_functionalComponentArgsRest(__VLS_29));
+    __VLS_31.slots.default;
+    var __VLS_31;
+}
+__VLS_asFunctionalElement(__VLS_intrinsicElements.button, __VLS_intrinsicElements.button)({
+    ...{ onClick: (...[$event]) => {
+            __VLS_ctx.scrollMenu(1);
+        } },
+    ...{ class: "menu-arrow" },
+    type: "button",
+    disabled: (!__VLS_ctx.canScrollMenuRight),
+    'aria-label': "向右切换导航",
+});
 __VLS_asFunctionalElement(__VLS_intrinsicElements.div, __VLS_intrinsicElements.div)({
     ...{ class: "identity" },
 });
@@ -191,11 +280,11 @@ __VLS_asFunctionalElement(__VLS_intrinsicElements.main, __VLS_intrinsicElements.
     id: "main-content",
     ...{ class: "page card" },
 });
-const __VLS_28 = {}.RouterView;
+const __VLS_32 = {}.RouterView;
 /** @type {[typeof __VLS_components.RouterView, ]} */ ;
 // @ts-ignore
-const __VLS_29 = __VLS_asFunctionalComponent(__VLS_28, new __VLS_28({}));
-const __VLS_30 = __VLS_29({}, ...__VLS_functionalComponentArgsRest(__VLS_29));
+const __VLS_33 = __VLS_asFunctionalComponent(__VLS_32, new __VLS_32({}));
+const __VLS_34 = __VLS_33({}, ...__VLS_functionalComponentArgsRest(__VLS_33));
 /** @type {__VLS_StyleScopedClasses['shell']} */ ;
 /** @type {__VLS_StyleScopedClasses['shell-glow']} */ ;
 /** @type {__VLS_StyleScopedClasses['skip-link']} */ ;
@@ -205,6 +294,8 @@ const __VLS_30 = __VLS_29({}, ...__VLS_functionalComponentArgsRest(__VLS_29));
 /** @type {__VLS_StyleScopedClasses['eyebrow']} */ ;
 /** @type {__VLS_StyleScopedClasses['brand']} */ ;
 /** @type {__VLS_StyleScopedClasses['brand-subtitle']} */ ;
+/** @type {__VLS_StyleScopedClasses['menu-shell']} */ ;
+/** @type {__VLS_StyleScopedClasses['menu-arrow']} */ ;
 /** @type {__VLS_StyleScopedClasses['menu']} */ ;
 /** @type {__VLS_StyleScopedClasses['menu-link']} */ ;
 /** @type {__VLS_StyleScopedClasses['menu-link']} */ ;
@@ -213,6 +304,8 @@ const __VLS_30 = __VLS_29({}, ...__VLS_functionalComponentArgsRest(__VLS_29));
 /** @type {__VLS_StyleScopedClasses['menu-link']} */ ;
 /** @type {__VLS_StyleScopedClasses['menu-link']} */ ;
 /** @type {__VLS_StyleScopedClasses['menu-link']} */ ;
+/** @type {__VLS_StyleScopedClasses['menu-link']} */ ;
+/** @type {__VLS_StyleScopedClasses['menu-arrow']} */ ;
 /** @type {__VLS_StyleScopedClasses['identity']} */ ;
 /** @type {__VLS_StyleScopedClasses['identity-avatar']} */ ;
 /** @type {__VLS_StyleScopedClasses['ghost-btn']} */ ;
@@ -229,6 +322,11 @@ const __VLS_self = (await import('vue')).defineComponent({
             displayName: displayName,
             roleCode: roleCode,
             isAdmin: isAdmin,
+            menuRef: menuRef,
+            canScrollMenuLeft: canScrollMenuLeft,
+            canScrollMenuRight: canScrollMenuRight,
+            updateMenuScrollState: updateMenuScrollState,
+            scrollMenu: scrollMenu,
             logout: logout,
         };
     },

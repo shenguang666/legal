@@ -8,16 +8,20 @@
         <h1 class="brand">律典问答台</h1>
         <p class="brand-subtitle">企业法律知识、合同风险与检索质量的智能控制台</p>
       </div>
-      <nav class="menu" aria-label="主导航">
-        <RouterLink to="/chat" class="menu-link">问答</RouterLink>
-        <RouterLink to="/sessions" class="menu-link">会话</RouterLink>
-        <RouterLink v-if="isAdmin" to="/knowledge" class="menu-link">知识库</RouterLink>
-        <RouterLink v-if="isAdmin" to="/hotwords" class="menu-link">热词管理</RouterLink>
-        <RouterLink v-if="isAdmin" to="/risk-rules" class="menu-link">风险规则</RouterLink>
-        <RouterLink v-if="isAdmin" to="/rag-metrics" class="menu-link">RAG指标</RouterLink>
-        <RouterLink v-if="isAdmin" to="/token-usage-metrics" class="menu-link">Token指标</RouterLink>
-        <RouterLink v-if="isAdmin" to="/tianyan" class="menu-link">天眼审查</RouterLink>
-      </nav>
+      <div class="menu-shell">
+        <button class="menu-arrow" type="button" :disabled="!canScrollMenuLeft" aria-label="向左切换导航" @click="scrollMenu(-1)">‹</button>
+        <nav ref="menuRef" class="menu" aria-label="主导航" @scroll="updateMenuScrollState">
+          <RouterLink to="/chat" class="menu-link">问答</RouterLink>
+          <RouterLink to="/sessions" class="menu-link">会话</RouterLink>
+          <RouterLink v-if="isAdmin" to="/knowledge" class="menu-link">知识库</RouterLink>
+          <RouterLink v-if="isAdmin" to="/hotwords" class="menu-link">热词管理</RouterLink>
+          <RouterLink v-if="isAdmin" to="/risk-rules" class="menu-link">风险规则</RouterLink>
+          <RouterLink v-if="isAdmin" to="/rag-metrics" class="menu-link">RAG指标</RouterLink>
+          <RouterLink v-if="isAdmin" to="/token-usage-metrics" class="menu-link">Token指标</RouterLink>
+          <RouterLink v-if="isAdmin" to="/tianyan" class="menu-link">天眼审查</RouterLink>
+        </nav>
+        <button class="menu-arrow" type="button" :disabled="!canScrollMenuRight" aria-label="向右切换导航" @click="scrollMenu(1)">›</button>
+      </div>
       <div class="identity">
         <span class="identity-avatar">{{ displayName.slice(0, 1).toUpperCase() }}</span>
         <span>{{ displayName }}</span>
@@ -35,7 +39,7 @@
 </template>
 
 <script setup lang="ts">
-import { computed } from 'vue';
+import { computed, nextTick, onBeforeUnmount, onMounted, ref, watch } from 'vue';
 import { useRoute, useRouter, RouterLink, RouterView } from 'vue-router';
 import { apiLogout, currentRole, hasToken } from './api/client';
 
@@ -57,6 +61,58 @@ const userId = computed(() => authState.value.userId);
 const displayName = computed(() => authState.value.displayName);
 const roleCode = computed(() => authState.value.roleCode);
 const isAdmin = computed(() => roleCode.value === 'ADMIN');
+const menuRef = ref<HTMLElement | null>(null);
+const canScrollMenuLeft = ref(false);
+const canScrollMenuRight = ref(false);
+
+function updateMenuScrollState() {
+  const menu = menuRef.value;
+  if (!menu) {
+    canScrollMenuLeft.value = false;
+    canScrollMenuRight.value = false;
+    return;
+  }
+  const maxScrollLeft = menu.scrollWidth - menu.clientWidth;
+  canScrollMenuLeft.value = menu.scrollLeft > 1;
+  canScrollMenuRight.value = maxScrollLeft > 1 && menu.scrollLeft < maxScrollLeft - 1;
+}
+
+function scrollMenu(direction: -1 | 1) {
+  const menu = menuRef.value;
+  if (!menu) {
+    return;
+  }
+  menu.scrollBy({
+    left: direction * Math.max(menu.clientWidth * 0.72, 180),
+    behavior: 'smooth',
+  });
+  window.setTimeout(updateMenuScrollState, 260);
+}
+
+function centerActiveMenuItem() {
+  const menu = menuRef.value;
+  const activeLink = menu?.querySelector<HTMLElement>('.router-link-active');
+  if (!menu || !activeLink) {
+    updateMenuScrollState();
+    return;
+  }
+  menu.scrollTo({
+    left: activeLink.offsetLeft - (menu.clientWidth - activeLink.offsetWidth) / 2,
+    behavior: 'smooth',
+  });
+  window.setTimeout(updateMenuScrollState, 260);
+}
+
+onMounted(() => {
+  nextTick(centerActiveMenuItem);
+  window.addEventListener('resize', centerActiveMenuItem);
+});
+
+onBeforeUnmount(() => {
+  window.removeEventListener('resize', centerActiveMenuItem);
+});
+
+watch(() => route.fullPath, () => nextTick(centerActiveMenuItem));
 
 async function logout() {
   if (hasToken()) {
@@ -132,19 +188,77 @@ async function logout() {
   line-height: 1.45;
 }
 
+.menu-shell {
+  display: grid;
+  grid-template-columns: 2.22rem minmax(0, 1fr) 2.22rem;
+  align-items: center;
+  gap: 0.38rem;
+  min-width: 0;
+  padding: 0.32rem;
+  border: 1px solid rgba(29, 43, 35, 0.1);
+  border-radius: 999px;
+  background:
+    linear-gradient(135deg, rgba(255, 255, 255, 0.4), rgba(255, 251, 241, 0.22)),
+    rgba(255, 255, 255, 0.24);
+  box-shadow:
+    inset 0 1px 0 rgba(255, 255, 255, 0.6),
+    0 10px 24px rgba(29, 43, 35, 0.06);
+}
+
+.menu-arrow {
+  display: inline-grid;
+  place-items: center;
+  width: 2.22rem;
+  height: 2.22rem;
+  border: 1px solid rgba(29, 43, 35, 0.12);
+  border-radius: 999px;
+  background:
+    radial-gradient(circle at 30% 18%, rgba(255, 255, 255, 0.5), transparent 42%),
+    rgba(255, 253, 247, 0.78);
+  color: var(--forest-deep);
+  cursor: pointer;
+  font-size: 1.35rem;
+  font-weight: 700;
+  line-height: 1;
+  box-shadow: 0 8px 16px rgba(29, 43, 35, 0.08);
+}
+
+.menu-arrow:hover:not(:disabled) {
+  border-color: rgba(29, 43, 35, 0.18);
+  background:
+    radial-gradient(circle at 20% 0%, rgba(255, 255, 255, 0.2), transparent 42%),
+    var(--ink);
+  color: var(--paper);
+  transform: translateY(-1px);
+}
+
+.menu-arrow:disabled {
+  cursor: default;
+  opacity: 0.34;
+  box-shadow: none;
+}
+
 .menu {
   display: flex;
   gap: 0.5rem;
-  flex-wrap: wrap;
-  justify-content: center;
-  padding: 0.34rem;
-  border: 1px solid rgba(29, 43, 35, 0.1);
+  flex-wrap: nowrap;
+  justify-content: flex-start;
+  min-width: 0;
+  overflow-x: auto;
+  overflow-y: hidden;
+  padding: 0.08rem;
   border-radius: 999px;
-  background: rgba(255, 255, 255, 0.32);
+  scroll-behavior: smooth;
+  scrollbar-width: none;
+}
+
+.menu::-webkit-scrollbar {
+  display: none;
 }
 
 .menu-link {
   position: relative;
+  flex: 0 0 auto;
   text-decoration: none;
   color: var(--ink);
   padding: 0.58rem 0.86rem;
@@ -205,9 +319,13 @@ async function logout() {
     grid-template-columns: 1fr;
   }
 
-  .menu {
-    justify-content: flex-start;
-    border-radius: 22px;
+  .menu-shell {
+    grid-template-columns: 2rem minmax(0, 1fr) 2rem;
+  }
+
+  .menu-arrow {
+    width: 2rem;
+    height: 2rem;
   }
 
   .identity {

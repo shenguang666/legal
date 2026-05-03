@@ -4,6 +4,9 @@ const rules = ref([]);
 const fieldDefinitions = ref([]);
 const selectedFile = ref(null);
 const notice = ref('');
+const parseMethod = ref('NATIVE');
+const parseMethods = ref(['NATIVE']);
+const maxUploadDocuments = ref(1);
 const manualRuleName = ref('');
 const manualRuleCode = ref('');
 const manualSource = ref('');
@@ -27,7 +30,16 @@ const fieldDeduplicate = ref(true);
 const fieldEnabled = ref(true);
 const fieldSortOrder = ref(10);
 const fieldDescription = ref('');
-onMounted(refreshAll);
+onMounted(async () => {
+    await loadCapabilities();
+    await refreshAll();
+});
+async function loadCapabilities() {
+    const capabilities = await apiGet('/api/document-processing/capabilities');
+    parseMethods.value = capabilities.availableParseMethods?.length ? capabilities.availableParseMethods : ['NATIVE'];
+    parseMethod.value = capabilities.defaultParseMethod || parseMethods.value[0];
+    maxUploadDocuments.value = capabilities.maxUploadDocuments || 1;
+}
 async function refreshAll() {
     rules.value = await apiGet('/api/risk-rules/entries');
     fieldDefinitions.value = await apiGet('/api/risk-rules/fields');
@@ -64,6 +76,10 @@ async function importRuleDocument() {
         notice.value = '请先选择文件';
         return;
     }
+    if (maxUploadDocuments.value < 1) {
+        notice.value = '当前配置不允许上传文档';
+        return;
+    }
     const formData = new FormData();
     formData.append('requestId', randomRequestId('risk-rule-import'));
     formData.append('file', selectedFile.value);
@@ -77,6 +93,7 @@ async function importRuleDocument() {
         formData.append('source', importSource.value.trim());
     formData.append('severity', importSeverity.value);
     formData.append('hitThreshold', String(importHitThreshold.value));
+    formData.append('parseMethod', parseMethod.value);
     await apiPostForm('/api/risk-rules/import', formData);
     importTitle.value = '';
     importRuleName.value = '';
@@ -85,8 +102,14 @@ async function importRuleDocument() {
     importSeverity.value = 'MEDIUM';
     importHitThreshold.value = 0.78;
     selectedFile.value = null;
-    notice.value = '风险规则文件已导入，规则元数据与 ES 索引已同步创建';
+    notice.value = parseMethod.value === 'MINERU_PRECISE' ? '风险规则文件已导入，MinerU 精准解析完成后会自动投递索引' : '风险规则文件已导入，规则元数据与 ES 索引已同步创建';
     await refreshAll();
+}
+function parseMethodLabel(method) {
+    if (method === 'MINERU_PRECISE') {
+        return 'MinerU 精准解析';
+    }
+    return '原生解析';
 }
 async function toggleRule(item) {
     await apiPost(`/api/risk-rules/${item.ruleId}/status`, {
@@ -331,6 +354,23 @@ __VLS_asFunctionalElement(__VLS_intrinsicElements.input)({
     type: "file",
     accept: ".pdf,.doc,.docx,.txt,.md",
 });
+__VLS_asFunctionalElement(__VLS_intrinsicElements.div, __VLS_intrinsicElements.div)({});
+__VLS_asFunctionalElement(__VLS_intrinsicElements.label, __VLS_intrinsicElements.label)({});
+__VLS_asFunctionalElement(__VLS_intrinsicElements.select, __VLS_intrinsicElements.select)({
+    value: (__VLS_ctx.parseMethod),
+    ...{ class: "console-select" },
+});
+for (const [method] of __VLS_getVForSourceType((__VLS_ctx.parseMethods))) {
+    __VLS_asFunctionalElement(__VLS_intrinsicElements.option, __VLS_intrinsicElements.option)({
+        key: (method),
+        value: (method),
+    });
+    (__VLS_ctx.parseMethodLabel(method));
+}
+__VLS_asFunctionalElement(__VLS_intrinsicElements.p, __VLS_intrinsicElements.p)({
+    ...{ class: "note" },
+});
+(__VLS_ctx.maxUploadDocuments);
 __VLS_asFunctionalElement(__VLS_intrinsicElements.div, __VLS_intrinsicElements.div)({
     ...{ class: "actions" },
 });
@@ -386,11 +426,18 @@ for (const [item] of __VLS_getVForSourceType((__VLS_ctx.rules))) {
     (item.documentTitle || '-');
     (item.documentStatus || '-');
     (item.documentIndexStatus || '-');
+    (item.documentParseStatus || 'COMPLETED');
     __VLS_asFunctionalElement(__VLS_intrinsicElements.p, __VLS_intrinsicElements.p)({
         ...{ class: "note" },
     });
     (item.documentSource || '-');
     (item.hitThreshold ?? '-');
+    if (item.documentParseFailureReason) {
+        __VLS_asFunctionalElement(__VLS_intrinsicElements.p, __VLS_intrinsicElements.p)({
+            ...{ class: "note" },
+        });
+        (item.documentParseFailureReason);
+    }
     if (item.ruleContent) {
         __VLS_asFunctionalElement(__VLS_intrinsicElements.p, __VLS_intrinsicElements.p)({
             ...{ class: "evidence" },
@@ -646,6 +693,8 @@ for (const [item] of __VLS_getVForSourceType((__VLS_ctx.fieldDefinitions))) {
 /** @type {__VLS_StyleScopedClasses['grid']} */ ;
 /** @type {__VLS_StyleScopedClasses['form-grid']} */ ;
 /** @type {__VLS_StyleScopedClasses['console-select']} */ ;
+/** @type {__VLS_StyleScopedClasses['console-select']} */ ;
+/** @type {__VLS_StyleScopedClasses['note']} */ ;
 /** @type {__VLS_StyleScopedClasses['actions']} */ ;
 /** @type {__VLS_StyleScopedClasses['primary-btn']} */ ;
 /** @type {__VLS_StyleScopedClasses['card']} */ ;
@@ -658,6 +707,7 @@ for (const [item] of __VLS_getVForSourceType((__VLS_ctx.fieldDefinitions))) {
 /** @type {__VLS_StyleScopedClasses['item-top']} */ ;
 /** @type {__VLS_StyleScopedClasses['note']} */ ;
 /** @type {__VLS_StyleScopedClasses['status-pill']} */ ;
+/** @type {__VLS_StyleScopedClasses['note']} */ ;
 /** @type {__VLS_StyleScopedClasses['note']} */ ;
 /** @type {__VLS_StyleScopedClasses['note']} */ ;
 /** @type {__VLS_StyleScopedClasses['evidence']} */ ;
@@ -706,6 +756,9 @@ const __VLS_self = (await import('vue')).defineComponent({
             rules: rules,
             fieldDefinitions: fieldDefinitions,
             notice: notice,
+            parseMethod: parseMethod,
+            parseMethods: parseMethods,
+            maxUploadDocuments: maxUploadDocuments,
             manualRuleName: manualRuleName,
             manualRuleCode: manualRuleCode,
             manualSource: manualSource,
@@ -733,6 +786,7 @@ const __VLS_self = (await import('vue')).defineComponent({
             onSelectFile: onSelectFile,
             createManualRule: createManualRule,
             importRuleDocument: importRuleDocument,
+            parseMethodLabel: parseMethodLabel,
             toggleRule: toggleRule,
             reindexRule: reindexRule,
             deleteRule: deleteRule,
