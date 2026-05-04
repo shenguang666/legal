@@ -222,6 +222,10 @@ legal:
       enable-formula: ${LEGAL_MINERU_ENABLE_FORMULA:true}
       # 是否启用 MinerU OCR。
       ocr: ${LEGAL_MINERU_OCR:false}
+      # MinerU Markdown 语义切片目标最大字符数，独立于原生解析切片大小。
+      chunk-size: ${LEGAL_MINERU_CHUNK_SIZE:800}
+      # MinerU Markdown 相邻短语义块合并时的目标最小字符数，独立于原生解析切片大小。
+      min-chunk-size: ${LEGAL_MINERU_MIN_CHUNK_SIZE:180}
       # MinerU HTTP 连接超时时间。
       connect-timeout: ${LEGAL_MINERU_CONNECT_TIMEOUT:10s}
       # MinerU HTTP 读取超时时间。

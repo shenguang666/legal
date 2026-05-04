@@ -13,6 +13,12 @@
 - **THEN** 系统 MUST 在可行时保持每个条款或列表项完整
 - **THEN** 当不超过最大切片长度时，系统 MUST 能够合并相邻短条款
 
+#### Scenario: MinerU 文档使用独立切片大小策略
+- **WHEN** 文档通过 MinerU 精准解析生成 Markdown
+- **THEN** 系统 MUST 使用 MinerU 专属切片大小配置控制 Markdown 语义切片目标最大字符数
+- **THEN** 系统 MUST 使用 MinerU 专属最小切片大小配置控制相邻短语义块合并策略
+- **THEN** 该配置 MUST 不影响原生解析文档的切片大小
+
 ### Requirement: 保留表格和结构块证据完整性
 系统 SHALL 避免以丢失检索和审查证据含义的方式拆分表格和结构化块。
 

@@ -123,6 +123,12 @@ public class DocumentProcessingProperties {
         /** 是否启用 OCR，适用于扫描件或图片型 PDF。 */
         private boolean ocr = false;
 
+        /** MinerU Markdown 语义切片目标最大字符数，独立于原生解析切片大小。 */
+        private int chunkSize = 800;
+
+        /** MinerU Markdown 相邻短语义块合并时的目标最小字符数，独立于原生解析切片大小。 */
+        private int minChunkSize = 180;
+
         /** MinerU HTTP 连接超时时间。 */
         private Duration connectTimeout = Duration.ofSeconds(10);
 

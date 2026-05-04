@@ -52,4 +52,42 @@ class SemanticDocumentChunkerTest {
         assertThat(chunks).hasSizeGreaterThan(1);
         assertThat(chunks).allSatisfy(chunk -> assertThat(chunk.length()).isLessThanOrEqualTo(100));
     }
+
+    @Test
+    void shouldUseSpecifiedMaxChunkSizeForMineruMarkdown() {
+        DocumentProcessingProperties properties = new DocumentProcessingProperties();
+        properties.getChunking().setMaxChunkSize(300);
+        properties.getChunking().setMinChunkSize(1);
+        SemanticDocumentChunker chunker = new SemanticDocumentChunker(properties, new DocumentChunker());
+        String paragraph = "甲方应按约履行付款义务并保留完整证据。".repeat(2);
+        String markdown = "# 付款条款\n" + paragraph + "\n\n"
+                + "第一条 付款安排\n" + paragraph + "\n\n"
+                + "第二条 发票要求\n" + paragraph + "\n\n"
+                + "第三条 违约责任\n" + paragraph;
+
+        List<String> defaultChunks = chunker.chunkMarkdown(markdown);
+        List<String> mineruChunks = chunker.chunkMarkdown(markdown, 100);
+
+        assertThat(defaultChunks).hasSize(1);
+        assertThat(mineruChunks).hasSizeGreaterThan(1);
+        assertThat(mineruChunks).allSatisfy(chunk -> assertThat(chunk.length()).isLessThanOrEqualTo(100));
+    }
+
+    @Test
+    void shouldUseSpecifiedMinChunkSizeForMineruMarkdown() {
+        DocumentProcessingProperties properties = new DocumentProcessingProperties();
+        properties.getChunking().setMaxChunkSize(60);
+        properties.getChunking().setMinChunkSize(1);
+        SemanticDocumentChunker chunker = new SemanticDocumentChunker(properties, new DocumentChunker());
+        String block = "甲方应按约履行付款义务。乙方应保留完整证据并提供审计记录。";
+        String markdown = "# 付款条款\n" + block + "\n\n"
+                + "第一条 付款安排\n" + block + "\n\n"
+                + "第二条 发票要求\n" + block;
+
+        List<String> globalMinChunks = chunker.chunkMarkdown(markdown, 60);
+        List<String> mineruMinChunks = chunker.chunkMarkdown(markdown, 60, 120);
+
+        assertThat(globalMinChunks).hasSizeGreaterThan(mineruMinChunks.size());
+        assertThat(mineruMinChunks).anySatisfy(chunk -> assertThat(chunk).contains("付款条款", "付款安排"));
+    }
 }

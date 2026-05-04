@@ -119,6 +119,8 @@ class DocumentProcessingServicesTest {
         MineruClient mineruClient = mock(MineruClient.class);
         SemanticDocumentChunker semanticDocumentChunker = mock(SemanticDocumentChunker.class);
         DocumentProcessingProperties properties = new DocumentProcessingProperties();
+        properties.getMineru().setChunkSize(456);
+        properties.getMineru().setMinChunkSize(123);
         DocumentParseTaskService service = new DocumentParseTaskService(documentMapper, chunkMapper, outboxMapper, taskMapper,
                 nativeDocumentParser, mineruClient, semanticDocumentChunker, new DocumentContentCleaner(properties),
                 mock(DocumentCleaningLogService.class), properties);
@@ -128,7 +130,7 @@ class DocumentProcessingServicesTest {
         when(mineruClient.submit("contract.pdf", task.getFileContent())).thenReturn(new MineruClient.MineruUploadSession("batch-1", "data-1"));
         when(mineruClient.waitForResult("batch-1", "data-1")).thenReturn(MineruClient.MineruExtractResult.done("https://example.test/full.zip"));
         when(mineruClient.downloadMarkdown("https://example.test/full.zip")).thenReturn("# 合同\n\n第一条 内容");
-        when(semanticDocumentChunker.chunkMarkdown("# 合同\n\n第一条 内容")).thenReturn(List.of("# 合同\n第一条 内容"));
+        when(semanticDocumentChunker.chunkMarkdown("# 合同\n\n第一条 内容", 456, 123)).thenReturn(List.of("# 合同\n第一条 内容"));
 
         service.processTask(task);
 
@@ -138,6 +140,7 @@ class DocumentProcessingServicesTest {
         assertThat(document.getMineruFullZipUrl()).isEqualTo("https://example.test/full.zip");
         verify(chunkMapper).insert(any(KbChunkEntity.class));
         verify(outboxMapper).insert(any(KbIndexOutboxEntity.class));
+        verify(semanticDocumentChunker).chunkMarkdown("# 合同\n\n第一条 内容", 456, 123);
         verify(taskMapper).markCompleted(100L);
     }
 

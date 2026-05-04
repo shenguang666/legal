@@ -23,14 +23,24 @@ public class SemanticDocumentChunker {
     }
 
     public List<String> chunkMarkdown(String markdown) {
+        return chunkMarkdown(markdown, null, null);
+    }
+
+    public List<String> chunkMarkdown(String markdown, Integer maxChunkSizeOverride) {
+        return chunkMarkdown(markdown, maxChunkSizeOverride, null);
+    }
+
+    public List<String> chunkMarkdown(String markdown, Integer maxChunkSizeOverride, Integer minChunkSizeOverride) {
         if (!StringUtils.hasText(markdown)) {
             return List.of();
         }
+        int maxChunkSize = resolveMaxChunkSize(maxChunkSizeOverride);
+        int minChunkSize = resolveMinChunkSize(maxChunkSize, minChunkSizeOverride);
         List<String> blocks = toBlocks(markdown);
         if (blocks.isEmpty()) {
-            return fallbackChunker.chunk(markdown);
+            return fallbackChunker.chunk(markdown, maxChunkSize, resolveFallbackOverlap(maxChunkSize));
         }
-        return mergeBlocks(blocks);
+        return mergeBlocks(blocks, maxChunkSize, minChunkSize);
     }
 
     private List<String> toBlocks(String markdown) {
@@ -78,9 +88,7 @@ public class SemanticDocumentChunker {
         }
     }
 
-    private List<String> mergeBlocks(List<String> blocks) {
-        int maxChunkSize = Math.max(100, properties.getChunking().getMaxChunkSize());
-        int minChunkSize = Math.max(1, properties.getChunking().getMinChunkSize());
+    private List<String> mergeBlocks(List<String> blocks, int maxChunkSize, int minChunkSize) {
         List<String> chunks = new ArrayList<>();
         StringBuilder current = new StringBuilder();
         for (String block : blocks) {
@@ -111,8 +119,21 @@ public class SemanticDocumentChunker {
         if (!sentenceParts.isEmpty()) {
             return sentenceParts;
         }
-        int overlap = Math.max(0, Math.min(properties.getChunking().getFallbackOverlap(), maxChunkSize / 2));
-        return fallbackChunker.chunk(block, maxChunkSize, overlap);
+        return fallbackChunker.chunk(block, maxChunkSize, resolveFallbackOverlap(maxChunkSize));
+    }
+
+    private int resolveMaxChunkSize(Integer maxChunkSizeOverride) {
+        int configured = maxChunkSizeOverride == null ? properties.getChunking().getMaxChunkSize() : maxChunkSizeOverride;
+        return Math.max(100, configured);
+    }
+
+    private int resolveMinChunkSize(int maxChunkSize, Integer minChunkSizeOverride) {
+        int configured = minChunkSizeOverride == null ? properties.getChunking().getMinChunkSize() : minChunkSizeOverride;
+        return Math.min(maxChunkSize, Math.max(1, configured));
+    }
+
+    private int resolveFallbackOverlap(int maxChunkSize) {
+        return Math.max(0, Math.min(properties.getChunking().getFallbackOverlap(), maxChunkSize / 2));
     }
 
     private List<String> splitByPreferredBoundary(String block, int maxChunkSize) {

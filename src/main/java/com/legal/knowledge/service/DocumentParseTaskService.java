@@ -114,7 +114,11 @@ public class DocumentParseTaskService {
             boolean cleaningEnabled = Boolean.TRUE.equals(task.getCleaningEnabled()) && properties.getCleaning().isEnabled();
             DocumentCleaningResult cleaningResult = cleaningEnabled ? documentContentCleaner.cleanMarkdown(markdown) : null;
             String chunkSource = cleaningResult == null ? markdown : cleaningResult.getContent();
-            List<String> chunks = semanticDocumentChunker.chunkMarkdown(chunkSource);
+            List<String> chunks = semanticDocumentChunker.chunkMarkdown(
+                    chunkSource,
+                    properties.getMineru().getChunkSize(),
+                    properties.getMineru().getMinChunkSize()
+            );
             if (chunks.isEmpty()) {
                 throw AppException.badRequest("MinerU 解析结果过短，无法生成切片");
             }
