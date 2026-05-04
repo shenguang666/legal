@@ -35,6 +35,7 @@ public class TianyanDocumentService {
     private final DocumentChunker documentChunker;
     private final DocumentImportService documentImportService;
     private final DocumentParseTaskService documentParseTaskService;
+    private final MineruImageAssetCleanupService mineruImageAssetCleanupService;
 
     public TianyanDocumentService(KbDocumentMapper kbDocumentMapper,
                                   KbChunkMapper kbChunkMapper,
@@ -42,7 +43,8 @@ public class TianyanDocumentService {
                                   DocumentTextExtractor documentTextExtractor,
                                   DocumentChunker documentChunker,
                                   DocumentImportService documentImportService,
-                                  DocumentParseTaskService documentParseTaskService) {
+                                  DocumentParseTaskService documentParseTaskService,
+                                  MineruImageAssetCleanupService mineruImageAssetCleanupService) {
         this.kbDocumentMapper = kbDocumentMapper;
         this.kbChunkMapper = kbChunkMapper;
         this.idempotencyService = idempotencyService;
@@ -50,6 +52,7 @@ public class TianyanDocumentService {
         this.documentChunker = documentChunker;
         this.documentImportService = documentImportService;
         this.documentParseTaskService = documentParseTaskService;
+        this.mineruImageAssetCleanupService = mineruImageAssetCleanupService;
     }
 
     @Transactional
@@ -112,6 +115,7 @@ public class TianyanDocumentService {
         document.setStatus(KbDocumentStatus.DELETED);
         document.setUpdatedAt(LocalDateTime.now());
         kbDocumentMapper.updateById(document);
+        mineruImageAssetCleanupService.cleanupDeletedDocument(principal.tenantId(), documentId);
         return toDto(document);
     }
 
@@ -202,6 +206,8 @@ public class TianyanDocumentService {
     private DocumentDto toDto(KbDocumentEntity entity) {
         DocumentDto dto = new DocumentDto();
         dto.setDocumentId(entity.getDocumentId());
+        dto.setOwnerUserId(entity.getOwnerUserId());
+        dto.setOwnerUsername(entity.getOwnerUsername());
         dto.setTitle(entity.getTitle());
         dto.setSource(entity.getSource());
         dto.setBizType(entity.getBizType() == null ? null : entity.getBizType().getCode());
@@ -210,6 +216,8 @@ public class TianyanDocumentService {
         dto.setParseMethod(entity.getParseMethod() == null ? null : entity.getParseMethod().getCode());
         dto.setParseStatus(entity.getParseStatus() == null ? null : entity.getParseStatus().getCode());
         dto.setParseFailureReason(entity.getParseFailureReason());
+        dto.setCleaningEnabled(Boolean.TRUE.equals(entity.getCleaningEnabled()));
+        dto.setDocumentUrl(entity.getDocumentUrl());
         dto.setCreatedAt(entity.getCreatedAt());
         dto.setUpdatedAt(entity.getUpdatedAt());
         return dto;

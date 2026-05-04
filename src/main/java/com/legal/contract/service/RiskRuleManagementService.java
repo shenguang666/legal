@@ -266,13 +266,17 @@ public class RiskRuleManagementService {
         dto.setCreatedAt(rule.getCreatedAt());
         dto.setUpdatedAt(rule.getUpdatedAt());
         if (document != null) {
+            dto.setDocumentOwnerUserId(document.getOwnerUserId());
+            dto.setDocumentOwnerUsername(document.getOwnerUsername());
             dto.setDocumentTitle(document.getTitle());
             dto.setDocumentSource(document.getSource());
+            dto.setDocumentUrl(document.getDocumentUrl());
             dto.setDocumentStatus(document.getStatus() == null ? null : document.getStatus().getCode());
             dto.setDocumentIndexStatus(document.getIndexStatus() == null ? null : document.getIndexStatus().getCode());
             dto.setDocumentParseMethod(document.getParseMethod() == null ? null : document.getParseMethod().getCode());
             dto.setDocumentParseStatus(document.getParseStatus() == null ? null : document.getParseStatus().getCode());
             dto.setDocumentParseFailureReason(document.getParseFailureReason());
+            dto.setDocumentCreatedAt(document.getCreatedAt());
         }
         return dto;
     }

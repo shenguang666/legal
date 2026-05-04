@@ -42,6 +42,7 @@ public class RiskRuleDocumentService {
     private final ElasticsearchChunkStore elasticsearchChunkStore;
     private final DocumentImportService documentImportService;
     private final DocumentParseTaskService documentParseTaskService;
+    private final MineruImageAssetCleanupService mineruImageAssetCleanupService;
 
     public RiskRuleDocumentService(KbDocumentMapper kbDocumentMapper,
                                    KbChunkMapper kbChunkMapper,
@@ -51,7 +52,8 @@ public class RiskRuleDocumentService {
                                    DocumentChunker documentChunker,
                                    ElasticsearchChunkStore elasticsearchChunkStore,
                                    DocumentImportService documentImportService,
-                                   DocumentParseTaskService documentParseTaskService) {
+                                   DocumentParseTaskService documentParseTaskService,
+                                   MineruImageAssetCleanupService mineruImageAssetCleanupService) {
         this.kbDocumentMapper = kbDocumentMapper;
         this.kbChunkMapper = kbChunkMapper;
         this.kbIndexOutboxMapper = kbIndexOutboxMapper;
@@ -61,6 +63,7 @@ public class RiskRuleDocumentService {
         this.elasticsearchChunkStore = elasticsearchChunkStore;
         this.documentImportService = documentImportService;
         this.documentParseTaskService = documentParseTaskService;
+        this.mineruImageAssetCleanupService = mineruImageAssetCleanupService;
     }
 
     @Transactional
@@ -126,6 +129,7 @@ public class RiskRuleDocumentService {
         KbDocumentEntity document = new KbDocumentEntity();
         document.setTenantId(principal.tenantId());
         document.setOwnerUserId(principal.userId());
+        document.setOwnerUsername("用户-" + principal.userId());
         document.setTitle(documentTitle);
         document.setSource(documentSource);
         document.setBizType(KbDocumentBizType.RISK_RULE);
@@ -199,6 +203,7 @@ public class RiskRuleDocumentService {
         document.setUpdatedAt(LocalDateTime.now());
         kbDocumentMapper.updateById(document);
 
+        mineruImageAssetCleanupService.cleanupDeletedDocument(principal.tenantId(), documentId);
         enqueueOutbox(principal.tenantId(), documentId, nextVersion, KbOutboxOp.DELETE, LocalDateTime.now());
         return toDto(document);
     }
@@ -314,6 +319,8 @@ public class RiskRuleDocumentService {
     private DocumentDto toDto(KbDocumentEntity entity) {
         DocumentDto dto = new DocumentDto();
         dto.setDocumentId(entity.getDocumentId());
+        dto.setOwnerUserId(entity.getOwnerUserId());
+        dto.setOwnerUsername(entity.getOwnerUsername());
         dto.setTitle(entity.getTitle());
         dto.setSource(entity.getSource());
         dto.setBizType(entity.getBizType() == null ? null : entity.getBizType().getCode());
@@ -322,8 +329,9 @@ public class RiskRuleDocumentService {
         dto.setParseMethod(entity.getParseMethod() == null ? null : entity.getParseMethod().getCode());
         dto.setParseStatus(entity.getParseStatus() == null ? null : entity.getParseStatus().getCode());
         dto.setParseFailureReason(entity.getParseFailureReason());
+        dto.setCleaningEnabled(Boolean.TRUE.equals(entity.getCleaningEnabled()));
+        dto.setDocumentUrl(entity.getDocumentUrl());
         dto.setCreatedAt(entity.getCreatedAt());
-        dto.setUpdatedAt(entity.getUpdatedAt());
         return dto;
     }
 }

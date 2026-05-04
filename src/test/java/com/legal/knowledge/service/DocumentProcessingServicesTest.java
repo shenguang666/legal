@@ -12,6 +12,7 @@ import com.legal.knowledge.entity.KbDocumentEntity;
 import com.legal.knowledge.entity.KbDocumentParseTaskEntity;
 import com.legal.knowledge.entity.KbIndexOutboxEntity;
 import com.legal.knowledge.mapper.KbChunkMapper;
+import com.legal.knowledge.mapper.KbChunkImageRefMapper;
 import com.legal.knowledge.mapper.KbDocumentMapper;
 import com.legal.knowledge.mapper.KbDocumentParseTaskMapper;
 import com.legal.knowledge.mapper.KbIndexOutboxMapper;
@@ -113,6 +114,7 @@ class DocumentProcessingServicesTest {
     void mineruTaskShouldCompleteDocumentWhenExtractionSucceeds() {
         KbDocumentMapper documentMapper = mock(KbDocumentMapper.class);
         KbChunkMapper chunkMapper = mock(KbChunkMapper.class);
+        KbChunkImageRefMapper chunkImageRefMapper = mock(KbChunkImageRefMapper.class);
         KbIndexOutboxMapper outboxMapper = mock(KbIndexOutboxMapper.class);
         KbDocumentParseTaskMapper taskMapper = mock(KbDocumentParseTaskMapper.class);
         NativeDocumentParser nativeDocumentParser = mock(NativeDocumentParser.class);
@@ -121,15 +123,18 @@ class DocumentProcessingServicesTest {
         DocumentProcessingProperties properties = new DocumentProcessingProperties();
         properties.getMineru().setChunkSize(456);
         properties.getMineru().setMinChunkSize(123);
-        DocumentParseTaskService service = new DocumentParseTaskService(documentMapper, chunkMapper, outboxMapper, taskMapper,
+        MineruImageAssetProcessor imageAssetProcessor = mock(MineruImageAssetProcessor.class);
+        DocumentParseTaskService service = new DocumentParseTaskService(documentMapper, chunkMapper, chunkImageRefMapper, outboxMapper, taskMapper,
                 nativeDocumentParser, mineruClient, semanticDocumentChunker, new DocumentContentCleaner(properties),
-                mock(DocumentCleaningLogService.class), properties);
+                mock(DocumentCleaningLogService.class), imageAssetProcessor, properties);
         KbDocumentEntity document = mineruDocument(KbDocumentBizType.KNOWLEDGE);
         KbDocumentParseTaskEntity task = mineruTask();
         when(documentMapper.selectOne(any())).thenReturn(document);
         when(mineruClient.submit("contract.pdf", task.getFileContent())).thenReturn(new MineruClient.MineruUploadSession("batch-1", "data-1"));
         when(mineruClient.waitForResult("batch-1", "data-1")).thenReturn(MineruClient.MineruExtractResult.done("https://example.test/full.zip"));
-        when(mineruClient.downloadMarkdown("https://example.test/full.zip")).thenReturn("# 合同\n\n第一条 内容");
+        MineruParsePackage parsePackage = new MineruParsePackage("# 合同\n\n第一条 内容", List.of());
+        when(mineruClient.downloadPackage("https://example.test/full.zip")).thenReturn(parsePackage);
+        when(imageAssetProcessor.process(document, parsePackage)).thenReturn(new MineruImageProcessingResult("# 合同\n\n第一条 内容", List.of()));
         when(semanticDocumentChunker.chunkMarkdown("# 合同\n\n第一条 内容", 456, 123)).thenReturn(List.of("# 合同\n第一条 内容"));
 
         service.processTask(task);
@@ -150,9 +155,9 @@ class DocumentProcessingServicesTest {
         KbDocumentParseTaskMapper taskMapper = mock(KbDocumentParseTaskMapper.class);
         MineruClient mineruClient = mock(MineruClient.class);
         DocumentProcessingProperties properties = new DocumentProcessingProperties();
-        DocumentParseTaskService service = new DocumentParseTaskService(documentMapper, mock(KbChunkMapper.class), mock(KbIndexOutboxMapper.class),
+        DocumentParseTaskService service = new DocumentParseTaskService(documentMapper, mock(KbChunkMapper.class), mock(KbChunkImageRefMapper.class), mock(KbIndexOutboxMapper.class),
                 taskMapper, mock(NativeDocumentParser.class), mineruClient, mock(SemanticDocumentChunker.class),
-                new DocumentContentCleaner(properties), mock(DocumentCleaningLogService.class), properties);
+                new DocumentContentCleaner(properties), mock(DocumentCleaningLogService.class), mock(MineruImageAssetProcessor.class), properties);
         KbDocumentEntity document = mineruDocument(KbDocumentBizType.KNOWLEDGE);
         KbDocumentParseTaskEntity task = mineruTask();
         when(documentMapper.selectOne(any())).thenReturn(document);

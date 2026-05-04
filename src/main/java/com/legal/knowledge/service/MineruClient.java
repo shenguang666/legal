@@ -18,15 +18,18 @@ import java.io.ByteArrayInputStream;
 import java.io.ByteArrayOutputStream;
 import java.io.IOException;
 import java.net.URI;
+import java.net.URLDecoder;
 import java.net.http.HttpClient;
 import java.net.http.HttpRequest;
 import java.net.http.HttpResponse;
 import java.nio.charset.StandardCharsets;
 import java.time.Instant;
 import java.util.ArrayList;
+import java.util.Locale;
 import java.util.Iterator;
 import java.util.List;
 import java.util.Map;
+import java.util.Set;
 import java.util.UUID;
 import java.util.zip.ZipEntry;
 import java.util.zip.ZipInputStream;
@@ -90,6 +93,10 @@ public class MineruClient {
     }
 
     public String downloadMarkdown(String fullZipUrl) {
+        return downloadPackage(fullZipUrl).markdown();
+    }
+
+    public MineruParsePackage downloadPackage(String fullZipUrl) {
         if (!StringUtils.hasText(fullZipUrl)) {
             throw AppException.badRequest("MinerU 未返回解析结果下载地址");
         }
@@ -99,11 +106,11 @@ public class MineruClient {
                     .uri(fullZipUrl)
                     .retrieve()
                     .body(byte[].class);
-            String markdown = readMarkdownFromZip(zipBytes);
-            if (!StringUtils.hasText(markdown)) {
+            MineruParsePackage parsePackage = readPackageFromZip(zipBytes);
+            if (!StringUtils.hasText(parsePackage.markdown())) {
                 throw AppException.badRequest("MinerU 解析结果中未找到 Markdown 内容");
             }
-            return markdown;
+            return parsePackage;
         } catch (RestClientException ex) {
             throw AppException.badRequest("下载 MinerU 解析结果失败");
         }
@@ -266,28 +273,129 @@ public class MineruClient {
     }
 
     private String readMarkdownFromZip(byte[] zipBytes) {
+        return readPackageFromZip(zipBytes).markdown();
+    }
+
+    private MineruParsePackage readPackageFromZip(byte[] zipBytes) {
         if (zipBytes == null || zipBytes.length == 0) {
-            return null;
+            return new MineruParsePackage(null, List.of());
         }
         List<Map.Entry<String, String>> markdownEntries = new ArrayList<>();
+        List<MineruImageEntry> imageEntries = new ArrayList<>();
+        List<MineruPackageFile> packageFiles = new ArrayList<>();
+        Set<String> supportedExtensions = properties.getMineru().getImageAsset().getSupportedExtensions() == null
+                ? Set.of()
+                : properties.getMineru().getImageAsset().getSupportedExtensions().stream()
+                .filter(StringUtils::hasText)
+                .map(extension -> extension.toLowerCase(Locale.ROOT).replace(".", ""))
+                .collect(java.util.stream.Collectors.toSet());
+        int maxImages = Math.max(0, properties.getMineru().getImageAsset().getMaxImagesPerDocument());
+        long totalImageBytes = 0L;
         try (ZipInputStream zipInputStream = new ZipInputStream(new ByteArrayInputStream(zipBytes), StandardCharsets.UTF_8)) {
             ZipEntry entry;
             while ((entry = zipInputStream.getNextEntry()) != null) {
-                if (entry.isDirectory() || !entry.getName().toLowerCase().endsWith(".md")) {
+                if (entry.isDirectory()) {
                     continue;
                 }
-                ByteArrayOutputStream output = new ByteArrayOutputStream();
-                zipInputStream.transferTo(output);
-                markdownEntries.add(Map.entry(entry.getName(), output.toString(StandardCharsets.UTF_8)));
+                String normalizedPath = normalizeZipPath(entry.getName());
+                if (!StringUtils.hasText(normalizedPath)) {
+                    continue;
+                }
+                byte[] entryBytes = readAllEntryBytes(zipInputStream);
+                packageFiles.add(new MineruPackageFile(entry.getName(), normalizedPath, entryBytes, mimeTypeByPath(normalizedPath)));
+                String lowerName = normalizedPath.toLowerCase(Locale.ROOT);
+                if (lowerName.endsWith(".md")) {
+                    markdownEntries.add(Map.entry(normalizedPath, new String(entryBytes, StandardCharsets.UTF_8)));
+                    continue;
+                }
+                String extension = extensionOf(lowerName);
+                if (!supportedExtensions.contains(extension) || imageEntries.size() >= maxImages) {
+                    continue;
+                }
+                long remainingTotal = properties.getMineru().getImageAsset().getMaxTotalImageBytes() - totalImageBytes;
+                long maxImageBytes = Math.min(properties.getMineru().getImageAsset().getMaxImageBytes(), remainingTotal);
+                if (maxImageBytes <= 0) {
+                    continue;
+                }
+                if (entryBytes.length > maxImageBytes) {
+                    continue;
+                }
+                totalImageBytes += entryBytes.length;
+                imageEntries.add(new MineruImageEntry(
+                        entry.getName(),
+                        normalizedPath,
+                        entryBytes,
+                        extension,
+                        mimeType(extension)
+                ));
             }
         } catch (IOException ex) {
             throw AppException.badRequest("读取 MinerU 解析结果失败");
         }
-        return markdownEntries.stream()
-                .filter(entry -> entry.getKey().toLowerCase().endsWith("full.md"))
+        String markdown = markdownEntries.stream()
+                .filter(entry -> entry.getKey().toLowerCase(Locale.ROOT).endsWith("full.md"))
                 .map(Map.Entry::getValue)
                 .findFirst()
                 .orElse(markdownEntries.isEmpty() ? null : markdownEntries.get(0).getValue());
+        String markdownPath = markdownEntries.stream()
+                .filter(entry -> entry.getKey().toLowerCase(Locale.ROOT).endsWith("full.md"))
+                .map(Map.Entry::getKey)
+                .findFirst()
+                .orElse(markdownEntries.isEmpty() ? null : markdownEntries.get(0).getKey());
+        return new MineruParsePackage(markdown, imageEntries, packageFiles, markdownPath);
+    }
+
+    private byte[] readAllEntryBytes(ZipInputStream zipInputStream) throws IOException {
+        ByteArrayOutputStream output = new ByteArrayOutputStream();
+        byte[] buffer = new byte[8192];
+        int read;
+        while ((read = zipInputStream.read(buffer)) != -1) {
+            output.write(buffer, 0, read);
+        }
+        return output.toByteArray();
+    }
+
+    static String normalizeZipPath(String path) {
+        if (!StringUtils.hasText(path)) {
+            return null;
+        }
+        String normalized = URLDecoder.decode(path.trim().replace('\\', '/'), StandardCharsets.UTF_8);
+        while (normalized.startsWith("./")) {
+            normalized = normalized.substring(2);
+        }
+        if (normalized.startsWith("/") || normalized.contains("../") || normalized.equals("..") || normalized.startsWith("..")) {
+            return null;
+        }
+        return normalized;
+    }
+
+    private String extensionOf(String path) {
+        int index = path.lastIndexOf('.');
+        if (index < 0 || index == path.length() - 1) {
+            return "";
+        }
+        return path.substring(index + 1);
+    }
+
+    private String mimeType(String extension) {
+        return switch (extension) {
+            case "jpg", "jpeg" -> MediaType.IMAGE_JPEG_VALUE;
+            case "png" -> MediaType.IMAGE_PNG_VALUE;
+            case "webp" -> "image/webp";
+            default -> MediaType.APPLICATION_OCTET_STREAM_VALUE;
+        };
+    }
+
+    private String mimeTypeByPath(String path) {
+        String extension = extensionOf(path == null ? "" : path.toLowerCase(Locale.ROOT));
+        return switch (extension) {
+            case "md" -> "text/markdown; charset=utf-8";
+            case "txt" -> MediaType.TEXT_PLAIN_VALUE;
+            case "json" -> MediaType.APPLICATION_JSON_VALUE;
+            case "html", "htm" -> MediaType.TEXT_HTML_VALUE;
+            case "pdf" -> MediaType.APPLICATION_PDF_VALUE;
+            default -> mimeType(extension);
+        };
     }
 
     private JsonNode findResultNode(JsonNode response, String dataId) {

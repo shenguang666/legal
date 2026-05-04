@@ -96,6 +96,7 @@ CREATE TABLE IF NOT EXISTS kb_document (
   document_id BIGINT NOT NULL AUTO_INCREMENT COMMENT '文档主键ID',
   tenant_id BIGINT NOT NULL COMMENT '租户ID',
   owner_user_id BIGINT NOT NULL COMMENT '所属用户ID',
+  owner_username VARCHAR(64) DEFAULT NULL COMMENT '上传用户名快照',
   title VARCHAR(255) NOT NULL COMMENT '文档标题',
   source VARCHAR(255) NOT NULL COMMENT '文档来源',
   biz_type VARCHAR(32) NOT NULL DEFAULT 'KNOWLEDGE' COMMENT '文档业务类型（KNOWLEDGE/RISK_RULE/TIANYAN_REVIEW）',
@@ -109,6 +110,9 @@ CREATE TABLE IF NOT EXISTS kb_document (
   mineru_batch_id VARCHAR(128) DEFAULT NULL COMMENT 'MinerU批次ID，用于关联外部精准解析任务',
   mineru_data_id VARCHAR(128) DEFAULT NULL COMMENT 'MinerU文件数据ID，用于关联批次内单个文件',
   mineru_full_zip_url VARCHAR(1000) DEFAULT NULL COMMENT 'MinerU完整解析结果压缩包地址，仅后端使用',
+  document_url VARCHAR(1500) DEFAULT NULL COMMENT '文档可访问地址，用于前端查看原文档或MinerU解析原文',
+  document_oss_bucket VARCHAR(128) DEFAULT NULL COMMENT '文档解析产物所在OSS Bucket名称',
+  document_oss_prefix VARCHAR(1000) DEFAULT NULL COMMENT '文档解析产物所在OSS对象前缀',
   parse_started_at DATETIME DEFAULT NULL COMMENT '最近一次解析开始时间',
   parse_completed_at DATETIME DEFAULT NULL COMMENT '最近一次解析完成时间',
   created_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP COMMENT '创建时间',
@@ -174,6 +178,46 @@ CREATE TABLE IF NOT EXISTS kb_chunk (
   PRIMARY KEY (chunk_id),
   KEY idx_chunk_doc_ver_order (document_id, doc_version, chunk_order)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COMMENT='知识库切片表';
+
+CREATE TABLE IF NOT EXISTS kb_document_image_asset (
+  image_asset_id BIGINT NOT NULL AUTO_INCREMENT COMMENT '图片资产主键ID',
+  tenant_id BIGINT NOT NULL COMMENT '租户ID',
+  document_id BIGINT NOT NULL COMMENT '文档ID',
+  doc_version INT NOT NULL COMMENT '文档版本号',
+  biz_type VARCHAR(32) NOT NULL COMMENT '文档业务类型（KNOWLEDGE/RISK_RULE/TIANYAN_REVIEW）',
+  owner_user_id BIGINT NOT NULL COMMENT '所属用户ID',
+  username VARCHAR(64) NOT NULL COMMENT '上传用户名快照',
+  original_path VARCHAR(1000) NOT NULL COMMENT 'MinerU结果包内图片原始相对路径',
+  oss_bucket VARCHAR(128) DEFAULT NULL COMMENT 'OSS Bucket名称',
+  oss_object_key VARCHAR(1000) DEFAULT NULL COMMENT 'OSS对象Key',
+  public_url VARCHAR(1500) DEFAULT NULL COMMENT '图片公开访问地址或后端生成的可访问地址',
+  mime_type VARCHAR(64) DEFAULT NULL COMMENT '图片MIME类型',
+  file_ext VARCHAR(16) DEFAULT NULL COMMENT '图片文件扩展名',
+  size_bytes BIGINT NOT NULL DEFAULT 0 COMMENT '图片文件大小字节数',
+  content_hash VARCHAR(64) NOT NULL COMMENT '图片内容SHA-256哈希',
+  description VARCHAR(1000) DEFAULT NULL COMMENT '图生文模型生成的图片描述',
+  caption_status VARCHAR(32) NOT NULL DEFAULT 'PENDING' COMMENT '图片描述状态（PENDING待处理/SUCCESS成功/FAILED失败/SKIPPED跳过）',
+  caption_error VARCHAR(1000) DEFAULT NULL COMMENT '图片描述失败或跳过原因',
+  created_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP COMMENT '创建时间',
+  updated_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP COMMENT '更新时间',
+  PRIMARY KEY (image_asset_id),
+  UNIQUE KEY uk_image_asset_doc_path_hash (tenant_id, document_id, doc_version, original_path(255), content_hash),
+  KEY idx_image_asset_doc_version (tenant_id, document_id, doc_version),
+  KEY idx_image_asset_hash (tenant_id, content_hash)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COMMENT='MinerU文档图片资产表';
+
+CREATE TABLE IF NOT EXISTS kb_chunk_image_ref (
+  chunk_image_ref_id BIGINT NOT NULL AUTO_INCREMENT COMMENT '切片图片引用主键ID',
+  tenant_id BIGINT NOT NULL COMMENT '租户ID',
+  chunk_id BIGINT NOT NULL COMMENT '切片ID',
+  image_asset_id BIGINT NOT NULL COMMENT '图片资产ID',
+  image_order INT NOT NULL DEFAULT 0 COMMENT '图片在切片中的出现顺序',
+  created_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP COMMENT '创建时间',
+  PRIMARY KEY (chunk_image_ref_id),
+  UNIQUE KEY uk_chunk_image_ref_order (tenant_id, chunk_id, image_asset_id, image_order),
+  KEY idx_chunk_image_ref_chunk (tenant_id, chunk_id, image_order),
+  KEY idx_chunk_image_ref_asset (tenant_id, image_asset_id)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COMMENT='知识库切片图片引用表';
 
 CREATE TABLE IF NOT EXISTS kb_index_outbox (
   id BIGINT NOT NULL AUTO_INCREMENT COMMENT '出站事件主键ID',

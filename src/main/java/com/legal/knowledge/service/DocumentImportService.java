@@ -1,6 +1,8 @@
 package com.legal.knowledge.service;
 
 import com.legal.common.AppException;
+import com.legal.auth.entity.LegalUserEntity;
+import com.legal.auth.mapper.LegalUserMapper;
 import com.legal.enums.DocumentParseMethod;
 import com.legal.enums.DocumentParseStatus;
 import com.legal.enums.KbDocumentBizType;
@@ -24,15 +26,18 @@ public class DocumentImportService {
     private final DocumentProcessingCapabilityService capabilityService;
     private final NativeDocumentParser nativeDocumentParser;
     private final DocumentParseTaskService parseTaskService;
+    private final LegalUserMapper legalUserMapper;
 
     public DocumentImportService(KbDocumentMapper kbDocumentMapper,
                                  DocumentProcessingCapabilityService capabilityService,
                                  NativeDocumentParser nativeDocumentParser,
-                                 DocumentParseTaskService parseTaskService) {
+                                 DocumentParseTaskService parseTaskService,
+                                 LegalUserMapper legalUserMapper) {
         this.kbDocumentMapper = kbDocumentMapper;
         this.capabilityService = capabilityService;
         this.nativeDocumentParser = nativeDocumentParser;
         this.parseTaskService = parseTaskService;
+        this.legalUserMapper = legalUserMapper;
     }
 
     public KbDocumentEntity importDocument(AuthPrincipal principal,
@@ -56,6 +61,7 @@ public class DocumentImportService {
         KbDocumentEntity document = new KbDocumentEntity();
         document.setTenantId(principal.tenantId());
         document.setOwnerUserId(principal.userId());
+        document.setOwnerUsername(resolveOwnerUsername(principal));
         document.setTitle(documentTitle);
         document.setSource(documentSource);
         document.setBizType(bizType);
@@ -116,5 +122,16 @@ public class DocumentImportService {
             return "上传文件";
         }
         return fileName;
+    }
+
+    private String resolveOwnerUsername(AuthPrincipal principal) {
+        LegalUserEntity user = legalUserMapper.selectOne(new com.baomidou.mybatisplus.core.conditions.query.LambdaQueryWrapper<LegalUserEntity>()
+                .eq(LegalUserEntity::getTenantId, principal.tenantId())
+                .eq(LegalUserEntity::getUserId, principal.userId())
+                .last("limit 1"));
+        if (user != null && StringUtils.hasText(user.getUsername())) {
+            return user.getUsername();
+        }
+        return "用户-" + principal.userId();
     }
 }

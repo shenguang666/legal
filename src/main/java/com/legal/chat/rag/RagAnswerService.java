@@ -1,25 +1,34 @@
 package com.legal.chat.rag;
 
 import com.legal.chat.dto.CitationDto;
+import com.legal.chat.dto.CitationImageDto;
 import com.legal.chat.memory.ChatMemoryFactory;
 import com.legal.common.AppException;
 import com.legal.config.OpenAiChatModelProperties;
 import com.legal.config.RagProperties;
+import com.legal.knowledge.mapper.KbChunkImageRefMapper;
 import dev.langchain4j.data.message.ChatMessage;
 import dev.langchain4j.data.message.SystemMessage;
 import dev.langchain4j.data.message.UserMessage;
 import dev.langchain4j.memory.ChatMemory;
 import dev.langchain4j.model.chat.ChatModel;
 import dev.langchain4j.model.chat.response.ChatResponse;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 import org.springframework.lang.Nullable;
 import org.springframework.stereotype.Service;
 import org.springframework.util.StringUtils;
 
+import java.util.ArrayList;
+import java.util.LinkedHashMap;
 import java.util.List;
+import java.util.Map;
 import java.util.stream.Collectors;
 
 @Service
 public class RagAnswerService {
+
+    private static final Logger log = LoggerFactory.getLogger(RagAnswerService.class);
 
     private final RagProperties ragProperties;
     private final OpenAiChatModelProperties openAiChatModelProperties;
@@ -27,18 +36,21 @@ public class RagAnswerService {
     private final ChunkRetriever chunkRetriever;
     private final ChatMemoryFactory chatMemoryFactory;
     private final ChatModel chatModel;
+    private final KbChunkImageRefMapper kbChunkImageRefMapper;
 
     public RagAnswerService(RagProperties ragProperties,
                             OpenAiChatModelProperties openAiChatModelProperties,
                             PromptTemplateService promptTemplateService,
                             ChunkRetriever chunkRetriever,
                             ChatMemoryFactory chatMemoryFactory,
+                            KbChunkImageRefMapper kbChunkImageRefMapper,
                             @Nullable ChatModel chatModel) {
         this.ragProperties = ragProperties;
         this.openAiChatModelProperties = openAiChatModelProperties;
         this.promptTemplateService = promptTemplateService;
         this.chunkRetriever = chunkRetriever;
         this.chatMemoryFactory = chatMemoryFactory;
+        this.kbChunkImageRefMapper = kbChunkImageRefMapper;
         this.chatModel = chatModel;
     }
 
@@ -68,9 +80,7 @@ public class RagAnswerService {
                 openAiChatModelProperties.getModelName(),
                 tokenUsage,
                 chunks,
-                chunks.stream()
-                        .map(chunk -> new CitationDto(chunk.getDocumentId(), chunk.getSource(), shorten(chunk.getContent())))
-                        .collect(Collectors.toList()),
+                buildCitations(tenantId, chunks),
                 !chunks.isEmpty()
         );
     }
@@ -88,9 +98,7 @@ public class RagAnswerService {
                 openAiChatModelProperties.getModelName(),
                 0,
                 chunks,
-                chunks.stream()
-                        .map(chunk -> new CitationDto(chunk.getDocumentId(), chunk.getSource(), shorten(chunk.getContent())))
-                        .collect(Collectors.toList()),
+                buildCitations(tenantId, chunks),
                 !chunks.isEmpty()
         );
     }
@@ -135,6 +143,64 @@ public class RagAnswerService {
                         + ", source=" + chunk.getSource() + "]\n"
                         + chunk.getContent())
                 .collect(Collectors.joining("\n\n"));
+    }
+
+    private List<CitationDto> buildCitations(Long tenantId, List<RetrievedChunk> chunks) {
+        Map<Long, List<CitationImageDto>> imagesByChunkId = loadImagesByChunkId(tenantId, chunks);
+        return chunks.stream()
+                .map(chunk -> new CitationDto(
+                        chunk.getDocumentId(),
+                        chunk.getChunkId(),
+                        chunk.getSource(),
+                        shorten(chunk.getContent()),
+                        imagesByChunkId.getOrDefault(chunk.getChunkId(), List.of())
+                ))
+                .collect(Collectors.toList());
+    }
+
+    private Map<Long, List<CitationImageDto>> loadImagesByChunkId(Long tenantId, List<RetrievedChunk> chunks) {
+        List<Long> chunkIds = chunks.stream()
+                .map(RetrievedChunk::getChunkId)
+                .filter(id -> id != null)
+                .distinct()
+                .toList();
+        if (chunkIds.isEmpty()) {
+            return Map.of();
+        }
+        List<KbChunkImageRefMapper.ChunkImageAssetRow> rows;
+        try {
+            rows = kbChunkImageRefMapper.selectImageRowsByChunkIds(tenantId, chunkIds);
+        } catch (RuntimeException ex) {
+            if (!isMissingImageRefTable(ex)) {
+                throw ex;
+            }
+            log.warn("kb_chunk_image_ref 表不存在，RAG citation 暂不返回图片证据");
+            return Map.of();
+        }
+        Map<Long, List<CitationImageDto>> result = new LinkedHashMap<>();
+        for (KbChunkImageRefMapper.ChunkImageAssetRow row : rows) {
+            result.computeIfAbsent(row.getChunkId(), ignored -> new ArrayList<>())
+                    .add(new CitationImageDto(
+                            row.getImageAssetId(),
+                            row.getPublicUrl(),
+                            row.getDescription(),
+                            row.getOriginalPath(),
+                            row.getImageOrder()
+                    ));
+        }
+        return result;
+    }
+
+    private boolean isMissingImageRefTable(Throwable throwable) {
+        Throwable current = throwable;
+        while (current != null) {
+            String message = current.getMessage();
+            if (message != null && message.contains("kb_chunk_image_ref") && message.toLowerCase().contains("doesn't exist")) {
+                return true;
+            }
+            current = current.getCause();
+        }
+        return false;
     }
 
     private String shorten(String content) {

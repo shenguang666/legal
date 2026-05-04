@@ -5,6 +5,8 @@ import java.time.LocalDateTime;
 public class DocumentDto {
 
     private Long documentId;
+    private Long ownerUserId;
+    private String ownerUsername;
     private String title;
     private String source;
     private String bizType;
@@ -14,6 +16,7 @@ public class DocumentDto {
     private String parseStatus;
     private String parseFailureReason;
     private Boolean cleaningEnabled;
+    private String documentUrl;
     private LocalDateTime createdAt;
     private LocalDateTime updatedAt;
 
@@ -23,6 +26,22 @@ public class DocumentDto {
 
     public void setDocumentId(Long documentId) {
         this.documentId = documentId;
+    }
+
+    public Long getOwnerUserId() {
+        return ownerUserId;
+    }
+
+    public void setOwnerUserId(Long ownerUserId) {
+        this.ownerUserId = ownerUserId;
+    }
+
+    public String getOwnerUsername() {
+        return ownerUsername;
+    }
+
+    public void setOwnerUsername(String ownerUsername) {
+        this.ownerUsername = ownerUsername;
     }
 
     public String getTitle() {
@@ -95,6 +114,14 @@ public class DocumentDto {
 
     public void setCleaningEnabled(Boolean cleaningEnabled) {
         this.cleaningEnabled = cleaningEnabled;
+    }
+
+    public String getDocumentUrl() {
+        return documentUrl;
+    }
+
+    public void setDocumentUrl(String documentUrl) {
+        this.documentUrl = documentUrl;
     }
 
     public LocalDateTime getCreatedAt() {

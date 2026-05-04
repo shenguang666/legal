@@ -11,13 +11,18 @@ import com.legal.enums.KbIndexStatus;
 import com.legal.enums.KbOutboxOp;
 import com.legal.enums.KbOutboxStatus;
 import com.legal.knowledge.entity.KbChunkEntity;
+import com.legal.knowledge.entity.KbChunkImageRefEntity;
 import com.legal.knowledge.entity.KbDocumentEntity;
+import com.legal.knowledge.entity.KbDocumentImageAssetEntity;
 import com.legal.knowledge.entity.KbDocumentParseTaskEntity;
 import com.legal.knowledge.entity.KbIndexOutboxEntity;
+import com.legal.knowledge.mapper.KbChunkImageRefMapper;
 import com.legal.knowledge.mapper.KbChunkMapper;
 import com.legal.knowledge.mapper.KbDocumentMapper;
 import com.legal.knowledge.mapper.KbDocumentParseTaskMapper;
 import com.legal.knowledge.mapper.KbIndexOutboxMapper;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 import org.springframework.util.StringUtils;
@@ -31,8 +36,11 @@ import java.util.List;
 @Service
 public class DocumentParseTaskService {
 
+    private static final Logger log = LoggerFactory.getLogger(DocumentParseTaskService.class);
+
     private final KbDocumentMapper kbDocumentMapper;
     private final KbChunkMapper kbChunkMapper;
+    private final KbChunkImageRefMapper kbChunkImageRefMapper;
     private final KbIndexOutboxMapper kbIndexOutboxMapper;
     private final KbDocumentParseTaskMapper parseTaskMapper;
     private final NativeDocumentParser nativeDocumentParser;
@@ -40,10 +48,13 @@ public class DocumentParseTaskService {
     private final SemanticDocumentChunker semanticDocumentChunker;
     private final DocumentContentCleaner documentContentCleaner;
     private final DocumentCleaningLogService cleaningLogService;
+    private final MineruImageAssetProcessor mineruImageAssetProcessor;
+    private final MineruImageAssetStorageService mineruImageAssetStorageService;
     private final DocumentProcessingProperties properties;
 
     public DocumentParseTaskService(KbDocumentMapper kbDocumentMapper,
                                     KbChunkMapper kbChunkMapper,
+                                    KbChunkImageRefMapper kbChunkImageRefMapper,
                                     KbIndexOutboxMapper kbIndexOutboxMapper,
                                     KbDocumentParseTaskMapper parseTaskMapper,
                                     NativeDocumentParser nativeDocumentParser,
@@ -51,9 +62,12 @@ public class DocumentParseTaskService {
                                     SemanticDocumentChunker semanticDocumentChunker,
                                     DocumentContentCleaner documentContentCleaner,
                                     DocumentCleaningLogService cleaningLogService,
+                                    MineruImageAssetProcessor mineruImageAssetProcessor,
+                                    MineruImageAssetStorageService mineruImageAssetStorageService,
                                     DocumentProcessingProperties properties) {
         this.kbDocumentMapper = kbDocumentMapper;
         this.kbChunkMapper = kbChunkMapper;
+        this.kbChunkImageRefMapper = kbChunkImageRefMapper;
         this.kbIndexOutboxMapper = kbIndexOutboxMapper;
         this.parseTaskMapper = parseTaskMapper;
         this.nativeDocumentParser = nativeDocumentParser;
@@ -61,6 +75,8 @@ public class DocumentParseTaskService {
         this.semanticDocumentChunker = semanticDocumentChunker;
         this.documentContentCleaner = documentContentCleaner;
         this.cleaningLogService = cleaningLogService;
+        this.mineruImageAssetProcessor = mineruImageAssetProcessor;
+        this.mineruImageAssetStorageService = mineruImageAssetStorageService;
         this.properties = properties;
     }
 
@@ -110,7 +126,9 @@ public class DocumentParseTaskService {
             if (result.failed()) {
                 throw AppException.badRequest(safeError(result.errorMessage()));
             }
-            String markdown = mineruClient.downloadMarkdown(result.fullZipUrl());
+            MineruParsePackage parsePackage = mineruClient.downloadPackage(result.fullZipUrl());
+            MineruPackageUploadResult packageUploadResult = mineruImageAssetStorageService.uploadPackage(document, parsePackage, task.getFileName(), task.getFileContent());
+            String markdown = StringUtils.hasText(packageUploadResult.markdown()) ? packageUploadResult.markdown() : parsePackage.markdown();
             boolean cleaningEnabled = Boolean.TRUE.equals(task.getCleaningEnabled()) && properties.getCleaning().isEnabled();
             DocumentCleaningResult cleaningResult = cleaningEnabled ? documentContentCleaner.cleanMarkdown(markdown) : null;
             String chunkSource = cleaningResult == null ? markdown : cleaningResult.getContent();
@@ -123,7 +141,7 @@ public class DocumentParseTaskService {
                 throw AppException.badRequest("MinerU 解析结果过短，无法生成切片");
             }
             completeDocument(document, chunks, cleaningResult == null ? null : cleaningResult.getReport(), "MARKDOWN",
-                    session.batchId(), session.dataId(), result.fullZipUrl());
+                    session.batchId(), session.dataId(), result.fullZipUrl(), packageUploadResult);
             parseTaskMapper.markCompleted(task.getTaskId());
             clearTaskFileContent(task.getTaskId());
         } catch (RuntimeException ex) {
@@ -178,8 +196,10 @@ public class DocumentParseTaskService {
                                   String contentFormat,
                                   String mineruBatchId,
                                   String mineruDataId,
-                                  String mineruFullZipUrl) {
+                                  String mineruFullZipUrl,
+                                  MineruPackageUploadResult packageUploadResult) {
         LocalDateTime now = LocalDateTime.now();
+        deleteChunkImageRefsIfTableExists(document);
         kbChunkMapper.deleteByDocVersion(document.getTenantId(), document.getDocumentId(), document.getDocVersion());
         DocumentCleaningReport chunkFilterReport = persistChunks(
                 document.getTenantId(),
@@ -200,6 +220,11 @@ public class DocumentParseTaskService {
         document.setMineruBatchId(mineruBatchId);
         document.setMineruDataId(mineruDataId);
         document.setMineruFullZipUrl(mineruFullZipUrl);
+        if (packageUploadResult != null) {
+            document.setDocumentUrl(packageUploadResult.documentUrl());
+            document.setDocumentOssBucket(packageUploadResult.bucket());
+            document.setDocumentOssPrefix(packageUploadResult.objectPrefix());
+        }
         document.setParseCompletedAt(now);
         if (document.getBizType() == KbDocumentBizType.TIANYAN_REVIEW) {
             document.setStatus(KbDocumentStatus.ACTIVE);
@@ -211,6 +236,16 @@ public class DocumentParseTaskService {
         }
         document.setUpdatedAt(now);
         kbDocumentMapper.updateById(document);
+    }
+
+    private void completeDocument(KbDocumentEntity document,
+                                  List<String> chunks,
+                                  DocumentCleaningReport cleaningReport,
+                                  String contentFormat,
+                                  String mineruBatchId,
+                                  String mineruDataId,
+                                  String mineruFullZipUrl) {
+        completeDocument(document, chunks, cleaningReport, contentFormat, mineruBatchId, mineruDataId, mineruFullZipUrl, null);
     }
 
     private void markTaskFailed(KbDocumentParseTaskEntity task, String message) {
@@ -277,6 +312,61 @@ public class DocumentParseTaskService {
                 .mapToInt(value -> value == null ? 0 : value.length())
                 .sum());
         return report;
+    }
+
+    private void linkImagesToChunks(KbDocumentEntity document, List<KbDocumentImageAssetEntity> assets) {
+        List<KbChunkEntity> chunks = kbChunkMapper.selectByDocVersion(document.getTenantId(), document.getDocumentId(), document.getDocVersion());
+        try {
+            for (KbChunkEntity chunk : chunks) {
+                int order = 1;
+                for (KbDocumentImageAssetEntity asset : assets) {
+                    if (!chunkContainsAsset(chunk.getContent(), asset)) {
+                        continue;
+                    }
+                    KbChunkImageRefEntity ref = new KbChunkImageRefEntity();
+                    ref.setTenantId(document.getTenantId());
+                    ref.setChunkId(chunk.getChunkId());
+                    ref.setImageAssetId(asset.getImageAssetId());
+                    ref.setImageOrder(order++);
+                    ref.setCreatedAt(LocalDateTime.now());
+                    kbChunkImageRefMapper.insert(ref);
+                }
+            }
+        } catch (RuntimeException ex) {
+            if (!isMissingImageRefTable(ex)) {
+                throw ex;
+            }
+            log.warn("kb_chunk_image_ref 表不存在，跳过文档 {} 第 {} 版的图片引用关联", document.getDocumentId(), document.getDocVersion());
+        }
+    }
+
+    private void deleteChunkImageRefsIfTableExists(KbDocumentEntity document) {
+        try {
+            kbChunkImageRefMapper.deleteByDocumentVersion(document.getTenantId(), document.getDocumentId(), document.getDocVersion());
+        } catch (RuntimeException ex) {
+            if (!isMissingImageRefTable(ex)) {
+                throw ex;
+            }
+            log.warn("kb_chunk_image_ref 表不存在，跳过文档 {} 第 {} 版的图片引用清理", document.getDocumentId(), document.getDocVersion());
+        }
+    }
+
+    private boolean isMissingImageRefTable(Throwable throwable) {
+        Throwable current = throwable;
+        while (current != null) {
+            String message = current.getMessage();
+            if (message != null && message.contains("kb_chunk_image_ref") && message.toLowerCase().contains("doesn't exist")) {
+                return true;
+            }
+            current = current.getCause();
+        }
+        return false;
+    }
+
+    private boolean chunkContainsAsset(String content, KbDocumentImageAssetEntity asset) {
+        return StringUtils.hasText(content)
+                && ((StringUtils.hasText(asset.getPublicUrl()) && content.contains(asset.getPublicUrl()))
+                || (StringUtils.hasText(asset.getOriginalPath()) && content.contains(asset.getOriginalPath())));
     }
 
     private void enqueueOutbox(Long tenantId,

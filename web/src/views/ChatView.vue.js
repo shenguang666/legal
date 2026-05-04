@@ -200,6 +200,9 @@ let __VLS_directives;
 /** @type {__VLS_StyleScopedClasses['insight-list']} */ ;
 /** @type {__VLS_StyleScopedClasses['insight-list']} */ ;
 /** @type {__VLS_StyleScopedClasses['insight-list']} */ ;
+/** @type {__VLS_StyleScopedClasses['citation-image-card']} */ ;
+/** @type {__VLS_StyleScopedClasses['image-fallback']} */ ;
+/** @type {__VLS_StyleScopedClasses['citation-image-card']} */ ;
 /** @type {__VLS_StyleScopedClasses['chat-layout']} */ ;
 // CSS variable injection 
 // CSS variable injection end 
@@ -407,6 +410,34 @@ if (__VLS_ctx.latestCitations.length) {
             ...{ class: "citation-fragment" },
         });
         (item.fragment);
+        if (item.images?.length) {
+            __VLS_asFunctionalElement(__VLS_intrinsicElements.div, __VLS_intrinsicElements.div)({
+                ...{ class: "citation-images" },
+            });
+            for (const [image] of __VLS_getVForSourceType((item.images))) {
+                __VLS_asFunctionalElement(__VLS_intrinsicElements.a, __VLS_intrinsicElements.a)({
+                    key: (image.imageAssetId || `${item.documentId}-${image.order}`),
+                    ...{ class: "citation-image-card" },
+                    href: (image.url),
+                    target: "_blank",
+                    rel: "noreferrer",
+                });
+                if (image.url) {
+                    __VLS_asFunctionalElement(__VLS_intrinsicElements.img)({
+                        src: (image.url),
+                        alt: (image.description || '引用图片'),
+                        loading: "lazy",
+                    });
+                }
+                else {
+                    __VLS_asFunctionalElement(__VLS_intrinsicElements.span, __VLS_intrinsicElements.span)({
+                        ...{ class: "image-fallback" },
+                    });
+                }
+                __VLS_asFunctionalElement(__VLS_intrinsicElements.small, __VLS_intrinsicElements.small)({});
+                (image.description || image.originalPath || '图片证据');
+            }
+        }
     }
 }
 if (__VLS_ctx.notice) {
@@ -456,6 +487,9 @@ if (__VLS_ctx.notice) {
 /** @type {__VLS_StyleScopedClasses['citation-item']} */ ;
 /** @type {__VLS_StyleScopedClasses['citation-source']} */ ;
 /** @type {__VLS_StyleScopedClasses['citation-fragment']} */ ;
+/** @type {__VLS_StyleScopedClasses['citation-images']} */ ;
+/** @type {__VLS_StyleScopedClasses['citation-image-card']} */ ;
+/** @type {__VLS_StyleScopedClasses['image-fallback']} */ ;
 /** @type {__VLS_StyleScopedClasses['notice']} */ ;
 var __VLS_dollars;
 const __VLS_self = (await import('vue')).defineComponent({

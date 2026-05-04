@@ -47,3 +47,4 @@ web/*.tsbuildinfo
 
 /.claude/
 /.windsurf/
+/src/test/

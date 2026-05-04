@@ -30,6 +30,7 @@
         <java.version>17</java.version>
         <mybatis-plus.version>3.5.8</mybatis-plus.version>
         <langchain4j.version>1.12.1</langchain4j.version>
+        <alibabacloud-oss.version>0.2.0-beta</alibabacloud-oss.version>
     </properties>
     <dependencies>
         <dependency>
@@ -68,6 +69,12 @@
             <groupId>dev.langchain4j</groupId>
             <artifactId>langchain4j-open-ai</artifactId>
             <version>${langchain4j.version}</version>
+        </dependency>
+
+        <dependency>
+            <groupId>com.aliyun</groupId>
+            <artifactId>alibabacloud-oss-v2</artifactId>
+            <version>${alibabacloud-oss.version}</version>
         </dependency>
 
         <dependency>

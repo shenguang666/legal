@@ -8,11 +8,14 @@ const notice = ref('');
 const parseMethod = ref('NATIVE');
 const parseMethods = ref(['NATIVE']);
 const maxUploadDocuments = ref(1);
+const cleaningAvailable = ref(false);
+const cleaningEnabled = ref(false);
 const busy = ref(false);
 const qaIndexScope = ref('NATIVE_ONLY');
 const qaIndexScopes = ref(['NATIVE_ONLY', 'MINERU_ONLY', 'BOTH']);
 const nativeIndexName = ref('');
 const mineruIndexName = ref('');
+const selectedDocument = ref(null);
 onMounted(async () => {
     await loadCapabilities();
     await loadQaIndexConfig();
@@ -23,6 +26,8 @@ async function loadCapabilities() {
     parseMethods.value = capabilities.availableParseMethods?.length ? capabilities.availableParseMethods : ['NATIVE'];
     parseMethod.value = capabilities.defaultParseMethod || parseMethods.value[0];
     maxUploadDocuments.value = capabilities.maxUploadDocuments || 1;
+    cleaningAvailable.value = Boolean(capabilities.cleaningAvailable);
+    cleaningEnabled.value = false;
 }
 async function refresh() {
     documents.value = await apiGet('/api/knowledge/documents');
@@ -80,11 +85,13 @@ async function importDocument() {
                 formData.append('source', source.value.trim());
             }
             formData.append('parseMethod', parseMethod.value);
+            formData.append('cleaningEnabled', String(cleaningAvailable.value && cleaningEnabled.value));
             await apiPostForm('/api/knowledge/documents/import', formData);
         }
         title.value = '';
         source.value = '';
         selectedFiles.value = [];
+        cleaningEnabled.value = false;
         notice.value = parseMethod.value === 'MINERU_PRECISE' ? '文档已导入，正在后台进行 MinerU 精准解析' : '文档已导入，正在后台建立向量索引';
         await refresh();
     }
@@ -152,6 +159,34 @@ async function remove(documentId) {
         busy.value = false;
     }
 }
+function openDetail(item) {
+    selectedDocument.value = item;
+}
+function closeDetail() {
+    selectedDocument.value = null;
+}
+async function openDocumentAsset(item, fileName) {
+    if (!item.documentUrl) {
+        notice.value = '当前文档暂未记录可访问原文档地址';
+        return;
+    }
+    try {
+        const signedUrl = await apiGet(`/api/document-assets/${item.documentId}/${encodeURIComponent(fileName)}`);
+        window.open(signedUrl, '_blank', 'noopener,noreferrer');
+    }
+    catch (err) {
+        notice.value = err?.message || '获取文档下载地址失败';
+    }
+}
+function importerLabel(item) {
+    return item.ownerUsername || (item.ownerUserId ? `用户-${item.ownerUserId}` : '-');
+}
+function formatDate(value) {
+    if (!value) {
+        return '-';
+    }
+    return new Date(value).toLocaleString();
+}
 debugger; /* PartiallyEnd: #3632/scriptSetup.vue */
 const __VLS_ctx = {};
 let __VLS_components;
@@ -159,6 +194,7 @@ let __VLS_directives;
 /** @type {__VLS_StyleScopedClasses['doc-item']} */ ;
 /** @type {__VLS_StyleScopedClasses['doc-item']} */ ;
 /** @type {__VLS_StyleScopedClasses['doc-item']} */ ;
+/** @type {__VLS_StyleScopedClasses['detail-grid']} */ ;
 /** @type {__VLS_StyleScopedClasses['knowledge-grid']} */ ;
 // CSS variable injection 
 // CSS variable injection end 
@@ -226,6 +262,20 @@ for (const [method] of __VLS_getVForSourceType((__VLS_ctx.parseMethods))) {
         value: (method),
     });
     (__VLS_ctx.parseMethodLabel(method));
+}
+if (__VLS_ctx.cleaningAvailable) {
+    __VLS_asFunctionalElement(__VLS_intrinsicElements.div, __VLS_intrinsicElements.div)({
+        ...{ class: "selection-row" },
+    });
+    __VLS_asFunctionalElement(__VLS_intrinsicElements.label, __VLS_intrinsicElements.label)({
+        ...{ class: "selection-chip selection-chip--soft" },
+        ...{ class: ({ 'selection-chip--active': __VLS_ctx.cleaningEnabled }) },
+    });
+    __VLS_asFunctionalElement(__VLS_intrinsicElements.input)({
+        type: "checkbox",
+    });
+    (__VLS_ctx.cleaningEnabled);
+    __VLS_asFunctionalElement(__VLS_intrinsicElements.span, __VLS_intrinsicElements.span)({});
 }
 __VLS_asFunctionalElement(__VLS_intrinsicElements.div, __VLS_intrinsicElements.div)({
     ...{ class: "actions" },
@@ -317,8 +367,18 @@ for (const [item] of __VLS_getVForSourceType((__VLS_ctx.documents))) {
     (item.source);
     __VLS_asFunctionalElement(__VLS_intrinsicElements.p, __VLS_intrinsicElements.p)({});
     (__VLS_ctx.parseMethodLabel(item.parseMethod || 'NATIVE'));
+    __VLS_asFunctionalElement(__VLS_intrinsicElements.p, __VLS_intrinsicElements.p)({});
+    (item.cleaningEnabled ? '已启用' : '未启用');
     __VLS_asFunctionalElement(__VLS_intrinsicElements.div, __VLS_intrinsicElements.div)({
         ...{ class: "doc-actions" },
+    });
+    __VLS_asFunctionalElement(__VLS_intrinsicElements.button, __VLS_intrinsicElements.button)({
+        ...{ onClick: (...[$event]) => {
+                __VLS_ctx.openDetail(item);
+            } },
+        ...{ class: "ghost-btn" },
+        type: "button",
+        disabled: (__VLS_ctx.busy),
     });
     __VLS_asFunctionalElement(__VLS_intrinsicElements.button, __VLS_intrinsicElements.button)({
         ...{ onClick: (...[$event]) => {
@@ -367,6 +427,104 @@ if (__VLS_ctx.notice) {
     });
     (__VLS_ctx.notice);
 }
+const __VLS_0 = {}.Teleport;
+/** @type {[typeof __VLS_components.Teleport, typeof __VLS_components.Teleport, ]} */ ;
+// @ts-ignore
+const __VLS_1 = __VLS_asFunctionalComponent(__VLS_0, new __VLS_0({
+    to: "body",
+}));
+const __VLS_2 = __VLS_1({
+    to: "body",
+}, ...__VLS_functionalComponentArgsRest(__VLS_1));
+__VLS_3.slots.default;
+if (__VLS_ctx.selectedDocument) {
+    __VLS_asFunctionalElement(__VLS_intrinsicElements.div, __VLS_intrinsicElements.div)({
+        ...{ class: "detail-panel" },
+        role: "dialog",
+        'aria-modal': "true",
+    });
+    __VLS_asFunctionalElement(__VLS_intrinsicElements.div, __VLS_intrinsicElements.div)({
+        ...{ class: "detail-modal card" },
+    });
+    __VLS_asFunctionalElement(__VLS_intrinsicElements.div, __VLS_intrinsicElements.div)({
+        ...{ class: "header-row" },
+    });
+    __VLS_asFunctionalElement(__VLS_intrinsicElements.div, __VLS_intrinsicElements.div)({});
+    __VLS_asFunctionalElement(__VLS_intrinsicElements.p, __VLS_intrinsicElements.p)({
+        ...{ class: "tag" },
+    });
+    __VLS_asFunctionalElement(__VLS_intrinsicElements.h3, __VLS_intrinsicElements.h3)({});
+    (__VLS_ctx.selectedDocument.title);
+    __VLS_asFunctionalElement(__VLS_intrinsicElements.button, __VLS_intrinsicElements.button)({
+        ...{ onClick: (__VLS_ctx.closeDetail) },
+        ...{ class: "ghost-btn" },
+        type: "button",
+    });
+    __VLS_asFunctionalElement(__VLS_intrinsicElements.div, __VLS_intrinsicElements.div)({
+        ...{ class: "detail-grid" },
+    });
+    __VLS_asFunctionalElement(__VLS_intrinsicElements.p, __VLS_intrinsicElements.p)({});
+    __VLS_asFunctionalElement(__VLS_intrinsicElements.strong, __VLS_intrinsicElements.strong)({});
+    __VLS_asFunctionalElement(__VLS_intrinsicElements.span, __VLS_intrinsicElements.span)({});
+    (__VLS_ctx.selectedDocument.source);
+    __VLS_asFunctionalElement(__VLS_intrinsicElements.p, __VLS_intrinsicElements.p)({});
+    __VLS_asFunctionalElement(__VLS_intrinsicElements.strong, __VLS_intrinsicElements.strong)({});
+    __VLS_asFunctionalElement(__VLS_intrinsicElements.span, __VLS_intrinsicElements.span)({});
+    (__VLS_ctx.importerLabel(__VLS_ctx.selectedDocument));
+    __VLS_asFunctionalElement(__VLS_intrinsicElements.p, __VLS_intrinsicElements.p)({});
+    __VLS_asFunctionalElement(__VLS_intrinsicElements.strong, __VLS_intrinsicElements.strong)({});
+    __VLS_asFunctionalElement(__VLS_intrinsicElements.span, __VLS_intrinsicElements.span)({});
+    (__VLS_ctx.formatDate(__VLS_ctx.selectedDocument.createdAt));
+    __VLS_asFunctionalElement(__VLS_intrinsicElements.p, __VLS_intrinsicElements.p)({});
+    __VLS_asFunctionalElement(__VLS_intrinsicElements.strong, __VLS_intrinsicElements.strong)({});
+    __VLS_asFunctionalElement(__VLS_intrinsicElements.span, __VLS_intrinsicElements.span)({});
+    (__VLS_ctx.parseMethodLabel(__VLS_ctx.selectedDocument.parseMethod || 'NATIVE'));
+    __VLS_asFunctionalElement(__VLS_intrinsicElements.p, __VLS_intrinsicElements.p)({});
+    __VLS_asFunctionalElement(__VLS_intrinsicElements.strong, __VLS_intrinsicElements.strong)({});
+    __VLS_asFunctionalElement(__VLS_intrinsicElements.span, __VLS_intrinsicElements.span)({});
+    (__VLS_ctx.selectedDocument.status);
+    (__VLS_ctx.selectedDocument.indexStatus);
+    (__VLS_ctx.selectedDocument.parseStatus || 'COMPLETED');
+    __VLS_asFunctionalElement(__VLS_intrinsicElements.div, __VLS_intrinsicElements.div)({
+        ...{ class: "actions" },
+    });
+    __VLS_asFunctionalElement(__VLS_intrinsicElements.button, __VLS_intrinsicElements.button)({
+        ...{ onClick: (...[$event]) => {
+                if (!(__VLS_ctx.selectedDocument))
+                    return;
+                __VLS_ctx.openDocumentAsset(__VLS_ctx.selectedDocument, 'origin');
+            } },
+        ...{ class: "primary-btn" },
+        type: "button",
+        disabled: (!__VLS_ctx.selectedDocument.documentUrl),
+    });
+    __VLS_asFunctionalElement(__VLS_intrinsicElements.button, __VLS_intrinsicElements.button)({
+        ...{ onClick: (...[$event]) => {
+                if (!(__VLS_ctx.selectedDocument))
+                    return;
+                __VLS_ctx.openDocumentAsset(__VLS_ctx.selectedDocument, 'full.md');
+            } },
+        ...{ class: "ghost-btn" },
+        type: "button",
+        disabled: (!__VLS_ctx.selectedDocument.documentUrl),
+    });
+    __VLS_asFunctionalElement(__VLS_intrinsicElements.button, __VLS_intrinsicElements.button)({
+        ...{ onClick: (...[$event]) => {
+                if (!(__VLS_ctx.selectedDocument))
+                    return;
+                __VLS_ctx.openDocumentAsset(__VLS_ctx.selectedDocument, 'content_list_v2.json');
+            } },
+        ...{ class: "ghost-btn" },
+        type: "button",
+        disabled: (!__VLS_ctx.selectedDocument.documentUrl),
+    });
+    if (!__VLS_ctx.selectedDocument.documentUrl) {
+        __VLS_asFunctionalElement(__VLS_intrinsicElements.p, __VLS_intrinsicElements.p)({
+            ...{ class: "note" },
+        });
+    }
+}
+var __VLS_3;
 /** @type {__VLS_StyleScopedClasses['knowledge-grid']} */ ;
 /** @type {__VLS_StyleScopedClasses['card']} */ ;
 /** @type {__VLS_StyleScopedClasses['panel']} */ ;
@@ -375,6 +533,9 @@ if (__VLS_ctx.notice) {
 /** @type {__VLS_StyleScopedClasses['grid']} */ ;
 /** @type {__VLS_StyleScopedClasses['form-grid']} */ ;
 /** @type {__VLS_StyleScopedClasses['console-select']} */ ;
+/** @type {__VLS_StyleScopedClasses['selection-row']} */ ;
+/** @type {__VLS_StyleScopedClasses['selection-chip']} */ ;
+/** @type {__VLS_StyleScopedClasses['selection-chip--soft']} */ ;
 /** @type {__VLS_StyleScopedClasses['actions']} */ ;
 /** @type {__VLS_StyleScopedClasses['primary-btn']} */ ;
 /** @type {__VLS_StyleScopedClasses['note']} */ ;
@@ -398,10 +559,23 @@ if (__VLS_ctx.notice) {
 /** @type {__VLS_StyleScopedClasses['doc-actions']} */ ;
 /** @type {__VLS_StyleScopedClasses['ghost-btn']} */ ;
 /** @type {__VLS_StyleScopedClasses['ghost-btn']} */ ;
+/** @type {__VLS_StyleScopedClasses['ghost-btn']} */ ;
 /** @type {__VLS_StyleScopedClasses['warn-btn']} */ ;
 /** @type {__VLS_StyleScopedClasses['note']} */ ;
 /** @type {__VLS_StyleScopedClasses['note']} */ ;
 /** @type {__VLS_StyleScopedClasses['notice']} */ ;
+/** @type {__VLS_StyleScopedClasses['detail-panel']} */ ;
+/** @type {__VLS_StyleScopedClasses['detail-modal']} */ ;
+/** @type {__VLS_StyleScopedClasses['card']} */ ;
+/** @type {__VLS_StyleScopedClasses['header-row']} */ ;
+/** @type {__VLS_StyleScopedClasses['tag']} */ ;
+/** @type {__VLS_StyleScopedClasses['ghost-btn']} */ ;
+/** @type {__VLS_StyleScopedClasses['detail-grid']} */ ;
+/** @type {__VLS_StyleScopedClasses['actions']} */ ;
+/** @type {__VLS_StyleScopedClasses['primary-btn']} */ ;
+/** @type {__VLS_StyleScopedClasses['ghost-btn']} */ ;
+/** @type {__VLS_StyleScopedClasses['ghost-btn']} */ ;
+/** @type {__VLS_StyleScopedClasses['note']} */ ;
 var __VLS_dollars;
 const __VLS_self = (await import('vue')).defineComponent({
     setup() {
@@ -413,11 +587,14 @@ const __VLS_self = (await import('vue')).defineComponent({
             parseMethod: parseMethod,
             parseMethods: parseMethods,
             maxUploadDocuments: maxUploadDocuments,
+            cleaningAvailable: cleaningAvailable,
+            cleaningEnabled: cleaningEnabled,
             busy: busy,
             qaIndexScope: qaIndexScope,
             qaIndexScopes: qaIndexScopes,
             nativeIndexName: nativeIndexName,
             mineruIndexName: mineruIndexName,
+            selectedDocument: selectedDocument,
             refresh: refresh,
             saveQaIndexConfig: saveQaIndexConfig,
             onSelectFile: onSelectFile,
@@ -427,6 +604,11 @@ const __VLS_self = (await import('vue')).defineComponent({
             parseMethodLabel: parseMethodLabel,
             qaIndexScopeLabel: qaIndexScopeLabel,
             remove: remove,
+            openDetail: openDetail,
+            closeDetail: closeDetail,
+            openDocumentAsset: openDocumentAsset,
+            importerLabel: importerLabel,
+            formatDate: formatDate,
         };
     },
 });

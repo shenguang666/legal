@@ -120,6 +120,7 @@
             <p v-if="item.documentParseFailureReason" class="note">解析失败：{{ item.documentParseFailureReason }}</p>
             <p v-if="item.ruleContent" class="evidence">{{ item.ruleContent }}</p>
             <div class="item-actions">
+              <button class="ghost-btn" type="button" :disabled="!item.documentId" @click="openDetail(item)">查看详情</button>
               <button class="ghost-btn" type="button" @click="toggleRule(item)">{{ item.enabled ? '停用' : '启用' }}</button>
               <button class="ghost-btn" type="button" :disabled="!item.documentId" @click="reindexRule(item)">重建索引</button>
               <button class="warn-btn" type="button" @click="deleteRule(item)">删除</button>
@@ -130,6 +131,33 @@
         <p v-if="notice" class="notice">{{ notice }}</p>
       </article>
     </div>
+
+    <Teleport to="body">
+      <div v-if="selectedRule" class="detail-panel" role="dialog" aria-modal="true">
+        <div class="detail-modal card">
+          <div class="header-row">
+            <div>
+              <p class="tag">文档详情</p>
+              <h3>{{ selectedRule.documentTitle || selectedRule.ruleName }}</h3>
+            </div>
+            <button class="ghost-btn" type="button" @click="closeDetail">关闭</button>
+          </div>
+          <div class="detail-grid">
+            <p><strong>来源</strong><span>{{ selectedRule.documentSource || '-' }}</span></p>
+            <p><strong>导入人</strong><span>{{ importerLabel(selectedRule) }}</span></p>
+            <p><strong>导入时间</strong><span>{{ formatDate(selectedRule.documentCreatedAt || selectedRule.createdAt) }}</span></p>
+            <p><strong>解析方式</strong><span>{{ parseMethodLabel(selectedRule.documentParseMethod || 'NATIVE') }}</span></p>
+            <p><strong>状态</strong><span>{{ selectedRule.documentStatus || '-' }} / {{ selectedRule.documentIndexStatus || '-' }} / {{ selectedRule.documentParseStatus || 'COMPLETED' }}</span></p>
+          </div>
+          <div class="actions">
+            <button class="primary-btn" type="button" :disabled="!selectedRule.documentUrl" @click="openDocumentAsset(selectedRule, 'origin')">查看原文档</button>
+            <button class="ghost-btn" type="button" :disabled="!selectedRule.documentUrl" @click="openDocumentAsset(selectedRule, 'full.md')">下载 Markdown 解析结果</button>
+            <button class="ghost-btn" type="button" :disabled="!selectedRule.documentUrl" @click="openDocumentAsset(selectedRule, 'content_list_v2.json')">下载 JSON 解析结果</button>
+          </div>
+          <p v-if="!selectedRule.documentUrl" class="note">当前文档暂未记录可访问原文档地址。</p>
+        </div>
+      </div>
+    </Teleport>
 
     <article class="card panel">
       <div class="header-row">
@@ -231,14 +259,20 @@ interface RiskRuleItem {
   enabled: boolean;
   hitThreshold?: number | null;
   documentId?: number | null;
+  documentOwnerUserId?: number | null;
+  documentOwnerUsername?: string | null;
   documentTitle?: string | null;
   documentSource?: string | null;
+  documentUrl?: string | null;
   documentStatus?: string | null;
   documentIndexStatus?: string | null;
   documentParseMethod?: string | null;
   documentParseStatus?: string | null;
   documentParseFailureReason?: string | null;
   ruleContent?: string | null;
+  documentCreatedAt?: string | null;
+  createdAt?: string;
+  updatedAt?: string;
 }
 
 interface DocumentProcessingCapabilities {
@@ -273,6 +307,7 @@ const parseMethods = ref<string[]>(['NATIVE']);
 const maxUploadDocuments = ref(1);
 const cleaningAvailable = ref(false);
 const cleaningEnabled = ref(false);
+const selectedRule = ref<RiskRuleItem | null>(null);
 
 const manualRuleName = ref('');
 const manualRuleCode = ref('');
@@ -410,6 +445,38 @@ async function deleteRule(item: RiskRuleItem) {
   await apiDelete(`/api/risk-rules/${item.ruleId}?requestId=${encodeURIComponent(randomRequestId('risk-rule-delete'))}`);
   notice.value = `风险规则 ${item.ruleCode} 已删除`;
   await refreshAll();
+}
+
+function openDetail(item: RiskRuleItem) {
+  selectedRule.value = item;
+}
+
+function closeDetail() {
+  selectedRule.value = null;
+}
+
+async function openDocumentAsset(item: RiskRuleItem, fileName: string) {
+  if (!item.documentUrl || !item.documentId) {
+    notice.value = '当前文档暂未记录可访问原文档地址';
+    return;
+  }
+  try {
+    const signedUrl = await apiGet<string>(`/api/document-assets/${item.documentId}/${encodeURIComponent(fileName)}`);
+    window.open(signedUrl, '_blank', 'noopener,noreferrer');
+  } catch (err: any) {
+    notice.value = err?.message || '获取文档下载地址失败';
+  }
+}
+
+function importerLabel(item: RiskRuleItem) {
+  return item.documentOwnerUsername || (item.documentOwnerUserId ? `用户-${item.documentOwnerUserId}` : '-');
+}
+
+function formatDate(value?: string | null) {
+  if (!value) {
+    return '-';
+  }
+  return new Date(value).toLocaleString();
 }
 
 function resetFieldForm() {
@@ -583,6 +650,37 @@ async function deleteField(item: FieldDefinitionItem) {
   color: var(--ink-soft);
   font-size: 0.86rem;
   white-space: pre-wrap;
+}
+
+.detail-panel {
+  position: fixed;
+  inset: 0;
+  z-index: 9999;
+  display: grid;
+  place-items: center;
+  padding: 1rem;
+  background: rgba(19, 28, 23, 0.46);
+  backdrop-filter: blur(6px);
+}
+
+.detail-modal {
+  width: min(560px, 100%);
+  padding: 1rem;
+}
+
+.detail-grid {
+  display: grid;
+  gap: 0.55rem;
+  margin-top: 0.8rem;
+}
+
+.detail-grid p {
+  display: grid;
+  grid-template-columns: 5.5rem 1fr;
+  gap: 0.75rem;
+  margin: 0;
+  color: var(--ink-soft);
+  overflow-wrap: anywhere;
 }
 
 @media (max-width: 980px) {

@@ -76,6 +76,7 @@
           <p>解析方式：{{ parseMethodLabel(item.parseMethod || 'NATIVE') }}</p>
           <p>文档清洗：{{ item.cleaningEnabled ? '已启用' : '未启用' }}</p>
           <div class="doc-actions">
+            <button class="ghost-btn" type="button" :disabled="busy" @click="openDetail(item)">查看详情</button>
             <button class="ghost-btn" type="button" :disabled="busy" @click="triggerIndex(item.documentId)">触发索引</button>
             <button v-if="item.parseStatus === 'FAILED'" class="ghost-btn" type="button" :disabled="busy" @click="retryParse(item.documentId)">重试解析</button>
             <button class="warn-btn" type="button" :disabled="busy" @click="remove(item.documentId)">删除</button>
@@ -86,6 +87,33 @@
       <p v-if="!documents.length" class="note">暂无文档，请先创建一条记录。</p>
       <p v-if="notice" class="notice" aria-live="polite">{{ notice }}</p>
     </article>
+
+    <Teleport to="body">
+      <div v-if="selectedDocument" class="detail-panel" role="dialog" aria-modal="true">
+        <div class="detail-modal card">
+          <div class="header-row">
+            <div>
+              <p class="tag">文档详情</p>
+              <h3>{{ selectedDocument.title }}</h3>
+            </div>
+            <button class="ghost-btn" type="button" @click="closeDetail">关闭</button>
+          </div>
+          <div class="detail-grid">
+            <p><strong>来源</strong><span>{{ selectedDocument.source }}</span></p>
+            <p><strong>导入人</strong><span>{{ importerLabel(selectedDocument) }}</span></p>
+            <p><strong>导入时间</strong><span>{{ formatDate(selectedDocument.createdAt) }}</span></p>
+            <p><strong>解析方式</strong><span>{{ parseMethodLabel(selectedDocument.parseMethod || 'NATIVE') }}</span></p>
+            <p><strong>状态</strong><span>{{ selectedDocument.status }} / {{ selectedDocument.indexStatus }} / {{ selectedDocument.parseStatus || 'COMPLETED' }}</span></p>
+          </div>
+          <div class="actions">
+            <button class="primary-btn" type="button" :disabled="!selectedDocument.documentUrl" @click="openDocumentAsset(selectedDocument, 'origin')">查看原文档</button>
+            <button class="ghost-btn" type="button" :disabled="!selectedDocument.documentUrl" @click="openDocumentAsset(selectedDocument, 'full.md')">下载 Markdown 解析结果</button>
+            <button class="ghost-btn" type="button" :disabled="!selectedDocument.documentUrl" @click="openDocumentAsset(selectedDocument, 'content_list_v2.json')">下载 JSON 解析结果</button>
+          </div>
+          <p v-if="!selectedDocument.documentUrl" class="note">当前文档暂未记录可访问原文档地址。</p>
+        </div>
+      </div>
+    </Teleport>
   </section>
 </template>
 
@@ -95,6 +123,8 @@ import { apiDelete, apiGet, apiPost, apiPostForm, randomRequestId } from '../api
 
 interface DocumentItem {
   documentId: number;
+  ownerUserId?: number;
+  ownerUsername?: string | null;
   title: string;
   source: string;
   status: string;
@@ -103,6 +133,9 @@ interface DocumentItem {
   parseStatus?: string;
   parseFailureReason?: string;
   cleaningEnabled?: boolean;
+  documentUrl?: string | null;
+  createdAt?: string;
+  updatedAt?: string;
 }
 
 interface DocumentProcessingCapabilities {
@@ -134,6 +167,7 @@ const qaIndexScope = ref('NATIVE_ONLY');
 const qaIndexScopes = ref<string[]>(['NATIVE_ONLY', 'MINERU_ONLY', 'BOTH']);
 const nativeIndexName = ref('');
 const mineruIndexName = ref('');
+const selectedDocument = ref<DocumentItem | null>(null);
 
 onMounted(async () => {
   await loadCapabilities();
@@ -284,6 +318,38 @@ async function remove(documentId: number) {
     busy.value = false;
   }
 }
+
+function openDetail(item: DocumentItem) {
+  selectedDocument.value = item;
+}
+
+function closeDetail() {
+  selectedDocument.value = null;
+}
+
+async function openDocumentAsset(item: DocumentItem, fileName: string) {
+  if (!item.documentUrl) {
+    notice.value = '当前文档暂未记录可访问原文档地址';
+    return;
+  }
+  try {
+    const signedUrl = await apiGet<string>(`/api/document-assets/${item.documentId}/${encodeURIComponent(fileName)}`);
+    window.open(signedUrl, '_blank', 'noopener,noreferrer');
+  } catch (err: any) {
+    notice.value = err?.message || '获取文档下载地址失败';
+  }
+}
+
+function importerLabel(item: DocumentItem) {
+  return item.ownerUsername || (item.ownerUserId ? `用户-${item.ownerUserId}` : '-');
+}
+
+function formatDate(value?: string) {
+  if (!value) {
+    return '-';
+  }
+  return new Date(value).toLocaleString();
+}
 </script>
 
 <style scoped>
@@ -363,6 +429,7 @@ async function remove(documentId: number) {
   margin-top: 0.55rem;
   display: flex;
   gap: 0.45rem;
+  flex-wrap: wrap;
 }
 
 .notice {
@@ -370,6 +437,37 @@ async function remove(documentId: number) {
   color: var(--ink-soft);
   border-left: 3px solid var(--brass);
   padding-left: 0.6rem;
+}
+
+.detail-panel {
+  position: fixed;
+  inset: 0;
+  z-index: 9999;
+  display: grid;
+  place-items: center;
+  padding: 1rem;
+  background: rgba(19, 28, 23, 0.46);
+  backdrop-filter: blur(6px);
+}
+
+.detail-modal {
+  width: min(560px, 100%);
+  padding: 1rem;
+}
+
+.detail-grid {
+  display: grid;
+  gap: 0.55rem;
+  margin-top: 0.8rem;
+}
+
+.detail-grid p {
+  display: grid;
+  grid-template-columns: 5.5rem 1fr;
+  gap: 0.75rem;
+  margin: 0;
+  color: var(--ink-soft);
+  overflow-wrap: anywhere;
 }
 
 @media (max-width: 980px) {

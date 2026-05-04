@@ -48,6 +48,7 @@ public class KnowledgeService {
     private final ElasticsearchChunkStore elasticsearchChunkStore;
     private final DocumentImportService documentImportService;
     private final DocumentParseTaskService documentParseTaskService;
+    private final MineruImageAssetCleanupService mineruImageAssetCleanupService;
     private final ElasticsearchProperties elasticsearchProperties;
 
     public KnowledgeService(KbDocumentMapper kbDocumentMapper,
@@ -59,6 +60,7 @@ public class KnowledgeService {
                             ElasticsearchChunkStore elasticsearchChunkStore,
                             DocumentImportService documentImportService,
                             DocumentParseTaskService documentParseTaskService,
+                            MineruImageAssetCleanupService mineruImageAssetCleanupService,
                             ElasticsearchProperties elasticsearchProperties) {
         this.kbDocumentMapper = kbDocumentMapper;
         this.kbChunkMapper = kbChunkMapper;
@@ -69,6 +71,7 @@ public class KnowledgeService {
         this.elasticsearchChunkStore = elasticsearchChunkStore;
         this.documentImportService = documentImportService;
         this.documentParseTaskService = documentParseTaskService;
+        this.mineruImageAssetCleanupService = mineruImageAssetCleanupService;
         this.elasticsearchProperties = elasticsearchProperties;
     }
 
@@ -260,6 +263,7 @@ public class KnowledgeService {
         document.setUpdatedAt(LocalDateTime.now());
         kbDocumentMapper.updateById(document);
 
+        mineruImageAssetCleanupService.cleanupDeletedDocument(principal.tenantId(), documentId);
         kbChunkMapper.deleteByDocument(principal.tenantId(), documentId);
         elasticsearchChunkStore.deleteByDocument(principal.tenantId(), documentId, elasticsearchProperties.getIndex().getKbChunks());
         elasticsearchChunkStore.deleteByDocument(principal.tenantId(), documentId, elasticsearchProperties.getIndex().getKbChunksMineru());
@@ -367,6 +371,8 @@ public class KnowledgeService {
     private DocumentDto toDto(KbDocumentEntity entity) {
         DocumentDto dto = new DocumentDto();
         dto.setDocumentId(entity.getDocumentId());
+        dto.setOwnerUserId(entity.getOwnerUserId());
+        dto.setOwnerUsername(entity.getOwnerUsername());
         dto.setTitle(entity.getTitle());
         dto.setSource(entity.getSource());
         dto.setBizType(entity.getBizType() == null ? null : entity.getBizType().getCode());
@@ -376,6 +382,7 @@ public class KnowledgeService {
         dto.setParseStatus(entity.getParseStatus() == null ? null : entity.getParseStatus().getCode());
         dto.setParseFailureReason(entity.getParseFailureReason());
         dto.setCleaningEnabled(Boolean.TRUE.equals(entity.getCleaningEnabled()));
+        dto.setDocumentUrl(entity.getDocumentUrl());
         dto.setCreatedAt(entity.getCreatedAt());
         dto.setUpdatedAt(entity.getUpdatedAt());
         return dto;

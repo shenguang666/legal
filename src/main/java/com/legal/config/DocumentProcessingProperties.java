@@ -5,6 +5,8 @@ import lombok.Data;
 import org.springframework.boot.context.properties.ConfigurationProperties;
 
 import java.time.Duration;
+import java.util.ArrayList;
+import java.util.List;
 
 /**
  * 文档解析与上传处理配置。
@@ -129,6 +131,12 @@ public class DocumentProcessingProperties {
         /** MinerU Markdown 相邻短语义块合并时的目标最小字符数，独立于原生解析切片大小。 */
         private int minChunkSize = 180;
 
+        /** MinerU 结果包图片资产处理配置。 */
+        private ImageAsset imageAsset = new ImageAsset();
+
+        /** MinerU 图片图生文描述配置。 */
+        private ImageCaption imageCaption = new ImageCaption();
+
         /** MinerU HTTP 连接超时时间。 */
         private Duration connectTimeout = Duration.ofSeconds(10);
 
@@ -140,6 +148,62 @@ public class DocumentProcessingProperties {
 
         /** MinerU 解析结果轮询间隔。 */
         private Duration pollInterval = Duration.ofSeconds(3);
+    }
+
+    /**
+     * MinerU 图片资产处理配置。
+     */
+    @Data
+    public static class ImageAsset {
+
+        /** 是否启用 MinerU 结果包图片资产处理。 */
+        private boolean enabled = true;
+
+        /** 单个文档最多处理的图片数量。 */
+        private int maxImagesPerDocument = 50;
+
+        /** 单张图片允许的最大字节数。 */
+        private long maxImageBytes = 5 * 1024 * 1024L;
+
+        /** 单个文档图片允许的最大总字节数。 */
+        private long maxTotalImageBytes = 50 * 1024 * 1024L;
+
+        /** 允许处理的图片扩展名列表。 */
+        private List<String> supportedExtensions = new ArrayList<>(List.of("jpg", "jpeg", "png", "webp"));
+
+        /** 图片增强失败时是否降级继续解析 Markdown 文本。 */
+        private boolean continueOnFailure = true;
+
+        /** 被视为装饰图的最小图片字节数，小于该值会跳过图生文。 */
+        private long minMeaningfulImageBytes = 2048L;
+    }
+
+    /**
+     * MinerU 图片图生文描述配置。
+     */
+    @Data
+    public static class ImageCaption {
+
+        /** 是否启用 MinerU 图片图生文描述。 */
+        private boolean enabled = true;
+
+        /** 图生文模型 OpenAI 兼容接口地址。 */
+        private String baseUrl = "https://dashscope.aliyuncs.com/compatible-mode/v1";
+
+        /** 图生文模型 API Key。 */
+        private String apiKey;
+
+        /** 图生文模型名称。 */
+        private String modelName = "qwen3.5-omni-plus";
+
+        /** 图生文模型调用超时时间。 */
+        private Duration timeout = Duration.ofSeconds(60);
+
+        /** 单张图片描述最大输出 Token 数。 */
+        private Integer maxOutputTokens = 256;
+
+        /** 单个文档最多调用图生文模型处理的图片数量。 */
+        private int maxImagesPerDocument = 50;
     }
 
     /**

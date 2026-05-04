@@ -89,7 +89,7 @@ public class ElasticsearchChunkStore {
                 )
         );
         restClient.post()
-                .uri("/" + indexName + "/_delete_by_query")
+                .uri("/" + indexName + "/_delete_by_query?conflicts=proceed")
                 .body(body)
                 .retrieve()
                 .toBodilessEntity();
@@ -122,34 +122,6 @@ public class ElasticsearchChunkStore {
             }
             throw new AppException(50013, 500, "删除 Elasticsearch 索引失败: " + summarizeError(ex.getResponseBodyAsString()));
         }
-    }
-
-    public List<ChunkSearchHit> hybridSearch(Long tenantId,
-                                             String question,
-                                             List<Float> questionVector,
-                                             int topK) {
-        if (!isEnabled()) {
-            return List.of();
-        }
-        ensureIndex(properties.getIndex().getKbChunks());
-
-        List<ChunkSearchHit> vectorHits = vectorSearch(tenantId, questionVector);
-        List<ChunkSearchHit> bm25Hits = bm25Search(tenantId, question);
-        return rrfMerge(vectorHits, bm25Hits, properties.getSearch().getRrfK(), topK);
-    }
-
-    /**
-     * RRF 混合检索：向量(kNN) + 关键词(BM25)。
-     *
-     * @param minVectorSimilarity 向量召回最小相似度阈值（基于 ES _score），低于阈值的向量命中会被丢弃。
-     * @param topK 返回最多 topK 条（不会强制补齐）。
-     */
-    public List<ChunkSearchHit> hybridSearchRrf(Long tenantId,
-                                                String question,
-                                                List<Float> questionVector,
-                                                double minVectorSimilarity,
-                                                int topK) {
-        return hybridSearchRrf(tenantId, question, questionVector, minVectorSimilarity, topK, List.of(properties.getIndex().getKbChunks()));
     }
 
     public List<ChunkSearchHit> hybridSearchRrf(Long tenantId,
@@ -203,11 +175,6 @@ public class ElasticsearchChunkStore {
         return doVectorSearch(tenantId, questionVector, safeTopK, indexName);
     }
 
-    private List<ChunkSearchHit> vectorSearch(Long tenantId, List<Float> questionVector) {
-        int vectorTopK = Math.max(1, properties.getSearch().getVectorTopK());
-        return doVectorSearch(tenantId, questionVector, vectorTopK, properties.getIndex().getKbChunks());
-    }
-
     private List<ChunkSearchHit> vectorSearch(Long tenantId, List<Float> questionVector, String indexName) {
         int vectorTopK = Math.max(1, properties.getSearch().getVectorTopK());
         return doVectorSearch(tenantId, questionVector, vectorTopK, indexName);
@@ -235,10 +202,6 @@ public class ElasticsearchChunkStore {
                 .retrieve()
                 .body(JsonNode.class);
         return parseHits(response);
-    }
-
-    private List<ChunkSearchHit> bm25Search(Long tenantId, String question) {
-        return bm25Search(tenantId, question, properties.getIndex().getKbChunks());
     }
 
     private List<ChunkSearchHit> bm25Search(Long tenantId, String question, String indexName) {

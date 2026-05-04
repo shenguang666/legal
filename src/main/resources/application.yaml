@@ -162,6 +162,27 @@ token:
 
 # 记忆管理配置（agent 上下文记忆：短期/摘要/长期）。
 legal:
+  # 文档图片等资产的对象存储配置。
+  storage:
+    # 阿里云 OSS 文档资产存储配置。
+    oss:
+      # 是否启用阿里云 OSS 文档资产上传能力。
+      enabled: ${LEGAL_OSS_ENABLED:true}
+      # OSS 区域标识，例如 cn-hangzhou。
+      region: ${LEGAL_OSS_REGION:cn-guangzhou}
+      # OSS 访问端点，例如 https://oss-cn-hangzhou.aliyuncs.com。
+      endpoint: ${LEGAL_OSS_ENDPOINT:oss-cn-guangzhou.aliyuncs.com}
+      # OSS Bucket 名称。
+      bucket: ${LEGAL_OSS_BUCKET:web-legal}
+      # 项目自定义 OSS AccessKey ID。
+      access-key-id: ${LEGAL_OSS_ACCESS_KEY_ID:LTAI5tKkYN8zGDnwbfy8bSSZ}
+      # 项目自定义 OSS AccessKey Secret。
+      access-key-secret: ${LEGAL_OSS_ACCESS_KEY_SECRET:9wDKe8Xo7GvMfB0LFovoJkHESKdc2i}
+      # OSS 公开访问域名，为空时通过后端生成私有签名 URL。
+      public-base-url: ${LEGAL_OSS_PUBLIC_BASE_URL:}
+      # 私有 Bucket 图片访问签名 URL 有效期。
+      presigned-url-expiration: ${LEGAL_OSS_PRESIGNED_URL_EXPIRATION:1h}
+
   # 文档上传、解析方式选择和语义切片配置。
   document-processing:
     # 未显式选择解析方式时使用的默认解析方式，支持 NATIVE 和 MINERU_PRECISE。
@@ -226,6 +247,38 @@ legal:
       chunk-size: ${LEGAL_MINERU_CHUNK_SIZE:800}
       # MinerU Markdown 相邻短语义块合并时的目标最小字符数，独立于原生解析切片大小。
       min-chunk-size: ${LEGAL_MINERU_MIN_CHUNK_SIZE:180}
+      # MinerU 结果包图片资产处理配置。
+      image-asset:
+        # 是否启用 MinerU 结果包图片资产处理。
+        enabled: ${LEGAL_MINERU_IMAGE_ASSET_ENABLED:true}
+        # 单个文档最多处理的图片数量。
+        max-images-per-document: ${LEGAL_MINERU_IMAGE_ASSET_MAX_IMAGES_PER_DOCUMENT:50}
+        # 单张图片允许的最大字节数。
+        max-image-bytes: ${LEGAL_MINERU_IMAGE_ASSET_MAX_IMAGE_BYTES:5242880}
+        # 单个文档图片允许的最大总字节数。
+        max-total-image-bytes: ${LEGAL_MINERU_IMAGE_ASSET_MAX_TOTAL_IMAGE_BYTES:52428800}
+        # 允许处理的图片扩展名列表。
+        supported-extensions: ${LEGAL_MINERU_IMAGE_ASSET_SUPPORTED_EXTENSIONS:jpg,jpeg,png,webp}
+        # 图片增强失败时是否降级继续解析 Markdown 文本。
+        continue-on-failure: ${LEGAL_MINERU_IMAGE_ASSET_CONTINUE_ON_FAILURE:true}
+        # 被视为装饰图的最小图片字节数，小于该值会跳过图生文。
+        min-meaningful-image-bytes: ${LEGAL_MINERU_IMAGE_ASSET_MIN_MEANINGFUL_IMAGE_BYTES:2048}
+      # MinerU 图片图生文描述配置。
+      image-caption:
+        # 是否启用 MinerU 图片图生文描述。
+        enabled: ${LEGAL_MINERU_IMAGE_CAPTION_ENABLED:true}
+        # 图生文模型 OpenAI 兼容接口地址。
+        base-url: ${LEGAL_MINERU_IMAGE_CAPTION_BASE_URL:${LEGAL_LLM_BASE_URL:https://dashscope.aliyuncs.com/compatible-mode/v1}}
+        # 图生文模型 API Key，默认复用在线问答模型 API Key。
+        api-key: ${LEGAL_MINERU_IMAGE_CAPTION_API_KEY:${LEGAL_LLM_API_KEY:}}
+        # 图生文模型名称。
+        model-name: ${LEGAL_MINERU_IMAGE_CAPTION_MODEL:qwen3.5-omni-plus}
+        # 图生文模型调用超时时间。
+        timeout: ${LEGAL_MINERU_IMAGE_CAPTION_TIMEOUT:60s}
+        # 单张图片描述最大输出 Token 数。
+        max-output-tokens: ${LEGAL_MINERU_IMAGE_CAPTION_MAX_OUTPUT_TOKENS:256}
+        # 单个文档最多调用图生文模型处理的图片数量。
+        max-images-per-document: ${LEGAL_MINERU_IMAGE_CAPTION_MAX_IMAGES_PER_DOCUMENT:50}
       # MinerU HTTP 连接超时时间。
       connect-timeout: ${LEGAL_MINERU_CONNECT_TIMEOUT:10s}
       # MinerU HTTP 读取超时时间。

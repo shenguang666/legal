@@ -7,6 +7,9 @@ const notice = ref('');
 const parseMethod = ref('NATIVE');
 const parseMethods = ref(['NATIVE']);
 const maxUploadDocuments = ref(1);
+const cleaningAvailable = ref(false);
+const cleaningEnabled = ref(false);
+const selectedRule = ref(null);
 const manualRuleName = ref('');
 const manualRuleCode = ref('');
 const manualSource = ref('');
@@ -39,6 +42,8 @@ async function loadCapabilities() {
     parseMethods.value = capabilities.availableParseMethods?.length ? capabilities.availableParseMethods : ['NATIVE'];
     parseMethod.value = capabilities.defaultParseMethod || parseMethods.value[0];
     maxUploadDocuments.value = capabilities.maxUploadDocuments || 1;
+    cleaningAvailable.value = Boolean(capabilities.cleaningAvailable);
+    cleaningEnabled.value = false;
 }
 async function refreshAll() {
     rules.value = await apiGet('/api/risk-rules/entries');
@@ -94,6 +99,7 @@ async function importRuleDocument() {
     formData.append('severity', importSeverity.value);
     formData.append('hitThreshold', String(importHitThreshold.value));
     formData.append('parseMethod', parseMethod.value);
+    formData.append('cleaningEnabled', String(cleaningAvailable.value && cleaningEnabled.value));
     await apiPostForm('/api/risk-rules/import', formData);
     importTitle.value = '';
     importRuleName.value = '';
@@ -101,6 +107,7 @@ async function importRuleDocument() {
     importSource.value = '';
     importSeverity.value = 'MEDIUM';
     importHitThreshold.value = 0.78;
+    cleaningEnabled.value = false;
     selectedFile.value = null;
     notice.value = parseMethod.value === 'MINERU_PRECISE' ? '风险规则文件已导入，MinerU 精准解析完成后会自动投递索引' : '风险规则文件已导入，规则元数据与 ES 索引已同步创建';
     await refreshAll();
@@ -131,6 +138,34 @@ async function deleteRule(item) {
     await apiDelete(`/api/risk-rules/${item.ruleId}?requestId=${encodeURIComponent(randomRequestId('risk-rule-delete'))}`);
     notice.value = `风险规则 ${item.ruleCode} 已删除`;
     await refreshAll();
+}
+function openDetail(item) {
+    selectedRule.value = item;
+}
+function closeDetail() {
+    selectedRule.value = null;
+}
+async function openDocumentAsset(item, fileName) {
+    if (!item.documentUrl || !item.documentId) {
+        notice.value = '当前文档暂未记录可访问原文档地址';
+        return;
+    }
+    try {
+        const signedUrl = await apiGet(`/api/document-assets/${item.documentId}/${encodeURIComponent(fileName)}`);
+        window.open(signedUrl, '_blank', 'noopener,noreferrer');
+    }
+    catch (err) {
+        notice.value = err?.message || '获取文档下载地址失败';
+    }
+}
+function importerLabel(item) {
+    return item.documentOwnerUsername || (item.documentOwnerUserId ? `用户-${item.documentOwnerUserId}` : '-');
+}
+function formatDate(value) {
+    if (!value) {
+        return '-';
+    }
+    return new Date(value).toLocaleString();
 }
 function resetFieldForm() {
     editingFieldId.value = null;
@@ -208,6 +243,7 @@ const __VLS_ctx = {};
 let __VLS_components;
 let __VLS_directives;
 /** @type {__VLS_StyleScopedClasses['item-top']} */ ;
+/** @type {__VLS_StyleScopedClasses['detail-grid']} */ ;
 /** @type {__VLS_StyleScopedClasses['top-grid']} */ ;
 /** @type {__VLS_StyleScopedClasses['form-grid']} */ ;
 /** @type {__VLS_StyleScopedClasses['field-grid']} */ ;
@@ -367,6 +403,20 @@ for (const [method] of __VLS_getVForSourceType((__VLS_ctx.parseMethods))) {
     });
     (__VLS_ctx.parseMethodLabel(method));
 }
+if (__VLS_ctx.cleaningAvailable) {
+    __VLS_asFunctionalElement(__VLS_intrinsicElements.div, __VLS_intrinsicElements.div)({
+        ...{ class: "selection-row" },
+    });
+    __VLS_asFunctionalElement(__VLS_intrinsicElements.label, __VLS_intrinsicElements.label)({
+        ...{ class: "selection-chip selection-chip--soft" },
+        ...{ class: ({ 'selection-chip--active': __VLS_ctx.cleaningEnabled }) },
+    });
+    __VLS_asFunctionalElement(__VLS_intrinsicElements.input)({
+        type: "checkbox",
+    });
+    (__VLS_ctx.cleaningEnabled);
+    __VLS_asFunctionalElement(__VLS_intrinsicElements.span, __VLS_intrinsicElements.span)({});
+}
 __VLS_asFunctionalElement(__VLS_intrinsicElements.p, __VLS_intrinsicElements.p)({
     ...{ class: "note" },
 });
@@ -449,6 +499,14 @@ for (const [item] of __VLS_getVForSourceType((__VLS_ctx.rules))) {
     });
     __VLS_asFunctionalElement(__VLS_intrinsicElements.button, __VLS_intrinsicElements.button)({
         ...{ onClick: (...[$event]) => {
+                __VLS_ctx.openDetail(item);
+            } },
+        ...{ class: "ghost-btn" },
+        type: "button",
+        disabled: (!item.documentId),
+    });
+    __VLS_asFunctionalElement(__VLS_intrinsicElements.button, __VLS_intrinsicElements.button)({
+        ...{ onClick: (...[$event]) => {
                 __VLS_ctx.toggleRule(item);
             } },
         ...{ class: "ghost-btn" },
@@ -482,6 +540,104 @@ if (__VLS_ctx.notice) {
     });
     (__VLS_ctx.notice);
 }
+const __VLS_0 = {}.Teleport;
+/** @type {[typeof __VLS_components.Teleport, typeof __VLS_components.Teleport, ]} */ ;
+// @ts-ignore
+const __VLS_1 = __VLS_asFunctionalComponent(__VLS_0, new __VLS_0({
+    to: "body",
+}));
+const __VLS_2 = __VLS_1({
+    to: "body",
+}, ...__VLS_functionalComponentArgsRest(__VLS_1));
+__VLS_3.slots.default;
+if (__VLS_ctx.selectedRule) {
+    __VLS_asFunctionalElement(__VLS_intrinsicElements.div, __VLS_intrinsicElements.div)({
+        ...{ class: "detail-panel" },
+        role: "dialog",
+        'aria-modal': "true",
+    });
+    __VLS_asFunctionalElement(__VLS_intrinsicElements.div, __VLS_intrinsicElements.div)({
+        ...{ class: "detail-modal card" },
+    });
+    __VLS_asFunctionalElement(__VLS_intrinsicElements.div, __VLS_intrinsicElements.div)({
+        ...{ class: "header-row" },
+    });
+    __VLS_asFunctionalElement(__VLS_intrinsicElements.div, __VLS_intrinsicElements.div)({});
+    __VLS_asFunctionalElement(__VLS_intrinsicElements.p, __VLS_intrinsicElements.p)({
+        ...{ class: "tag" },
+    });
+    __VLS_asFunctionalElement(__VLS_intrinsicElements.h3, __VLS_intrinsicElements.h3)({});
+    (__VLS_ctx.selectedRule.documentTitle || __VLS_ctx.selectedRule.ruleName);
+    __VLS_asFunctionalElement(__VLS_intrinsicElements.button, __VLS_intrinsicElements.button)({
+        ...{ onClick: (__VLS_ctx.closeDetail) },
+        ...{ class: "ghost-btn" },
+        type: "button",
+    });
+    __VLS_asFunctionalElement(__VLS_intrinsicElements.div, __VLS_intrinsicElements.div)({
+        ...{ class: "detail-grid" },
+    });
+    __VLS_asFunctionalElement(__VLS_intrinsicElements.p, __VLS_intrinsicElements.p)({});
+    __VLS_asFunctionalElement(__VLS_intrinsicElements.strong, __VLS_intrinsicElements.strong)({});
+    __VLS_asFunctionalElement(__VLS_intrinsicElements.span, __VLS_intrinsicElements.span)({});
+    (__VLS_ctx.selectedRule.documentSource || '-');
+    __VLS_asFunctionalElement(__VLS_intrinsicElements.p, __VLS_intrinsicElements.p)({});
+    __VLS_asFunctionalElement(__VLS_intrinsicElements.strong, __VLS_intrinsicElements.strong)({});
+    __VLS_asFunctionalElement(__VLS_intrinsicElements.span, __VLS_intrinsicElements.span)({});
+    (__VLS_ctx.importerLabel(__VLS_ctx.selectedRule));
+    __VLS_asFunctionalElement(__VLS_intrinsicElements.p, __VLS_intrinsicElements.p)({});
+    __VLS_asFunctionalElement(__VLS_intrinsicElements.strong, __VLS_intrinsicElements.strong)({});
+    __VLS_asFunctionalElement(__VLS_intrinsicElements.span, __VLS_intrinsicElements.span)({});
+    (__VLS_ctx.formatDate(__VLS_ctx.selectedRule.documentCreatedAt || __VLS_ctx.selectedRule.createdAt));
+    __VLS_asFunctionalElement(__VLS_intrinsicElements.p, __VLS_intrinsicElements.p)({});
+    __VLS_asFunctionalElement(__VLS_intrinsicElements.strong, __VLS_intrinsicElements.strong)({});
+    __VLS_asFunctionalElement(__VLS_intrinsicElements.span, __VLS_intrinsicElements.span)({});
+    (__VLS_ctx.parseMethodLabel(__VLS_ctx.selectedRule.documentParseMethod || 'NATIVE'));
+    __VLS_asFunctionalElement(__VLS_intrinsicElements.p, __VLS_intrinsicElements.p)({});
+    __VLS_asFunctionalElement(__VLS_intrinsicElements.strong, __VLS_intrinsicElements.strong)({});
+    __VLS_asFunctionalElement(__VLS_intrinsicElements.span, __VLS_intrinsicElements.span)({});
+    (__VLS_ctx.selectedRule.documentStatus || '-');
+    (__VLS_ctx.selectedRule.documentIndexStatus || '-');
+    (__VLS_ctx.selectedRule.documentParseStatus || 'COMPLETED');
+    __VLS_asFunctionalElement(__VLS_intrinsicElements.div, __VLS_intrinsicElements.div)({
+        ...{ class: "actions" },
+    });
+    __VLS_asFunctionalElement(__VLS_intrinsicElements.button, __VLS_intrinsicElements.button)({
+        ...{ onClick: (...[$event]) => {
+                if (!(__VLS_ctx.selectedRule))
+                    return;
+                __VLS_ctx.openDocumentAsset(__VLS_ctx.selectedRule, 'origin');
+            } },
+        ...{ class: "primary-btn" },
+        type: "button",
+        disabled: (!__VLS_ctx.selectedRule.documentUrl),
+    });
+    __VLS_asFunctionalElement(__VLS_intrinsicElements.button, __VLS_intrinsicElements.button)({
+        ...{ onClick: (...[$event]) => {
+                if (!(__VLS_ctx.selectedRule))
+                    return;
+                __VLS_ctx.openDocumentAsset(__VLS_ctx.selectedRule, 'full.md');
+            } },
+        ...{ class: "ghost-btn" },
+        type: "button",
+        disabled: (!__VLS_ctx.selectedRule.documentUrl),
+    });
+    __VLS_asFunctionalElement(__VLS_intrinsicElements.button, __VLS_intrinsicElements.button)({
+        ...{ onClick: (...[$event]) => {
+                if (!(__VLS_ctx.selectedRule))
+                    return;
+                __VLS_ctx.openDocumentAsset(__VLS_ctx.selectedRule, 'content_list_v2.json');
+            } },
+        ...{ class: "ghost-btn" },
+        type: "button",
+        disabled: (!__VLS_ctx.selectedRule.documentUrl),
+    });
+    if (!__VLS_ctx.selectedRule.documentUrl) {
+        __VLS_asFunctionalElement(__VLS_intrinsicElements.p, __VLS_intrinsicElements.p)({
+            ...{ class: "note" },
+        });
+    }
+}
+var __VLS_3;
 __VLS_asFunctionalElement(__VLS_intrinsicElements.article, __VLS_intrinsicElements.article)({
     ...{ class: "card panel" },
 });
@@ -694,6 +850,9 @@ for (const [item] of __VLS_getVForSourceType((__VLS_ctx.fieldDefinitions))) {
 /** @type {__VLS_StyleScopedClasses['form-grid']} */ ;
 /** @type {__VLS_StyleScopedClasses['console-select']} */ ;
 /** @type {__VLS_StyleScopedClasses['console-select']} */ ;
+/** @type {__VLS_StyleScopedClasses['selection-row']} */ ;
+/** @type {__VLS_StyleScopedClasses['selection-chip']} */ ;
+/** @type {__VLS_StyleScopedClasses['selection-chip--soft']} */ ;
 /** @type {__VLS_StyleScopedClasses['note']} */ ;
 /** @type {__VLS_StyleScopedClasses['actions']} */ ;
 /** @type {__VLS_StyleScopedClasses['primary-btn']} */ ;
@@ -714,9 +873,22 @@ for (const [item] of __VLS_getVForSourceType((__VLS_ctx.fieldDefinitions))) {
 /** @type {__VLS_StyleScopedClasses['item-actions']} */ ;
 /** @type {__VLS_StyleScopedClasses['ghost-btn']} */ ;
 /** @type {__VLS_StyleScopedClasses['ghost-btn']} */ ;
+/** @type {__VLS_StyleScopedClasses['ghost-btn']} */ ;
 /** @type {__VLS_StyleScopedClasses['warn-btn']} */ ;
 /** @type {__VLS_StyleScopedClasses['note']} */ ;
 /** @type {__VLS_StyleScopedClasses['notice']} */ ;
+/** @type {__VLS_StyleScopedClasses['detail-panel']} */ ;
+/** @type {__VLS_StyleScopedClasses['detail-modal']} */ ;
+/** @type {__VLS_StyleScopedClasses['card']} */ ;
+/** @type {__VLS_StyleScopedClasses['header-row']} */ ;
+/** @type {__VLS_StyleScopedClasses['tag']} */ ;
+/** @type {__VLS_StyleScopedClasses['ghost-btn']} */ ;
+/** @type {__VLS_StyleScopedClasses['detail-grid']} */ ;
+/** @type {__VLS_StyleScopedClasses['actions']} */ ;
+/** @type {__VLS_StyleScopedClasses['primary-btn']} */ ;
+/** @type {__VLS_StyleScopedClasses['ghost-btn']} */ ;
+/** @type {__VLS_StyleScopedClasses['ghost-btn']} */ ;
+/** @type {__VLS_StyleScopedClasses['note']} */ ;
 /** @type {__VLS_StyleScopedClasses['card']} */ ;
 /** @type {__VLS_StyleScopedClasses['panel']} */ ;
 /** @type {__VLS_StyleScopedClasses['header-row']} */ ;
@@ -759,6 +931,9 @@ const __VLS_self = (await import('vue')).defineComponent({
             parseMethod: parseMethod,
             parseMethods: parseMethods,
             maxUploadDocuments: maxUploadDocuments,
+            cleaningAvailable: cleaningAvailable,
+            cleaningEnabled: cleaningEnabled,
+            selectedRule: selectedRule,
             manualRuleName: manualRuleName,
             manualRuleCode: manualRuleCode,
             manualSource: manualSource,
@@ -790,6 +965,11 @@ const __VLS_self = (await import('vue')).defineComponent({
             toggleRule: toggleRule,
             reindexRule: reindexRule,
             deleteRule: deleteRule,
+            openDetail: openDetail,
+            closeDetail: closeDetail,
+            openDocumentAsset: openDocumentAsset,
+            importerLabel: importerLabel,
+            formatDate: formatDate,
             resetFieldForm: resetFieldForm,
             beginEditField: beginEditField,
             saveFieldDefinition: saveFieldDefinition,

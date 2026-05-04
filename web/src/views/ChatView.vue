@@ -94,6 +94,20 @@
         <article v-for="(item, idx) in latestCitations" :key="`${item.documentId}-${idx}`" class="citation-item">
           <p class="citation-source">{{ item.source }}</p>
           <p class="citation-fragment">{{ item.fragment }}</p>
+          <div v-if="item.images?.length" class="citation-images">
+            <a
+              v-for="image in item.images"
+              :key="image.imageAssetId || `${item.documentId}-${image.order}`"
+              class="citation-image-card"
+              :href="image.url"
+              target="_blank"
+              rel="noreferrer"
+            >
+              <img v-if="image.url" :src="image.url" :alt="image.description || '引用图片'" loading="lazy" />
+              <span v-else class="image-fallback">图片暂不可访问</span>
+              <small>{{ image.description || image.originalPath || '图片证据' }}</small>
+            </a>
+          </div>
         </article>
       </div>
       <p v-if="notice" class="notice" aria-live="polite">{{ notice }}</p>
@@ -129,8 +143,18 @@ interface AskResponse {
 
 interface Citation {
   documentId: number;
+  chunkId?: number;
   source: string;
   fragment: string;
+  images?: CitationImage[];
+}
+
+interface CitationImage {
+  imageAssetId?: number;
+  url?: string;
+  description?: string;
+  originalPath?: string;
+  order?: number;
 }
 
 interface HotwordPrompt {
@@ -563,6 +587,43 @@ function formatTime(input: string) {
   color: var(--ink-soft);
   font-size: 0.82rem;
   line-height: 1.5;
+}
+
+.citation-images {
+  margin-top: 0.55rem;
+  display: grid;
+  gap: 0.5rem;
+}
+
+.citation-image-card {
+  display: grid;
+  gap: 0.35rem;
+  color: inherit;
+  text-decoration: none;
+}
+
+.citation-image-card img,
+.image-fallback {
+  width: 100%;
+  max-height: 180px;
+  border-radius: 10px;
+  border: 1px solid var(--line);
+  background: rgba(255, 255, 255, 0.55);
+  object-fit: contain;
+}
+
+.image-fallback {
+  display: grid;
+  min-height: 78px;
+  place-items: center;
+  color: var(--ink-soft);
+  font-size: 0.8rem;
+}
+
+.citation-image-card small {
+  color: var(--ink-soft);
+  font-size: 0.76rem;
+  line-height: 1.35;
 }
 
 @media (max-width: 980px) {

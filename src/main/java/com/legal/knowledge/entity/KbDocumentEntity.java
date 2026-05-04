@@ -26,6 +26,8 @@ public class KbDocumentEntity {
     private Long tenantId;
     /** 所属用户ID。 */
     private Long ownerUserId;
+    /** 上传用户名快照。 */
+    private String ownerUsername;
     /** 文档标题。 */
     private String title;
     /** 文档来源。 */
@@ -52,6 +54,12 @@ public class KbDocumentEntity {
     private String mineruDataId;
     /** MinerU 解析结果压缩包地址，仅用于后端下载解析产物。 */
     private String mineruFullZipUrl;
+    /** 文档可访问地址，用于前端查看原文档或 MinerU 解析原文。 */
+    private String documentUrl;
+    /** 文档解析产物所在 OSS Bucket。 */
+    private String documentOssBucket;
+    /** 文档解析产物所在 OSS 对象前缀。 */
+    private String documentOssPrefix;
     /** 最近一次解析开始时间。 */
     private LocalDateTime parseStartedAt;
     /** 最近一次解析完成时间。 */
