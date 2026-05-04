@@ -59,8 +59,8 @@
           <div class="doc-actions">
             <button class="ghost-btn" type="button" @click="openDetail(item)">查看详情</button>
             <button class="primary-btn" type="button" :disabled="Boolean(item.parseStatus && item.parseStatus !== 'COMPLETED')" @click="openReview(item)">进入审查</button>
-            <button v-if="item.parseStatus === 'FAILED'" class="ghost-btn" type="button" @click="retryParse(item.documentId)">重试解析</button>
-            <button class="warn-btn" type="button" @click="remove(item.documentId)">删除</button>
+            <button v-if="item.parseStatus === 'FAILED'" class="ghost-btn" type="button" @click="retryParse(item)">重试解析</button>
+            <button class="warn-btn" type="button" @click="remove(item)">删除</button>
           </div>
           <p v-if="item.parseFailureReason" class="note">解析失败：{{ item.parseFailureReason }}</p>
         </div>
@@ -95,6 +95,19 @@
         </div>
       </div>
     </Teleport>
+
+    <ConfirmDialog
+      :model-value="confirmState.visible"
+      :title="confirmState.title"
+      :message="confirmState.message"
+      :target-name="confirmState.targetName"
+      :target-label="confirmState.targetLabel"
+      :confirm-text="confirmState.confirmText"
+      :eyebrow="confirmState.eyebrow"
+      :danger="confirmState.danger"
+      @cancel="closeConfirm"
+      @confirm="confirmAction"
+    />
   </section>
 </template>
 
@@ -102,6 +115,7 @@
 import { onMounted, ref } from 'vue';
 import { useRouter } from 'vue-router';
 import { apiDelete, apiGet, apiPost, apiPostForm, randomRequestId } from '../api/client';
+import ConfirmDialog from '../components/ConfirmDialog.vue';
 
 interface DocumentItem {
   documentId: number;
@@ -128,6 +142,18 @@ interface DocumentProcessingCapabilities {
   cleaningAvailable: boolean;
 }
 
+interface ConfirmState {
+  visible: boolean;
+  title: string;
+  message: string;
+  targetName: string;
+  targetLabel: string;
+  confirmText: string;
+  eyebrow: string;
+  danger: boolean;
+  action: null | (() => Promise<void>);
+}
+
 const router = useRouter();
 const title = ref('');
 const source = ref('');
@@ -140,6 +166,17 @@ const maxUploadDocuments = ref(1);
 const cleaningAvailable = ref(false);
 const cleaningEnabled = ref(false);
 const selectedDocument = ref<DocumentItem | null>(null);
+const confirmState = ref<ConfirmState>({
+  visible: false,
+  title: '',
+  message: '',
+  targetName: '',
+  targetLabel: '对象',
+  confirmText: '确认',
+  eyebrow: '操作确认',
+  danger: false,
+  action: null,
+});
 
 onMounted(async () => {
   await loadCapabilities();
@@ -169,6 +206,21 @@ async function importDocument() {
     notice.value = '请先选择文件';
     return;
   }
+  openConfirm({
+    title: '导入审查文档',
+    message: `确认使用“${parseMethodLabel(parseMethod.value)}”导入该审查文档。`,
+    targetName: selectedFile.value.name,
+    targetLabel: '文件名称',
+    confirmText: '确认导入',
+    action: executeImportDocument,
+  });
+}
+
+async function executeImportDocument() {
+  if (!selectedFile.value) {
+    notice.value = '请先选择文件';
+    return;
+  }
   const formData = new FormData();
   formData.append('requestId', randomRequestId('tianyan-import'));
   formData.append('file', selectedFile.value);
@@ -189,12 +241,21 @@ async function importDocument() {
   await refresh();
 }
 
-async function remove(documentId: number) {
-  if (!window.confirm(`确认删除审查文档 ${documentId}？`)) {
-    return;
-  }
-  await apiDelete(`/api/tianyan/documents/${documentId}?requestId=${encodeURIComponent(randomRequestId('tianyan-delete'))}`);
-  notice.value = `审查文档 ${documentId} 已标记删除`;
+async function remove(item: DocumentItem) {
+  openConfirm({
+    title: '删除审查文档',
+    message: '确认后会将该审查文档标记删除。',
+    targetName: item.title,
+    targetLabel: '文档名称',
+    confirmText: '确认删除',
+    danger: true,
+    action: () => executeRemove(item),
+  });
+}
+
+async function executeRemove(item: DocumentItem) {
+  await apiDelete(`/api/tianyan/documents/${item.documentId}?requestId=${encodeURIComponent(randomRequestId('tianyan-delete'))}`);
+  notice.value = `审查文档“${item.title}”已标记删除`;
   await refresh();
 }
 
@@ -211,9 +272,20 @@ function openReview(item: DocumentItem) {
   });
 }
 
-async function retryParse(documentId: number) {
-  await apiPost(`/api/tianyan/documents/${documentId}/retry-parse?requestId=${encodeURIComponent(randomRequestId('tianyan-retry-parse'))}`);
-  notice.value = `审查文档 ${documentId} 已重新提交解析`;
+async function retryParse(item: DocumentItem) {
+  openConfirm({
+    title: '重新提交解析任务',
+    message: '确认后会重新提交该审查文档的解析任务。',
+    targetName: item.title,
+    targetLabel: '文档名称',
+    confirmText: '重试解析',
+    action: () => executeRetryParse(item),
+  });
+}
+
+async function executeRetryParse(item: DocumentItem) {
+  await apiPost(`/api/tianyan/documents/${item.documentId}/retry-parse?requestId=${encodeURIComponent(randomRequestId('tianyan-retry-parse'))}`);
+  notice.value = `审查文档“${item.title}”已重新提交解析`;
   await refresh();
 }
 
@@ -254,6 +326,33 @@ function formatDate(value?: string) {
     return '-';
   }
   return new Date(value).toLocaleString();
+}
+
+function openConfirm(options: Partial<ConfirmState> & { action: () => Promise<void> }) {
+  confirmState.value = {
+    visible: true,
+    title: options.title || '操作确认',
+    message: options.message || '请确认是否继续执行该操作。',
+    targetName: options.targetName || '',
+    targetLabel: options.targetLabel || '对象',
+    confirmText: options.confirmText || '确认',
+    eyebrow: options.eyebrow || '操作确认',
+    danger: Boolean(options.danger),
+    action: options.action,
+  };
+}
+
+function closeConfirm() {
+  confirmState.value.visible = false;
+  confirmState.value.action = null;
+}
+
+async function confirmAction() {
+  const action = confirmState.value.action;
+  closeConfirm();
+  if (action) {
+    await action();
+  }
 }
 </script>
 

@@ -117,12 +117,26 @@
         </div>
       </article>
     </div>
+
+    <ConfirmDialog
+      :model-value="confirmState.visible"
+      :title="confirmState.title"
+      :message="confirmState.message"
+      :target-name="confirmState.targetName"
+      :target-label="confirmState.targetLabel"
+      :confirm-text="confirmState.confirmText"
+      :eyebrow="confirmState.eyebrow"
+      :danger="confirmState.danger"
+      @cancel="closeConfirm"
+      @confirm="confirmAction"
+    />
   </section>
 </template>
 
 <script setup lang="ts">
 import { onMounted, reactive, ref } from 'vue';
 import { apiDelete, apiGet, apiPost, randomRequestId } from '../api/client';
+import ConfirmDialog from '../components/ConfirmDialog.vue';
 
 interface HotwordItem {
   hotwordId: number;
@@ -144,12 +158,35 @@ interface HotwordPage {
   items: HotwordItem[];
 }
 
+interface ConfirmState {
+  visible: boolean;
+  title: string;
+  message: string;
+  targetName: string;
+  targetLabel: string;
+  confirmText: string;
+  eyebrow: string;
+  danger: boolean;
+  action: null | (() => Promise<void>);
+}
+
 const hotwords = ref<HotwordItem[]>([]);
 const notice = ref('');
 const error = ref('');
 const editingId = ref<number | null>(null);
 const page = reactive({ total: 0, pageNo: 1, pageSize: 10 });
 const form = reactive({ hotwordKey: '', content: '', presetAnswer: '', category: '', weight: 0, sortOrder: 0, enabled: true });
+const confirmState = ref<ConfirmState>({
+  visible: false,
+  title: '',
+  message: '',
+  targetName: '',
+  targetLabel: '对象',
+  confirmText: '确认',
+  eyebrow: '操作确认',
+  danger: false,
+  action: null,
+});
 
 onMounted(loadHotwords);
 
@@ -240,9 +277,18 @@ async function toggleHotword(item: HotwordItem) {
 }
 
 async function removeHotword(item: HotwordItem) {
-  if (!window.confirm(`确认删除热词“${item.content}”？`)) {
-    return;
-  }
+  openConfirm({
+    title: '删除热词',
+    message: '确认后会删除该聊天快捷问题热词。',
+    targetName: item.content,
+    targetLabel: '热词内容',
+    confirmText: '确认删除',
+    danger: true,
+    action: () => executeRemoveHotword(item),
+  });
+}
+
+async function executeRemoveHotword(item: HotwordItem) {
   error.value = '';
   try {
     await apiDelete(`/api/hotwords/${item.hotwordId}?requestId=${encodeURIComponent(randomRequestId('hotword-delete'))}`);
@@ -250,6 +296,33 @@ async function removeHotword(item: HotwordItem) {
     await loadHotwords();
   } catch (err) {
     error.value = err instanceof Error ? err.message : '热词删除失败';
+  }
+}
+
+function openConfirm(options: Partial<ConfirmState> & { action: () => Promise<void> }) {
+  confirmState.value = {
+    visible: true,
+    title: options.title || '操作确认',
+    message: options.message || '请确认是否继续执行该操作。',
+    targetName: options.targetName || '',
+    targetLabel: options.targetLabel || '对象',
+    confirmText: options.confirmText || '确认',
+    eyebrow: options.eyebrow || '操作确认',
+    danger: Boolean(options.danger),
+    action: options.action,
+  };
+}
+
+function closeConfirm() {
+  confirmState.value.visible = false;
+  confirmState.value.action = null;
+}
+
+async function confirmAction() {
+  const action = confirmState.value.action;
+  closeConfirm();
+  if (action) {
+    await action();
   }
 }
 

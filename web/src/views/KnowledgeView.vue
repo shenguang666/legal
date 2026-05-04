@@ -77,9 +77,9 @@
           <p>文档清洗：{{ item.cleaningEnabled ? '已启用' : '未启用' }}</p>
           <div class="doc-actions">
             <button class="ghost-btn" type="button" :disabled="busy" @click="openDetail(item)">查看详情</button>
-            <button class="ghost-btn" type="button" :disabled="busy" @click="triggerIndex(item.documentId)">触发索引</button>
-            <button v-if="item.parseStatus === 'FAILED'" class="ghost-btn" type="button" :disabled="busy" @click="retryParse(item.documentId)">重试解析</button>
-            <button class="warn-btn" type="button" :disabled="busy" @click="remove(item.documentId)">删除</button>
+            <button class="ghost-btn" type="button" :disabled="busy" @click="triggerIndex(item)">触发索引</button>
+            <button v-if="item.parseStatus === 'FAILED'" class="ghost-btn" type="button" :disabled="busy" @click="retryParse(item)">重试解析</button>
+            <button class="warn-btn" type="button" :disabled="busy" @click="remove(item)">删除</button>
           </div>
           <p v-if="item.parseFailureReason" class="note">解析失败：{{ item.parseFailureReason }}</p>
         </div>
@@ -114,12 +114,26 @@
         </div>
       </div>
     </Teleport>
+
+    <ConfirmDialog
+      :model-value="confirmState.visible"
+      :title="confirmState.title"
+      :message="confirmState.message"
+      :target-name="confirmState.targetName"
+      :target-label="confirmState.targetLabel"
+      :confirm-text="confirmState.confirmText"
+      :eyebrow="confirmState.eyebrow"
+      :danger="confirmState.danger"
+      @cancel="closeConfirm"
+      @confirm="confirmAction"
+    />
   </section>
 </template>
 
 <script setup lang="ts">
 import { onMounted, ref } from 'vue';
 import { apiDelete, apiGet, apiPost, apiPostForm, randomRequestId } from '../api/client';
+import ConfirmDialog from '../components/ConfirmDialog.vue';
 
 interface DocumentItem {
   documentId: number;
@@ -152,6 +166,18 @@ interface QaIndexConfig {
   mineruIndexName: string;
 }
 
+interface ConfirmState {
+  visible: boolean;
+  title: string;
+  message: string;
+  targetName: string;
+  targetLabel: string;
+  confirmText: string;
+  eyebrow: string;
+  danger: boolean;
+  action: null | (() => Promise<void>);
+}
+
 const title = ref('');
 const source = ref('');
 const selectedFiles = ref<File[]>([]);
@@ -168,6 +194,17 @@ const qaIndexScopes = ref<string[]>(['NATIVE_ONLY', 'MINERU_ONLY', 'BOTH']);
 const nativeIndexName = ref('');
 const mineruIndexName = ref('');
 const selectedDocument = ref<DocumentItem | null>(null);
+const confirmState = ref<ConfirmState>({
+  visible: false,
+  title: '',
+  message: '',
+  targetName: '',
+  targetLabel: '对象',
+  confirmText: '确认',
+  eyebrow: '操作确认',
+  danger: false,
+  action: null,
+});
 
 onMounted(async () => {
   await loadCapabilities();
@@ -197,9 +234,17 @@ async function loadQaIndexConfig() {
 }
 
 async function saveQaIndexConfig() {
-  if (!window.confirm(`确认将智能问答知识库检索范围切换为“${qaIndexScopeLabel(qaIndexScope.value)}”？`)) {
-    return;
-  }
+  openConfirm({
+    title: '切换问答检索范围',
+    message: '确认后，智能问答会按新的知识库索引范围进行检索。',
+    targetName: qaIndexScopeLabel(qaIndexScope.value),
+    targetLabel: '检索范围',
+    confirmText: '确认切换',
+    action: executeSaveQaIndexConfig,
+  });
+}
+
+async function executeSaveQaIndexConfig() {
   busy.value = true;
   notice.value = '正在保存智能问答检索范围…';
   try {
@@ -226,9 +271,17 @@ async function importDocument() {
     return;
   }
   const methodLabel = parseMethodLabel(parseMethod.value);
-  if (!window.confirm(`确认使用“${methodLabel}”导入 ${selectedFiles.value.length} 个文档？`)) {
-    return;
-  }
+  openConfirm({
+    title: '导入知识库文档',
+    message: `确认使用“${methodLabel}”导入 ${selectedFiles.value.length} 个文档。`,
+    targetName: selectedFiles.value.map((file) => file.name).join('、'),
+    targetLabel: '文档名称',
+    confirmText: '确认导入',
+    action: executeImportDocument,
+  });
+}
+
+async function executeImportDocument() {
   busy.value = true;
   notice.value = `正在导入 ${selectedFiles.value.length} 个文档…`;
   try {
@@ -257,30 +310,46 @@ async function importDocument() {
   }
 }
 
-async function triggerIndex(documentId: number) {
-  if (!window.confirm(`确认重新触发文档 ${documentId} 的向量索引任务？`)) {
-    return;
-  }
+async function triggerIndex(item: DocumentItem) {
+  openConfirm({
+    title: '重新触发向量索引',
+    message: '确认后会重新投递该文档的向量索引任务。',
+    targetName: item.title,
+    targetLabel: '文档名称',
+    confirmText: '触发索引',
+    action: () => executeTriggerIndex(item),
+  });
+}
+
+async function executeTriggerIndex(item: DocumentItem) {
   busy.value = true;
-  notice.value = `正在投递文档 ${documentId} 的索引任务…`;
+  notice.value = `正在投递文档“${item.title}”的索引任务…`;
   try {
-    await apiPost(`/api/knowledge/documents/${documentId}/index?requestId=${encodeURIComponent(randomRequestId('kb-index'))}`);
-    notice.value = `文档 ${documentId} 已投递索引任务`;
+    await apiPost(`/api/knowledge/documents/${item.documentId}/index?requestId=${encodeURIComponent(randomRequestId('kb-index'))}`);
+    notice.value = `文档“${item.title}”已投递索引任务`;
     await refresh();
   } finally {
     busy.value = false;
   }
 }
 
-async function retryParse(documentId: number) {
-  if (!window.confirm(`确认重新提交文档 ${documentId} 的解析任务？`)) {
-    return;
-  }
+async function retryParse(item: DocumentItem) {
+  openConfirm({
+    title: '重新提交解析任务',
+    message: '确认后会重新提交该文档的解析任务。',
+    targetName: item.title,
+    targetLabel: '文档名称',
+    confirmText: '重试解析',
+    action: () => executeRetryParse(item),
+  });
+}
+
+async function executeRetryParse(item: DocumentItem) {
   busy.value = true;
-  notice.value = `正在重新提交文档 ${documentId} 的解析任务…`;
+  notice.value = `正在重新提交文档“${item.title}”的解析任务…`;
   try {
-    await apiPost(`/api/knowledge/documents/${documentId}/retry-parse?requestId=${encodeURIComponent(randomRequestId('kb-retry-parse'))}`);
-    notice.value = `文档 ${documentId} 已重新提交解析`;
+    await apiPost(`/api/knowledge/documents/${item.documentId}/retry-parse?requestId=${encodeURIComponent(randomRequestId('kb-retry-parse'))}`);
+    notice.value = `文档“${item.title}”已重新提交解析`;
     await refresh();
   } finally {
     busy.value = false;
@@ -304,15 +373,24 @@ function qaIndexScopeLabel(scope: string) {
   return '仅查询原生解析索引';
 }
 
-async function remove(documentId: number) {
-  if (!window.confirm(`确认删除知识库文档 ${documentId}？`)) {
-    return;
-  }
+async function remove(item: DocumentItem) {
+  openConfirm({
+    title: '删除知识库文档',
+    message: '确认后会删除该文档，并同步清理数据库切片和 Elasticsearch 切片。',
+    targetName: item.title,
+    targetLabel: '文档名称',
+    confirmText: '确认删除',
+    danger: true,
+    action: () => executeRemove(item),
+  });
+}
+
+async function executeRemove(item: DocumentItem) {
   busy.value = true;
-  notice.value = `正在删除文档 ${documentId} 及其切片…`;
+  notice.value = `正在删除文档“${item.title}”及其切片…`;
   try {
-    await apiDelete(`/api/knowledge/documents/${documentId}?requestId=${encodeURIComponent(randomRequestId('kb-delete'))}`);
-    notice.value = `文档 ${documentId} 已删除，数据库切片和 Elasticsearch 切片已同步清理`;
+    await apiDelete(`/api/knowledge/documents/${item.documentId}?requestId=${encodeURIComponent(randomRequestId('kb-delete'))}`);
+    notice.value = `文档“${item.title}”已删除，数据库切片和 Elasticsearch 切片已同步清理`;
     await refresh();
   } finally {
     busy.value = false;
@@ -349,6 +427,33 @@ function formatDate(value?: string) {
     return '-';
   }
   return new Date(value).toLocaleString();
+}
+
+function openConfirm(options: Partial<ConfirmState> & { action: () => Promise<void> }) {
+  confirmState.value = {
+    visible: true,
+    title: options.title || '操作确认',
+    message: options.message || '请确认是否继续执行该操作。',
+    targetName: options.targetName || '',
+    targetLabel: options.targetLabel || '对象',
+    confirmText: options.confirmText || '确认',
+    eyebrow: options.eyebrow || '操作确认',
+    danger: Boolean(options.danger),
+    action: options.action,
+  };
+}
+
+function closeConfirm() {
+  confirmState.value.visible = false;
+  confirmState.value.action = null;
+}
+
+async function confirmAction() {
+  const action = confirmState.value.action;
+  closeConfirm();
+  if (action) {
+    await action();
+  }
 }
 </script>
 

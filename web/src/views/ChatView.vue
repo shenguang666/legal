@@ -7,7 +7,7 @@
           <h2 class="section-title">法律问答会话</h2>
           <p class="subtle">以企业制度、法律知识库与会话上下文为基础，生成可追溯答案。</p>
         </div>
-        <button class="ghost-btn" type="button" @click="newSession">新建会话</button>
+        <button class="ghost-btn" type="button" @click="startDraftSession">新建会话</button>
       </div>
 
       <div v-if="!messages.length" class="empty-state chat-empty">
@@ -179,13 +179,10 @@ let cancelStream: null | (() => void) = null;
 onMounted(async () => {
   await loadQuickPrompts();
   const querySessionId = route.query.sessionId as string | undefined;
-  const cacheSessionId = localStorage.getItem('legal.activeSessionId');
-  sessionId.value = querySessionId || cacheSessionId || '';
-  if (!sessionId.value) {
-    await newSession();
-    return;
+  sessionId.value = querySessionId || '';
+  if (sessionId.value) {
+    await loadMessages();
   }
-  await loadMessages();
 });
 
 async function newSession() {
@@ -196,7 +193,19 @@ async function newSession() {
   sessionId.value = data.sessionId;
   localStorage.setItem('legal.activeSessionId', data.sessionId);
   messages.value = [];
-  notice.value = `新会话已创建：${data.sessionId}`;
+  notice.value = '新会话已创建';
+}
+
+function startDraftSession() {
+  if (cancelStream) {
+    cancelStream();
+    cancelStream = null;
+  }
+  sessionId.value = '';
+  localStorage.removeItem('legal.activeSessionId');
+  messages.value = [];
+  latestCitations.value = [];
+  notice.value = '已准备新会话，发送第一条消息时会自动创建';
 }
 
 async function loadMessages() {
@@ -207,11 +216,14 @@ async function loadMessages() {
 }
 
 async function ask() {
-  if (!question.value.trim() || !sessionId.value) {
+  if (!question.value.trim()) {
     return;
   }
   loading.value = true;
   try {
+    if (!sessionId.value) {
+      await newSession();
+    }
     const payload = {
       sessionId: sessionId.value,
       question: question.value.trim(),
@@ -233,7 +245,7 @@ async function ask() {
 // 保留旧 ask()，新增流式按钮已指向 askStream()
 
 async function askStream() {
-  if (!question.value.trim() || !sessionId.value) {
+  if (!question.value.trim()) {
     return;
   }
   if (cancelStream) {
@@ -243,6 +255,17 @@ async function askStream() {
   loading.value = true;
   latestCitations.value = [];
   notice.value = '';
+
+  if (!sessionId.value) {
+    try {
+      await newSession();
+      notice.value = '';
+    } catch (error) {
+      loading.value = false;
+      notice.value = error instanceof Error ? error.message : '会话创建失败';
+      return;
+    }
+  }
 
   const payload = {
     sessionId: sessionId.value,

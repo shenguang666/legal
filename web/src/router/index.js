@@ -13,12 +13,7 @@ import ContractReviewView from '../views/ContractReviewView.vue';
 const router = createRouter({
     history: createWebHistory(),
     routes: [
-        {
-            path: '/',
-            redirect: () => {
-                return hasToken() ? '/chat' : '/login';
-            },
-        },
+        { path: '/', redirect: '/login' },
         { path: '/login', component: LoginView, meta: { publicOnly: true } },
         { path: '/chat', component: ChatView },
         { path: '/sessions', component: SessionsView },
@@ -35,9 +30,6 @@ const router = createRouter({
     },
 });
 router.beforeEach((to) => {
-    if (to.meta.publicOnly && hasToken()) {
-        return '/chat';
-    }
     if (!to.meta.publicOnly && !hasToken()) {
         return '/login';
     }

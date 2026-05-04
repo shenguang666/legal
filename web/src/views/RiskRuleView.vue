@@ -159,6 +159,19 @@
       </div>
     </Teleport>
 
+    <ConfirmDialog
+      :model-value="confirmState.visible"
+      :title="confirmState.title"
+      :message="confirmState.message"
+      :target-name="confirmState.targetName"
+      :target-label="confirmState.targetLabel"
+      :confirm-text="confirmState.confirmText"
+      :eyebrow="confirmState.eyebrow"
+      :danger="confirmState.danger"
+      @cancel="closeConfirm"
+      @confirm="confirmAction"
+    />
+
     <article class="card panel">
       <div class="header-row">
         <div>
@@ -248,6 +261,7 @@
 <script setup lang="ts">
 import { onMounted, ref } from 'vue';
 import { apiDelete, apiGet, apiPost, apiPostForm, randomRequestId } from '../api/client';
+import ConfirmDialog from '../components/ConfirmDialog.vue';
 
 interface RiskRuleItem {
   ruleId: number;
@@ -298,6 +312,18 @@ interface FieldDefinitionItem {
   description?: string | null;
 }
 
+interface ConfirmState {
+  visible: boolean;
+  title: string;
+  message: string;
+  targetName: string;
+  targetLabel: string;
+  confirmText: string;
+  eyebrow: string;
+  danger: boolean;
+  action: null | (() => Promise<void>);
+}
+
 const rules = ref<RiskRuleItem[]>([]);
 const fieldDefinitions = ref<FieldDefinitionItem[]>([]);
 const selectedFile = ref<File | null>(null);
@@ -308,6 +334,17 @@ const maxUploadDocuments = ref(1);
 const cleaningAvailable = ref(false);
 const cleaningEnabled = ref(false);
 const selectedRule = ref<RiskRuleItem | null>(null);
+const confirmState = ref<ConfirmState>({
+  visible: false,
+  title: '',
+  message: '',
+  targetName: '',
+  targetLabel: '对象',
+  confirmText: '确认',
+  eyebrow: '操作确认',
+  danger: false,
+  action: null,
+});
 
 const manualRuleName = ref('');
 const manualRuleCode = ref('');
@@ -392,6 +429,21 @@ async function importRuleDocument() {
     notice.value = '当前配置不允许上传文档';
     return;
   }
+  openConfirm({
+    title: '导入风险规则文件',
+    message: `确认使用“${parseMethodLabel(parseMethod.value)}”导入该规则文件。`,
+    targetName: selectedFile.value.name,
+    targetLabel: '文件名称',
+    confirmText: '确认导入',
+    action: executeImportRuleDocument,
+  });
+}
+
+async function executeImportRuleDocument() {
+  if (!selectedFile.value) {
+    notice.value = '请先选择文件';
+    return;
+  }
   const formData = new FormData();
   formData.append('requestId', randomRequestId('risk-rule-import'));
   formData.append('file', selectedFile.value);
@@ -439,11 +491,20 @@ async function reindexRule(item: RiskRuleItem) {
 }
 
 async function deleteRule(item: RiskRuleItem) {
-  if (!window.confirm(`确认删除风险规则 ${item.ruleCode}？`)) {
-    return;
-  }
+  openConfirm({
+    title: '删除风险规则',
+    message: '确认后会删除该风险规则。',
+    targetName: item.ruleName,
+    targetLabel: '规则名称',
+    confirmText: '确认删除',
+    danger: true,
+    action: () => executeDeleteRule(item),
+  });
+}
+
+async function executeDeleteRule(item: RiskRuleItem) {
   await apiDelete(`/api/risk-rules/${item.ruleId}?requestId=${encodeURIComponent(randomRequestId('risk-rule-delete'))}`);
-  notice.value = `风险规则 ${item.ruleCode} 已删除`;
+  notice.value = `风险规则“${item.ruleName}”已删除`;
   await refreshAll();
 }
 
@@ -546,12 +607,48 @@ async function toggleField(item: FieldDefinitionItem) {
 }
 
 async function deleteField(item: FieldDefinitionItem) {
-  if (!window.confirm(`确认删除字段定义 ${item.fieldCode}？`)) {
-    return;
-  }
+  openConfirm({
+    title: '删除字段定义',
+    message: '确认后会删除该字段定义。',
+    targetName: item.fieldName,
+    targetLabel: '字段名称',
+    confirmText: '确认删除',
+    danger: true,
+    action: () => executeDeleteField(item),
+  });
+}
+
+async function executeDeleteField(item: FieldDefinitionItem) {
   await apiDelete(`/api/risk-rules/fields/${item.fieldDefinitionId}?requestId=${encodeURIComponent(randomRequestId('field-definition-delete'))}`);
-  notice.value = `字段定义 ${item.fieldCode} 已删除`;
+  notice.value = `字段定义“${item.fieldName}”已删除`;
   await refreshAll();
+}
+
+function openConfirm(options: Partial<ConfirmState> & { action: () => Promise<void> }) {
+  confirmState.value = {
+    visible: true,
+    title: options.title || '操作确认',
+    message: options.message || '请确认是否继续执行该操作。',
+    targetName: options.targetName || '',
+    targetLabel: options.targetLabel || '对象',
+    confirmText: options.confirmText || '确认',
+    eyebrow: options.eyebrow || '操作确认',
+    danger: Boolean(options.danger),
+    action: options.action,
+  };
+}
+
+function closeConfirm() {
+  confirmState.value.visible = false;
+  confirmState.value.action = null;
+}
+
+async function confirmAction() {
+  const action = confirmState.value.action;
+  closeConfirm();
+  if (action) {
+    await action();
+  }
 }
 </script>
 
