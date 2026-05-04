@@ -104,6 +104,14 @@ public class DocumentParseTaskService {
         completeDocument(document, chunks, cleaningReport, "TEXT", null, null, null);
     }
 
+    @Transactional
+    public void completeNative(KbDocumentEntity document,
+                               List<String> chunks,
+                               DocumentCleaningReport cleaningReport,
+                               MineruPackageUploadResult originalUploadResult) {
+        completeDocument(document, chunks, cleaningReport, "TEXT", null, null, null, originalUploadResult);
+    }
+
     public List<String> buildNativeChunks(String text, Integer chunkSize, Integer chunkOverlap) {
         return nativeDocumentParser.buildChunks(text, chunkSize, chunkOverlap);
     }

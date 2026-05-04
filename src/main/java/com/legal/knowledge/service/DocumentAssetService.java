@@ -2,6 +2,7 @@ package com.legal.knowledge.service;
 
 import com.baomidou.mybatisplus.core.conditions.query.LambdaQueryWrapper;
 import com.legal.common.AppException;
+import com.legal.enums.DocumentParseMethod;
 import com.legal.enums.KbDocumentStatus;
 import com.legal.knowledge.entity.KbDocumentEntity;
 import com.legal.knowledge.entity.KbDocumentParseTaskEntity;
@@ -47,6 +48,9 @@ public class DocumentAssetService {
         if (!StringUtils.hasText(document.getDocumentOssPrefix())) {
             throw AppException.badRequest("当前文档暂未记录 OSS 解析目录");
         }
+        if (document.getParseMethod() == DocumentParseMethod.NATIVE && !"origin".equals(assetName)) {
+            throw AppException.badRequest("原生解析文档仅支持下载原文档");
+        }
         String downloadName = downloadName(document, assetName);
         String objectKey = objectKey(document, assetName, downloadName);
         return storageService.resolveUrl(document.getDocumentOssBucket(), objectKey, contentDisposition(downloadName));
@@ -59,6 +63,10 @@ public class DocumentAssetService {
         String objectKey = document.getDocumentOssPrefix() + storageService.originObjectName(downloadName);
         if (storageService.objectExists(document.getDocumentOssBucket(), objectKey)) {
             return objectKey;
+        }
+        String prefixedObjectKey = storageService.findFirstObjectKeyByPrefix(document.getDocumentOssBucket(), document.getDocumentOssPrefix() + "origin.");
+        if (StringUtils.hasText(prefixedObjectKey)) {
+            return prefixedObjectKey;
         }
         return document.getDocumentOssPrefix() + "origin";
     }

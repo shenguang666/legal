@@ -134,12 +134,36 @@ public class MineruImageAssetStorageService {
         return new MineruPackageUploadResult(properties.getBucket(), objectPrefix, resolveDirectoryUrl(objectPrefix), rewrittenMarkdown);
     }
 
-    public void deleteObject(String bucket, String objectKey) {
+    public MineruPackageUploadResult uploadOriginalDocument(KbDocumentEntity document,
+                                                            String originalFileName,
+                                                            byte[] originalFileContent) {
         if (!isEnabled()) {
-            return;
+            throw AppException.badRequest("OSS 未配置，无法保存原文档");
+        }
+        if (originalFileContent == null || originalFileContent.length == 0) {
+            throw AppException.badRequest("原文档内容为空，无法保存 OSS");
+        }
+        String objectPrefix = buildPackagePrefix(document);
+        try (OSSClient client = buildClient()) {
+            client.putObject(PutObjectRequest.newBuilder()
+                    .bucket(properties.getBucket())
+                    .key(objectPrefix + originObjectName(originalFileName))
+                    .contentType(mimeTypeByPath(originalFileName))
+                    .contentDisposition("attachment; filename=\"" + safeDownloadName(originalFileName) + "\"")
+                    .body(BinaryData.fromBytes(originalFileContent))
+                    .build());
+        } catch (Exception ex) {
+            throw AppException.badRequest("保存原文档到 OSS 失败：" + ex.getMessage());
+        }
+        return new MineruPackageUploadResult(properties.getBucket(), objectPrefix, resolveDirectoryUrl(objectPrefix), null);
+    }
+
+    public boolean deleteObject(String bucket, String objectKey) {
+        if (!isEnabled()) {
+            return false;
         }
         if (!StringUtils.hasText(objectKey)) {
-            return;
+            return false;
         }
         String targetBucket = StringUtils.hasText(bucket) ? bucket : properties.getBucket();
         try (OSSClient client = buildClient()) {
@@ -150,25 +174,30 @@ public class MineruImageAssetStorageService {
         } catch (Exception ex) {
             throw AppException.badRequest("删除 OSS 图片对象失败：" + ex.getMessage());
         }
+        return true;
     }
 
-    public void deleteObjectsByPrefix(String bucket, String objectPrefix) {
+    public int deleteObjectsByPrefix(String bucket, String objectPrefix) {
         if (!isEnabled()) {
-            return;
+            return 0;
         }
         if (!StringUtils.hasText(objectPrefix)) {
-            return;
+            return 0;
         }
         String targetBucket = StringUtils.hasText(bucket) ? bucket : properties.getBucket();
+        String targetPrefix = normalizeDirectoryPrefix(objectPrefix);
+        int deletedCount = 0;
         try (OSSClient client = buildClient()) {
             String continuationToken = null;
             do {
-                ListObjectsV2Result result = client.listObjectsV2(ListObjectsV2Request.newBuilder()
+                ListObjectsV2Request.Builder requestBuilder = ListObjectsV2Request.newBuilder()
                         .bucket(targetBucket)
-                        .prefix(objectPrefix)
-                        .maxKeys(1000L)
-                        .continuationToken(continuationToken)
-                        .build());
+                        .prefix(targetPrefix)
+                        .maxKeys(1000L);
+                if (StringUtils.hasText(continuationToken)) {
+                    requestBuilder.continuationToken(continuationToken);
+                }
+                ListObjectsV2Result result = client.listObjectsV2(requestBuilder.build());
                 if (result.contents() != null) {
                     for (ObjectSummary object : result.contents()) {
                         if (StringUtils.hasText(object.key())) {
@@ -176,6 +205,7 @@ public class MineruImageAssetStorageService {
                                     .bucket(targetBucket)
                                     .key(object.key())
                                     .build());
+                            deletedCount++;
                         }
                     }
                 }
@@ -183,6 +213,24 @@ public class MineruImageAssetStorageService {
             } while (StringUtils.hasText(continuationToken));
         } catch (Exception ex) {
             throw AppException.badRequest("删除 OSS 文档目录失败：" + ex.getMessage());
+        }
+        return deletedCount;
+    }
+
+    public boolean hasObjectsByPrefix(String bucket, String objectPrefix) {
+        if (!isEnabled() || !StringUtils.hasText(objectPrefix)) {
+            return false;
+        }
+        String targetBucket = StringUtils.hasText(bucket) ? bucket : properties.getBucket();
+        try (OSSClient client = buildClient()) {
+            ListObjectsV2Result result = client.listObjectsV2(ListObjectsV2Request.newBuilder()
+                    .bucket(targetBucket)
+                    .prefix(normalizeDirectoryPrefix(objectPrefix))
+                    .maxKeys(1L)
+                    .build());
+            return result.contents() != null && !result.contents().isEmpty();
+        } catch (Exception ex) {
+            throw AppException.badRequest("检查 OSS 目录是否为空失败：" + ex.getMessage());
         }
     }
 
@@ -198,6 +246,26 @@ public class MineruImageAssetStorageService {
                     .build());
         } catch (Exception ex) {
             return false;
+        }
+    }
+
+    public String findFirstObjectKeyByPrefix(String bucket, String objectPrefix) {
+        if (!isEnabled() || !StringUtils.hasText(objectPrefix)) {
+            return null;
+        }
+        String targetBucket = StringUtils.hasText(bucket) ? bucket : properties.getBucket();
+        try (OSSClient client = buildClient()) {
+            ListObjectsV2Result result = client.listObjectsV2(ListObjectsV2Request.newBuilder()
+                    .bucket(targetBucket)
+                    .prefix(objectPrefix)
+                    .maxKeys(1L)
+                    .build());
+            if (result.contents() == null || result.contents().isEmpty()) {
+                return null;
+            }
+            return result.contents().get(0).key();
+        } catch (Exception ex) {
+            return null;
         }
     }
 
@@ -431,5 +499,13 @@ public class MineruImageAssetStorageService {
             result = result.substring(0, result.length() - 1);
         }
         return result;
+    }
+
+    private String normalizeDirectoryPrefix(String value) {
+        if (!StringUtils.hasText(value)) {
+            return "";
+        }
+        String result = value.trim();
+        return result.endsWith("/") ? result : result + "/";
     }
 }

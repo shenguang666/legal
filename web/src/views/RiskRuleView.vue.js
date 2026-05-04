@@ -611,26 +611,34 @@ if (__VLS_ctx.selectedRule) {
         type: "button",
         disabled: (!__VLS_ctx.selectedRule.documentUrl),
     });
-    __VLS_asFunctionalElement(__VLS_intrinsicElements.button, __VLS_intrinsicElements.button)({
-        ...{ onClick: (...[$event]) => {
-                if (!(__VLS_ctx.selectedRule))
-                    return;
-                __VLS_ctx.openDocumentAsset(__VLS_ctx.selectedRule, 'full.md');
-            } },
-        ...{ class: "ghost-btn" },
-        type: "button",
-        disabled: (!__VLS_ctx.selectedRule.documentUrl),
-    });
-    __VLS_asFunctionalElement(__VLS_intrinsicElements.button, __VLS_intrinsicElements.button)({
-        ...{ onClick: (...[$event]) => {
-                if (!(__VLS_ctx.selectedRule))
-                    return;
-                __VLS_ctx.openDocumentAsset(__VLS_ctx.selectedRule, 'content_list_v2.json');
-            } },
-        ...{ class: "ghost-btn" },
-        type: "button",
-        disabled: (!__VLS_ctx.selectedRule.documentUrl),
-    });
+    if (__VLS_ctx.selectedRule.documentParseMethod !== 'NATIVE') {
+        __VLS_asFunctionalElement(__VLS_intrinsicElements.button, __VLS_intrinsicElements.button)({
+            ...{ onClick: (...[$event]) => {
+                    if (!(__VLS_ctx.selectedRule))
+                        return;
+                    if (!(__VLS_ctx.selectedRule.documentParseMethod !== 'NATIVE'))
+                        return;
+                    __VLS_ctx.openDocumentAsset(__VLS_ctx.selectedRule, 'full.md');
+                } },
+            ...{ class: "ghost-btn" },
+            type: "button",
+            disabled: (!__VLS_ctx.selectedRule.documentUrl),
+        });
+    }
+    if (__VLS_ctx.selectedRule.documentParseMethod !== 'NATIVE') {
+        __VLS_asFunctionalElement(__VLS_intrinsicElements.button, __VLS_intrinsicElements.button)({
+            ...{ onClick: (...[$event]) => {
+                    if (!(__VLS_ctx.selectedRule))
+                        return;
+                    if (!(__VLS_ctx.selectedRule.documentParseMethod !== 'NATIVE'))
+                        return;
+                    __VLS_ctx.openDocumentAsset(__VLS_ctx.selectedRule, 'content_list_v2.json');
+                } },
+            ...{ class: "ghost-btn" },
+            type: "button",
+            disabled: (!__VLS_ctx.selectedRule.documentUrl),
+        });
+    }
     if (!__VLS_ctx.selectedRule.documentUrl) {
         __VLS_asFunctionalElement(__VLS_intrinsicElements.p, __VLS_intrinsicElements.p)({
             ...{ class: "note" },

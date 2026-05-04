@@ -498,26 +498,34 @@ if (__VLS_ctx.selectedDocument) {
         type: "button",
         disabled: (!__VLS_ctx.selectedDocument.documentUrl),
     });
-    __VLS_asFunctionalElement(__VLS_intrinsicElements.button, __VLS_intrinsicElements.button)({
-        ...{ onClick: (...[$event]) => {
-                if (!(__VLS_ctx.selectedDocument))
-                    return;
-                __VLS_ctx.openDocumentAsset(__VLS_ctx.selectedDocument, 'full.md');
-            } },
-        ...{ class: "ghost-btn" },
-        type: "button",
-        disabled: (!__VLS_ctx.selectedDocument.documentUrl),
-    });
-    __VLS_asFunctionalElement(__VLS_intrinsicElements.button, __VLS_intrinsicElements.button)({
-        ...{ onClick: (...[$event]) => {
-                if (!(__VLS_ctx.selectedDocument))
-                    return;
-                __VLS_ctx.openDocumentAsset(__VLS_ctx.selectedDocument, 'content_list_v2.json');
-            } },
-        ...{ class: "ghost-btn" },
-        type: "button",
-        disabled: (!__VLS_ctx.selectedDocument.documentUrl),
-    });
+    if (__VLS_ctx.selectedDocument.parseMethod !== 'NATIVE') {
+        __VLS_asFunctionalElement(__VLS_intrinsicElements.button, __VLS_intrinsicElements.button)({
+            ...{ onClick: (...[$event]) => {
+                    if (!(__VLS_ctx.selectedDocument))
+                        return;
+                    if (!(__VLS_ctx.selectedDocument.parseMethod !== 'NATIVE'))
+                        return;
+                    __VLS_ctx.openDocumentAsset(__VLS_ctx.selectedDocument, 'full.md');
+                } },
+            ...{ class: "ghost-btn" },
+            type: "button",
+            disabled: (!__VLS_ctx.selectedDocument.documentUrl),
+        });
+    }
+    if (__VLS_ctx.selectedDocument.parseMethod !== 'NATIVE') {
+        __VLS_asFunctionalElement(__VLS_intrinsicElements.button, __VLS_intrinsicElements.button)({
+            ...{ onClick: (...[$event]) => {
+                    if (!(__VLS_ctx.selectedDocument))
+                        return;
+                    if (!(__VLS_ctx.selectedDocument.parseMethod !== 'NATIVE'))
+                        return;
+                    __VLS_ctx.openDocumentAsset(__VLS_ctx.selectedDocument, 'content_list_v2.json');
+                } },
+            ...{ class: "ghost-btn" },
+            type: "button",
+            disabled: (!__VLS_ctx.selectedDocument.documentUrl),
+        });
+    }
     if (!__VLS_ctx.selectedDocument.documentUrl) {
         __VLS_asFunctionalElement(__VLS_intrinsicElements.p, __VLS_intrinsicElements.p)({
             ...{ class: "note" },

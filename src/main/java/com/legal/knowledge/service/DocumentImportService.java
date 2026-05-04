@@ -26,17 +26,20 @@ public class DocumentImportService {
     private final DocumentProcessingCapabilityService capabilityService;
     private final NativeDocumentParser nativeDocumentParser;
     private final DocumentParseTaskService parseTaskService;
+    private final MineruImageAssetStorageService mineruImageAssetStorageService;
     private final LegalUserMapper legalUserMapper;
 
     public DocumentImportService(KbDocumentMapper kbDocumentMapper,
                                  DocumentProcessingCapabilityService capabilityService,
                                  NativeDocumentParser nativeDocumentParser,
                                  DocumentParseTaskService parseTaskService,
+                                 MineruImageAssetStorageService mineruImageAssetStorageService,
                                  LegalUserMapper legalUserMapper) {
         this.kbDocumentMapper = kbDocumentMapper;
         this.capabilityService = capabilityService;
         this.nativeDocumentParser = nativeDocumentParser;
         this.parseTaskService = parseTaskService;
+        this.mineruImageAssetStorageService = mineruImageAssetStorageService;
         this.legalUserMapper = legalUserMapper;
     }
 
@@ -77,6 +80,7 @@ public class DocumentImportService {
         document.setCreatedAt(now);
         document.setUpdatedAt(now);
         kbDocumentMapper.insert(document);
+        byte[] fileContent = readBytes(file);
 
         if (parseMethod == DocumentParseMethod.NATIVE) {
             DocumentParseResult result = nativeDocumentParser.parse(new DocumentParseRequest(file, parseMethod, chunkSize, chunkOverlap, cleaningEnabled));
@@ -84,11 +88,12 @@ public class DocumentImportService {
             if (chunks.isEmpty()) {
                 throw AppException.badRequest(emptyChunkMessage);
             }
-            parseTaskService.completeNative(document, chunks, result.getCleaningReport());
+            MineruPackageUploadResult originalUploadResult = mineruImageAssetStorageService.uploadOriginalDocument(document, fallbackSource(originalName), fileContent);
+            parseTaskService.completeNative(document, chunks, result.getCleaningReport(), originalUploadResult);
             return document;
         }
 
-        parseTaskService.createTask(document, fallbackSource(originalName), readBytes(file));
+        parseTaskService.createTask(document, fallbackSource(originalName), fileContent);
         return document;
     }
 

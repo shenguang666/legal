@@ -107,8 +107,8 @@
           </div>
           <div class="actions">
             <button class="primary-btn" type="button" :disabled="!selectedDocument.documentUrl" @click="openDocumentAsset(selectedDocument, 'origin')">查看原文档</button>
-            <button class="ghost-btn" type="button" :disabled="!selectedDocument.documentUrl" @click="openDocumentAsset(selectedDocument, 'full.md')">下载 Markdown 解析结果</button>
-            <button class="ghost-btn" type="button" :disabled="!selectedDocument.documentUrl" @click="openDocumentAsset(selectedDocument, 'content_list_v2.json')">下载 JSON 解析结果</button>
+            <button v-if="selectedDocument.parseMethod !== 'NATIVE'" class="ghost-btn" type="button" :disabled="!selectedDocument.documentUrl" @click="openDocumentAsset(selectedDocument, 'full.md')">下载 Markdown 解析结果</button>
+            <button v-if="selectedDocument.parseMethod !== 'NATIVE'" class="ghost-btn" type="button" :disabled="!selectedDocument.documentUrl" @click="openDocumentAsset(selectedDocument, 'content_list_v2.json')">下载 JSON 解析结果</button>
           </div>
           <p v-if="!selectedDocument.documentUrl" class="note">当前文档暂未记录可访问原文档地址。</p>
         </div>

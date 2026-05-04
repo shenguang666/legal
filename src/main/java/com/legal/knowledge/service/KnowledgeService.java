@@ -253,6 +253,7 @@ public class KnowledgeService {
         idempotencyService.ensureUnique(principal, "knowledge:delete-document", requestId);
         KbDocumentEntity document = requireDocument(principal, documentId);
         if (document.getStatus() == KbDocumentStatus.DELETED) {
+            mineruImageAssetCleanupService.cleanupDeletedDocument(principal.tenantId(), documentId);
             return toDto(document);
         }
 
