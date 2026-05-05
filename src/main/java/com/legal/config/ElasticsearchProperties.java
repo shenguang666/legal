@@ -19,9 +19,6 @@ public class ElasticsearchProperties {
     private String password;
     private Duration connectTimeout = Duration.ofSeconds(3);
     private Duration socketTimeout = Duration.ofSeconds(10);
-    private Duration connectionRequestTimeout = Duration.ofSeconds(2);
-    private int maxConnections = 100;
-    private int maxConnectionsPerRoute = 100;
     private Index index = new Index();
     private Search search = new Search();
     private Worker worker = new Worker();
@@ -63,7 +60,6 @@ public class ElasticsearchProperties {
 
         private boolean enabled = true;
         private int batchSize = 10;
-        private Duration pollInterval = Duration.ofSeconds(3);
         private int maxRetries = 5;
         private Duration retryDelay = Duration.ofSeconds(30);
     }

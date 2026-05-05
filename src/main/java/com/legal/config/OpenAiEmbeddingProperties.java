@@ -12,8 +12,6 @@ public class OpenAiEmbeddingProperties {
     private String modelName;
     private Integer dimensions = 1024;
     private Duration timeout = Duration.ofSeconds(30);
-    private boolean logRequests;
-    private boolean logResponses;
 
     public String getBaseUrl() {
         return baseUrl;
@@ -55,19 +53,4 @@ public class OpenAiEmbeddingProperties {
         this.timeout = timeout;
     }
 
-    public boolean isLogRequests() {
-        return logRequests;
-    }
-
-    public void setLogRequests(boolean logRequests) {
-        this.logRequests = logRequests;
-    }
-
-    public boolean isLogResponses() {
-        return logResponses;
-    }
-
-    public void setLogResponses(boolean logResponses) {
-        this.logResponses = logResponses;
-    }
 }

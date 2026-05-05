@@ -1,78 +1,138 @@
+# Spring Boot 基础配置。
 spring:
+  # 应用元信息配置。
   application:
+    # Spring 应用名称，用于日志、监控和服务标识。
     name: legal
+  # Spring Profile 激活配置。
   profiles:
+    # 当前激活的运行环境，默认使用 dev。
     active: ${LEGAL_PROFILE:dev}
+  # Servlet 容器相关配置。
   servlet:
+    # 文件上传大小限制配置。
     multipart:
+      # 单个上传文件允许的最大大小。
       max-file-size: ${LEGAL_KB_UPLOAD_MAX_FILE_SIZE:20MB}
+      # 单次 multipart 请求允许的最大大小。
       max-request-size: ${LEGAL_KB_UPLOAD_MAX_REQUEST_SIZE:20MB}
 
+# Web 服务端口配置。
 server:
+  # 后端 HTTP 服务监听端口。
   port: ${LEGAL_SERVER_PORT:8081}
 
+# MyBatis-Plus ORM 配置。
 mybatis-plus:
+  # MyBatis 运行行为配置。
   configuration:
+    # 是否自动将数据库下划线字段映射为 Java 驼峰属性。
     map-underscore-to-camel-case: true
+  # MyBatis-Plus 全局配置。
   global-config:
+    # 是否显示 MyBatis-Plus 启动 Banner。
     banner: false
 
+# Spring Boot Actuator 监控端点配置。
 management:
+  # Actuator 端点暴露配置。
   endpoints:
+    # Web 方式访问的端点配置。
     web:
+      # Web 端点暴露范围配置。
       exposure:
+        # 对外暴露的 Actuator 端点列表。
         include: health,info,metrics
+  # 单个 Actuator 端点配置。
   endpoint:
+    # 健康检查端点配置。
     health:
+      # 健康检查是否显示详细信息。
       show-details: always
 
+# Sa-Token 登录认证与鉴权配置。
 sa-token:
+  # Token 在请求头中的名称。
   token-name: Authorization
+  # Token 前缀，前端传入时形如 Bearer xxx。
   token-prefix: Bearer
+  # Token 有效期秒数。
   timeout: 2592000
+  # Token 临时有效期，-1 表示不限制活跃超时。
   active-timeout: -1
+  # 是否允许同一账号并发登录。
   is-concurrent: true
+  # 并发登录时是否共用同一个 Token。
   is-share: false
+  # 是否从 Cookie 中读取 Token。
   is-read-cookie: false
+  # 是否从请求头中读取 Token。
   is-read-header: true
+  # 是否开启 Sa-Token 操作日志。
   is-log: false
 
+# 日志输出配置。
 logging:
+  # 日志格式配置。
   pattern:
+    # 控制台日志输出格式，包含 traceId 便于问题排查。
     console: "%d{yyyy-MM-dd HH:mm:ss.SSS} %-5level [%thread] [%X{traceId:-no-trace}] %logger{36} - %msg%n"
+  # 日志级别配置。
   level:
+    # 全局默认日志级别。
     root: info
+    # 项目包日志级别。
     com.legal: info
 
 # LangChain4j 与 RAG 配置。
 langchain4j:
+  # OpenAI 兼容协议模型配置。
   open-ai:
+    # 普通非流式聊天模型配置。
     chat-model:
+      # 聊天模型 OpenAI 兼容接口地址。
       base-url: ${LEGAL_LLM_BASE_URL:https://dashscope.aliyuncs.com/compatible-mode/v1}
+      # 聊天模型 API Key，生产环境应通过环境变量注入。
       api-key: ${LEGAL_LLM_API_KEY:sk-8f14b342380c4e1ea5bbf457709c5f12}
+      # 聊天模型名称。
       model-name: ${LEGAL_LLM_MODEL:deepseek-v4-pro}
+      # 聊天模型采样温度，值越低回答越稳定。
       temperature: ${LEGAL_LLM_TEMPERATURE:0.2}
+      # 聊天模型单次回答最大输出 Token 数。
       max-output-tokens: ${LEGAL_LLM_MAX_OUTPUT_TOKENS:2048}
+      # 聊天模型调用超时时间。
       timeout: ${LEGAL_LLM_TIMEOUT:60s}
+      # 是否记录聊天模型请求日志。
       log-requests: ${LEGAL_LLM_LOG_REQUESTS:false}
+      # 是否记录聊天模型响应日志。
       log-responses: ${LEGAL_LLM_LOG_RESPONSES:false}
 
     # 流式聊天模型配置（SSE 流式问答用）。默认复用 chat-model 的 base-url/api-key/model。
     streaming-chat-model:
+      # 流式聊天模型 OpenAI 兼容接口地址。
       base-url: ${LEGAL_LLM_STREAM_BASE_URL:${LEGAL_LLM_BASE_URL:https://dashscope.aliyuncs.com/compatible-mode/v1}}
+      # 流式聊天模型 API Key，默认复用普通聊天模型 API Key。
       api-key: ${LEGAL_LLM_STREAM_API_KEY:${LEGAL_LLM_API_KEY:sk-8f14b342380c4e1ea5bbf457709c5f12}}
+      # 流式聊天模型名称，默认复用普通聊天模型名称。
       model-name: ${LEGAL_LLM_STREAM_MODEL:${LEGAL_LLM_MODEL:deepseek-v4-pro}}
+      # 流式聊天模型采样温度，默认复用普通聊天模型温度。
       temperature: ${LEGAL_LLM_STREAM_TEMPERATURE:${LEGAL_LLM_TEMPERATURE:0.2}}
+      # 流式聊天模型单次回答最大输出 Token 数。
       max-output-tokens: ${LEGAL_LLM_STREAM_MAX_OUTPUT_TOKENS:${LEGAL_LLM_MAX_OUTPUT_TOKENS:2048}}
+      # 流式聊天模型调用超时时间。
       timeout: ${LEGAL_LLM_STREAM_TIMEOUT:${LEGAL_LLM_TIMEOUT:60s}}
+    # Embedding 向量模型配置。
     embedding-model:
+      # Embedding 模型 OpenAI 兼容接口地址。
       base-url: ${LEGAL_LLM_EMBEDDING_BASE_URL:${LEGAL_LLM_BASE_URL:https://dashscope.aliyuncs.com/compatible-mode/v1}}
+      # Embedding 模型 API Key，默认复用普通聊天模型 API Key。
       api-key: ${LEGAL_LLM_EMBEDDING_API_KEY:${LEGAL_LLM_API_KEY:sk-8f14b342380c4e1ea5bbf457709c5f12}}
+      # Embedding 模型名称。
       model-name: ${LEGAL_LLM_EMBEDDING_MODEL:text-embedding-v3}
+      # Embedding 向量维度，需与 Elasticsearch 索引维度一致。
       dimensions: ${LEGAL_LLM_EMBEDDING_DIMENSIONS:1024}
+      # Embedding 模型调用超时时间。
       timeout: ${LEGAL_LLM_EMBEDDING_TIMEOUT:30s}
-      log-requests: ${LEGAL_LLM_EMBEDDING_LOG_REQUESTS:false}
-      log-responses: ${LEGAL_LLM_EMBEDDING_LOG_RESPONSES:false}
 
 # RAG 运行参数。
 rag:
@@ -81,8 +141,8 @@ rag:
   # 检索返回的最大切片数。
   top-k: ${LEGAL_RAG_TOP_K:5}
   # 向量召回的最小相似度阈值（cosine similarity）。低于阈值的召回会被丢弃；不会强制补齐 topK。
-  min-vector-similarity: ${LEGAL_RAG_MIN_VECTOR_SIMILARITY:0.75}
-  # 会话记忆最多保留多少条消息。
+  min-vector-similarity: ${LEGAL_RAG_MIN_VECTOR_SIMILARITY:0.8}
+  # 会话记忆最多保留多少条消息（非流式）。
   max-memory-messages: ${LEGAL_RAG_MAX_MEMORY_MESSAGES:12}
   # 无检索结果时返回的提示语。
   empty-hit-warning: ${LEGAL_RAG_EMPTY_HIT_WARNING:当前知识库暂无直接相关内容，以下回答仅基于通用法律知识整理，请谨慎核对。}
@@ -133,6 +193,7 @@ rag:
         # 单次模型判断最多输出 token 数。
         max-output-tokens: ${RAG_METRIC_RETRIEVAL_MAX_OUTPUT_TOKENS:1200}
 
+# Token 统计与指标配置。
 token:
   # Token 消耗指标配置。
   metric:
@@ -298,32 +359,55 @@ legal:
       # 文档解析失败后允许的最大重试次数。
       max-retries: ${LEGAL_DOCUMENT_PARSE_WORKER_MAX_RETRIES:3}
 
+  # 智能问答记忆管理配置。
   memory:
+    # 是否启用智能问答记忆能力。
     enabled: ${LEGAL_MEMORY_ENABLED:true}
+    # 会话消息缓存配置。
     cache:
+      # Redis 中近期会话消息缓存的保留天数。
       messages-ttl-days: ${LEGAL_MEMORY_MESSAGES_TTL_DAYS:7}
-      recent-max-messages: ${LEGAL_MEMORY_RECENT_MAX_MESSAGES:30}
+    # 短期上下文记忆配置。
     short-term:
+      # 构造上下文时最多携带多少条短期消息。
       max-messages: ${LEGAL_MEMORY_SHORT_MAX_MESSAGES:${LEGAL_RAG_MAX_MEMORY_MESSAGES:12}}
+    # 会话摘要记忆配置。
     summary:
+      # 是否启用会话摘要生成与刷新。
       enabled: ${LEGAL_MEMORY_SUMMARY_ENABLED:true}
-      refresh-rounds: ${LEGAL_MEMORY_SUMMARY_REFRESH_ROUNDS:5}
+      # 每累计多少轮对话后刷新一次摘要。
+      refresh-rounds: ${LEGAL_MEMORY_SUMMARY_REFRESH_ROUNDS:12}
+      # 生成摘要时向模型提供的最近消息条数。
       last-messages: ${LEGAL_MEMORY_SUMMARY_LAST_MESSAGES:20}
+    # 长期记忆配置。
     long-term:
+      # 是否启用长期记忆抽取与使用。
       enabled: ${LEGAL_MEMORY_LONG_TERM_ENABLED:true}
+      # 单个用户最多保留多少条长期记忆。
       max-items: ${LEGAL_MEMORY_LONG_TERM_MAX_ITEMS:20}
+      # 长期记忆入库所需的最低置信度。
       min-confidence: ${LEGAL_MEMORY_LONG_TERM_MIN_CONFIDENCE:0.6}
+      # 同一事实达到多少次稳定出现后才进入长期记忆。
       stable-threshold: ${LEGAL_MEMORY_LONG_TERM_STABLE_THRESHOLD:2}
+    # 用户外挂知识沉淀配置。
     user-knowledge:
+      # 是否启用用户外挂知识召回与沉淀。
       enabled: ${LEGAL_MEMORY_USER_KNOWLEDGE_ENABLED:true}
+      # 用户外挂知识召回的最大条数。
       top-k: ${LEGAL_MEMORY_USER_KNOWLEDGE_TOP_K:3}
+      # 触发用户外挂知识沉淀的最小问题长度。
       min-question-length: ${LEGAL_MEMORY_USER_KNOWLEDGE_MIN_QUESTION_LENGTH:8}
-      pending-archive-hours: ${LEGAL_MEMORY_USER_KNOWLEDGE_PENDING_ARCHIVE_HOURS:2}
+    # 记忆后台任务配置。
     worker:
+      # 是否启用记忆后台任务。
       enabled: ${LEGAL_MEMORY_WORKER_ENABLED:true}
+      # 记忆后台任务轮询间隔毫秒数。
       poll-interval-ms: ${LEGAL_MEMORY_WORKER_POLL_INTERVAL_MS:3000}
+      # 单次记忆后台任务最多处理的记录数。
       batch-size: ${LEGAL_MEMORY_WORKER_BATCH_SIZE:10}
+      # 记忆任务失败后允许的最大重试次数。
       max-retries: ${LEGAL_MEMORY_WORKER_MAX_RETRIES:5}
+      # 记忆任务失败后的重试延迟秒数。
       retry-delay-seconds: ${LEGAL_MEMORY_WORKER_RETRY_DELAY_SECONDS:30}
 
   # 合同审阅与风险识别配置。
@@ -361,18 +445,21 @@ legal:
 
 # Elasticsearch 配置（文档向量索引 + 混合检索）。
 elasticsearch:
+  # 是否启用 Elasticsearch 检索与索引能力。
   enabled: ${LEGAL_ES_ENABLED:true}
+  # Elasticsearch 集群访问地址列表。
   uris:
+    # Elasticsearch 默认访问地址。
     - ${LEGAL_ES_URIS:http://159.75.84.229:9200}
+  # Elasticsearch 用户名。
   username: ${LEGAL_ES_USERNAME:elastic}
+  # Elasticsearch 密码，生产环境应通过环境变量注入。
   password: ${LEGAL_ES_PASSWORD:elastic99801}
+  # Elasticsearch 连接建立超时时间。
   connect-timeout: ${LEGAL_ES_CONNECT_TIMEOUT:3s}
+  # Elasticsearch Socket 读取超时时间。
   socket-timeout: ${LEGAL_ES_SOCKET_TIMEOUT:10s}
-  connection-request-timeout: ${LEGAL_ES_CONNECTION_REQUEST_TIMEOUT:2s}
-  max-connections: ${LEGAL_ES_MAX_CONNECTIONS:100}
-  max-connections-per-route: ${LEGAL_ES_MAX_CONNECTIONS_PER_ROUTE:100}
-  log-requests: ${LEGAL_ES_LOG_REQUESTS:false}
-
+  # Elasticsearch 索引名称与向量维度配置。
   index:
     # 知识库文档切片索引名称。
     kb-chunks: ${LEGAL_ES_INDEX_KB_CHUNKS:legal_kb_chunks_v1}
@@ -382,40 +469,64 @@ elasticsearch:
     risk-rule: ${LEGAL_ES_INDEX_RISK_RULE:legal_risk_rule}
     # 用户外挂知识索引名称。
     user-knowledge: ${LEGAL_ES_INDEX_USER_KNOWLEDGE:legal_kb_user_knowledge}
-    retrieval-log: ${LEGAL_ES_INDEX_RETRIEVAL_LOG:legal_retrieval_log_v1}
+    # 向量索引维度，需与 Embedding 模型输出维度一致。
     vector-dims: ${LEGAL_ES_VECTOR_DIMS:${LEGAL_LLM_EMBEDDING_DIMENSIONS:1024}}
 
+  # 混合检索参数配置。
   search:
-    vector-top-k: ${LEGAL_ES_VECTOR_TOP_K:80}
-    bm25-top-k: ${LEGAL_ES_BM25_TOP_K:80}
+    # 向量召回阶段返回的最大候选数量。
+    vector-top-k: ${LEGAL_ES_VECTOR_TOP_K:40}
+    # BM25 关键词召回阶段返回的最大候选数量。
+    bm25-top-k: ${LEGAL_ES_BM25_TOP_K:40}
+    # RRF 融合排序的平滑参数。
     rrf-k: ${LEGAL_ES_RRF_K:60}
     # 智能问答默认知识库检索索引范围，支持 NATIVE_ONLY、MINERU_ONLY、BOTH。
     default-knowledge-index-scope: ${LEGAL_QA_KNOWLEDGE_INDEX_SCOPE:NATIVE_ONLY}
-    rerank-top-n: ${LEGAL_ES_RERANK_TOP_N:20}
-
+  # Elasticsearch 异步索引 worker 配置。
   worker:
+    # 是否启用 Elasticsearch 异步索引 worker。
     enabled: ${LEGAL_ES_WORKER_ENABLED:true}
+    # 单次索引 worker 最多处理的任务数量。
     batch-size: ${LEGAL_ES_WORKER_BATCH_SIZE:10}
-    poll-interval: ${LEGAL_ES_WORKER_POLL_INTERVAL:3s}
+    # 索引 worker 轮询间隔毫秒数。
     poll-interval-ms: ${LEGAL_ES_WORKER_POLL_INTERVAL_MS:3000}
+    # 索引任务失败后允许的最大重试次数。
     max-retries: ${LEGAL_ES_WORKER_MAX_RETRIES:5}
+    # 索引任务失败后的重试延迟时间。
     retry-delay: ${LEGAL_ES_WORKER_RETRY_DELAY:30s}
 
 ---
+# dev Profile 专用配置。
 spring:
+  # Spring 配置激活条件。
   config:
+    # Profile 激活配置。
     activate:
+      # 当前配置块仅在 dev Profile 下生效。
       on-profile: dev
+  # dev 环境数据库连接配置。
   datasource:
+    # MySQL JDBC 连接地址。
     url: ${LEGAL_DB_URL:jdbc:mysql://159.75.84.229:3307/legal?useUnicode=true&characterEncoding=UTF-8&serverTimezone=Asia/Shanghai&allowPublicKeyRetrieval=true&useSSL=false}
+    # MySQL 登录用户名。
     username: ${LEGAL_DB_USERNAME:legal}
+    # MySQL 登录密码，生产环境应通过环境变量注入。
     password: ${LEGAL_DB_PASSWORD:c5S6sixmyYcS4xxX}
+    # MySQL JDBC 驱动类名。
     driver-class-name: com.mysql.cj.jdbc.Driver
+    # HikariCP 数据库连接池配置。
     hikari:
+      # 初始化失败超时时间，-1 表示启动时不因数据库暂不可用而失败。
       initialization-fail-timeout: -1
+  # Spring Data 组件配置。
   data:
+    # Redis 连接配置。
     redis:
+      # Redis 主机地址。
       host: ${LEGAL_REDIS_HOST:159.75.84.229}
+      # Redis 服务端口。
       port: ${LEGAL_REDIS_PORT:6379}
+      # Redis 访问密码。
       password: ${LEGAL_REDIS_PASSWORD:reidsnfturbo11}
+      # Redis 命令执行超时时间。
       timeout: 3s

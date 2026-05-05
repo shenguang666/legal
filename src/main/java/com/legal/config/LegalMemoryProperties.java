@@ -25,7 +25,7 @@ public class LegalMemoryProperties {
     /** Worker 配置。 */
     private Worker worker = new Worker();
 
-    @Data public static class Cache { private int messagesTtlDays = 7; private int recentMaxMessages = 30; }
+    @Data public static class Cache { private int messagesTtlDays = 7; }
     @Data public static class ShortTerm { private int maxMessages = 12; }
     @Data public static class Summary { private boolean enabled = true; private int refreshRounds = 5; private int lastMessages = 20; }
 
@@ -49,8 +49,6 @@ public class LegalMemoryProperties {
         private int topK = 3;
         /** 多少字符以上的问题可进入用户外挂知识候选。 */
         private int minQuestionLength = 8;
-        /** 会话静默多少小时后允许归档 pending optional。 */
-        private int pendingArchiveHours = 2;
     }
 
     @Data public static class Worker { private boolean enabled = true; private int pollIntervalMs = 3000; private int batchSize = 10; private int maxRetries = 5; private int retryDelaySeconds = 30; }
