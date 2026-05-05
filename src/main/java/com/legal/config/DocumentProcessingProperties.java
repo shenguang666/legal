@@ -21,9 +21,6 @@ public class DocumentProcessingProperties {
     /** 单次上传请求允许的最大文档数量。 */
     private int maxUploadDocuments = 5;
 
-    /** 结构化语义切片配置。 */
-    private Chunking chunking = new Chunking();
-
     /** 文档内容清洗配置。 */
     private Cleaning cleaning = new Cleaning();
 
@@ -33,21 +30,8 @@ public class DocumentProcessingProperties {
     /** 文档解析后台 worker 配置。 */
     private Worker worker = new Worker();
 
-    /**
-     * 结构化语义切片配置。
-     */
-    @Data
-    public static class Chunking {
-
-        /** 语义切片目标最大字符数。 */
-        private int maxChunkSize = 800;
-
-        /** 相邻短语义块合并时的目标最小字符数。 */
-        private int minChunkSize = 180;
-
-        /** 语义块超长后使用安全字符窗口兜底时的重叠字符数。 */
-        private int fallbackOverlap = 80;
-    }
+    /** 语义块超长后使用安全字符窗口兜底时的重叠字符数。 */
+    private int fallbackOverlap = 80;
 
     /**
      * 文档内容清洗配置。

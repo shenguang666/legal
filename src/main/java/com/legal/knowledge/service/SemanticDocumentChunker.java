@@ -22,14 +22,6 @@ public class SemanticDocumentChunker {
         this.fallbackChunker = fallbackChunker;
     }
 
-    public List<String> chunkMarkdown(String markdown) {
-        return chunkMarkdown(markdown, null, null);
-    }
-
-    public List<String> chunkMarkdown(String markdown, Integer maxChunkSizeOverride) {
-        return chunkMarkdown(markdown, maxChunkSizeOverride, null);
-    }
-
     public List<String> chunkMarkdown(String markdown, Integer maxChunkSizeOverride, Integer minChunkSizeOverride) {
         if (!StringUtils.hasText(markdown)) {
             return List.of();
@@ -123,17 +115,15 @@ public class SemanticDocumentChunker {
     }
 
     private int resolveMaxChunkSize(Integer maxChunkSizeOverride) {
-        int configured = maxChunkSizeOverride == null ? properties.getChunking().getMaxChunkSize() : maxChunkSizeOverride;
-        return Math.max(100, configured);
+        return Math.max(100, maxChunkSizeOverride);
     }
 
     private int resolveMinChunkSize(int maxChunkSize, Integer minChunkSizeOverride) {
-        int configured = minChunkSizeOverride == null ? properties.getChunking().getMinChunkSize() : minChunkSizeOverride;
-        return Math.min(maxChunkSize, Math.max(1, configured));
+        return Math.min(maxChunkSize, Math.max(1, minChunkSizeOverride));
     }
 
     private int resolveFallbackOverlap(int maxChunkSize) {
-        return Math.max(0, Math.min(properties.getChunking().getFallbackOverlap(), maxChunkSize / 2));
+        return Math.max(0, Math.min(properties.getFallbackOverlap(), maxChunkSize / 2));
     }
 
     private List<String> splitByPreferredBoundary(String block, int maxChunkSize) {

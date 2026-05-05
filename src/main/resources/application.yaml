@@ -250,14 +250,8 @@ legal:
     default-parse-method: ${LEGAL_DOCUMENT_DEFAULT_PARSE_METHOD:NATIVE}
     # 单次上传请求允许的最大文档数量。
     max-upload-documents: ${LEGAL_DOCUMENT_MAX_UPLOAD_DOCUMENTS:5}
-    # 文档语义切片配置。
-    chunking:
-      # 语义切片目标最大字符数。
-      max-chunk-size: ${LEGAL_DOCUMENT_CHUNKING_MAX_CHUNK_SIZE:800}
-      # 相邻短语义块合并时的目标最小字符数。
-      min-chunk-size: ${LEGAL_DOCUMENT_CHUNKING_MIN_CHUNK_SIZE:180}
-      # 超长语义块兜底字符切分时的重叠字符数。
-      fallback-overlap: ${LEGAL_DOCUMENT_CHUNKING_FALLBACK_OVERLAP:80}
+    # 超长语义块兜底字符切分时的重叠字符数。
+    fallback-overlap: ${LEGAL_DOCUMENT_CHUNKING_FALLBACK_OVERLAP:0}
     # 文档内容清洗配置，前端上传时默认关闭，用户主动开启后才执行。
     cleaning:
       # 是否开放文档清洗能力，关闭后前端即使提交开启参数也不会执行清洗。
@@ -307,7 +301,7 @@ legal:
       # MinerU Markdown 语义切片目标最大字符数，独立于原生解析切片大小。
       chunk-size: ${LEGAL_MINERU_CHUNK_SIZE:800}
       # MinerU Markdown 相邻短语义块合并时的目标最小字符数，独立于原生解析切片大小。
-      min-chunk-size: ${LEGAL_MINERU_MIN_CHUNK_SIZE:180}
+      min-chunk-size: ${LEGAL_MINERU_MIN_CHUNK_SIZE:10}
       # MinerU 结果包图片资产处理配置。
       image-asset:
         # 是否启用 MinerU 结果包图片资产处理。
