@@ -21,7 +21,10 @@ export interface RequestOptions {
   formData?: boolean;
 }
 
-const API_BASE_URL = import.meta.env.VITE_API_BASE_URL || 'http://localhost:8081';
+const configuredApiBaseUrl = import.meta.env.VITE_API_BASE_URL;
+const normalizedApiBaseUrl =
+  configuredApiBaseUrl === undefined ? 'http://localhost:8081' : configuredApiBaseUrl.trim().replace(/\/+$/, '');
+const API_BASE_URL = normalizedApiBaseUrl === '.' ? '' : normalizedApiBaseUrl;
 
 function getToken() {
   return localStorage.getItem('legal.token') || '';
