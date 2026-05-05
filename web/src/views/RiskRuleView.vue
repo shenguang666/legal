@@ -150,7 +150,7 @@
             <p><strong>状态</strong><span>{{ selectedRule.documentStatus || '-' }} / {{ selectedRule.documentIndexStatus || '-' }} / {{ selectedRule.documentParseStatus || 'COMPLETED' }}</span></p>
           </div>
           <div class="actions">
-            <button class="primary-btn" type="button" :disabled="!selectedRule.documentUrl" @click="openDocumentAsset(selectedRule, 'origin')">查看原文档</button>
+            <button class="primary-btn" type="button" :disabled="!selectedRule.documentUrl" @click="openDocumentAsset(selectedRule, 'origin')">下载原文档</button>
             <button v-if="selectedRule.documentParseMethod !== 'NATIVE'" class="ghost-btn" type="button" :disabled="!selectedRule.documentUrl" @click="openDocumentAsset(selectedRule, 'full.md')">下载 Markdown 解析结果</button>
             <button v-if="selectedRule.documentParseMethod !== 'NATIVE'" class="ghost-btn" type="button" :disabled="!selectedRule.documentUrl" @click="openDocumentAsset(selectedRule, 'content_list_v2.json')">下载 JSON 解析结果</button>
           </div>

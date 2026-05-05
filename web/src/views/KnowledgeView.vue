@@ -106,7 +106,7 @@
             <p><strong>状态</strong><span>{{ selectedDocument.status }} / {{ selectedDocument.indexStatus }} / {{ selectedDocument.parseStatus || 'COMPLETED' }}</span></p>
           </div>
           <div class="actions">
-            <button class="primary-btn" type="button" :disabled="!selectedDocument.documentUrl" @click="openDocumentAsset(selectedDocument, 'origin')">查看原文档</button>
+            <button class="primary-btn" type="button" :disabled="!selectedDocument.documentUrl" @click="openDocumentAsset(selectedDocument, 'origin')">下载原文档</button>
             <button v-if="selectedDocument.parseMethod !== 'NATIVE'" class="ghost-btn" type="button" :disabled="!selectedDocument.documentUrl" @click="openDocumentAsset(selectedDocument, 'full.md')">下载 Markdown 解析结果</button>
             <button v-if="selectedDocument.parseMethod !== 'NATIVE'" class="ghost-btn" type="button" :disabled="!selectedDocument.documentUrl" @click="openDocumentAsset(selectedDocument, 'content_list_v2.json')">下载 JSON 解析结果</button>
           </div>
