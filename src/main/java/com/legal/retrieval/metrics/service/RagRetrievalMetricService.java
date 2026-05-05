@@ -238,7 +238,7 @@ public class RagRetrievalMetricService {
     private RagRetrievalMetricEvaluationEntity evaluateOne(RetrievalLogEntity log, Long dailySummaryId) {
         RagRetrievalMetricEvaluationEntity entity = baseEntity(log, dailySummaryId);
         try {
-            List<Long> originalHitIds = parseChunkIds(log.getHitChunkIds());
+            List<Long> originalHitIds = parseChunkIds(StringUtils.hasText(log.getRawHitChunkIds()) ? log.getRawHitChunkIds() : log.getHitChunkIds());
             if (!isEvaluableQuery(log.getQueryText())) {
                 fillSkipped(entity, originalHitIds);
                 persist(entity);
@@ -558,6 +558,7 @@ public class RagRetrievalMetricService {
         entity.setRetrievalLogId(log.getId());
         entity.setTenantId(log.getTenantId());
         entity.setQueryText(log.getQueryText());
+        entity.setFinalHitChunkIds(JsonUtils.toJson(parseChunkIds(log.getHitChunkIds())));
         entity.setModelName(StringUtils.hasText(properties.getJudgeModel().getModelName())
                 ? properties.getJudgeModel().getModelName()
                 : chatModelProperties.getModelName());
@@ -753,6 +754,7 @@ public class RagRetrievalMetricService {
         detail.setRetrievalLogId(entity.getRetrievalLogId());
         detail.setQueryText(entity.getQueryText());
         detail.setOriginalHitChunkIds(jsonIds(entity.getOriginalHitChunkIds()));
+        detail.setFinalHitChunkIds(jsonIds(entity.getFinalHitChunkIds()));
         detail.setRelevantOriginalChunkIds(jsonIds(entity.getRelevantOriginalChunkIds()));
         detail.setIrrelevantOriginalChunkIds(jsonIds(entity.getIrrelevantOriginalChunkIds()));
         detail.setMissedRelevantChunkIds(jsonIds(entity.getMissedRelevantChunkIds()));

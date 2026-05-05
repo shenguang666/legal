@@ -1,15 +1,27 @@
 import { onMounted, ref } from 'vue';
 import { apiDelete, apiGet, apiPost, apiPostForm, randomRequestId } from '../api/client';
+import ConfirmDialog from '../components/ConfirmDialog.vue';
 const rules = ref([]);
 const fieldDefinitions = ref([]);
 const selectedFile = ref(null);
 const notice = ref('');
-const parseMethod = ref('NATIVE');
+const parseMethod = ref('MINERU_PRECISE');
 const parseMethods = ref(['NATIVE']);
 const maxUploadDocuments = ref(1);
 const cleaningAvailable = ref(false);
 const cleaningEnabled = ref(false);
 const selectedRule = ref(null);
+const confirmState = ref({
+    visible: false,
+    title: '',
+    message: '',
+    targetName: '',
+    targetLabel: '对象',
+    confirmText: '确认',
+    eyebrow: '操作确认',
+    danger: false,
+    action: null,
+});
 const manualRuleName = ref('');
 const manualRuleCode = ref('');
 const manualSource = ref('');
@@ -39,11 +51,31 @@ onMounted(async () => {
 });
 async function loadCapabilities() {
     const capabilities = await apiGet('/api/document-processing/capabilities');
-    parseMethods.value = capabilities.availableParseMethods?.length ? capabilities.availableParseMethods : ['NATIVE'];
-    parseMethod.value = capabilities.defaultParseMethod || parseMethods.value[0];
+    parseMethods.value = orderedParseMethods(capabilities.availableParseMethods?.length ? capabilities.availableParseMethods : ['NATIVE']);
+    parseMethod.value = preferredParseMethod(parseMethods.value, capabilities.defaultParseMethod);
     maxUploadDocuments.value = capabilities.maxUploadDocuments || 1;
     cleaningAvailable.value = Boolean(capabilities.cleaningAvailable);
     cleaningEnabled.value = false;
+}
+function orderedParseMethods(methods) {
+    return [...methods].sort((left, right) => {
+        if (left === 'MINERU_PRECISE') {
+            return -1;
+        }
+        if (right === 'MINERU_PRECISE') {
+            return 1;
+        }
+        return 0;
+    });
+}
+function preferredParseMethod(methods, defaultMethod) {
+    if (methods.includes('MINERU_PRECISE')) {
+        return 'MINERU_PRECISE';
+    }
+    if (defaultMethod && methods.includes(defaultMethod)) {
+        return defaultMethod;
+    }
+    return methods[0] || 'NATIVE';
 }
 async function refreshAll() {
     rules.value = await apiGet('/api/risk-rules/entries');
@@ -83,6 +115,20 @@ async function importRuleDocument() {
     }
     if (maxUploadDocuments.value < 1) {
         notice.value = '当前配置不允许上传文档';
+        return;
+    }
+    openConfirm({
+        title: '导入风险规则文件',
+        message: `确认使用“${parseMethodLabel(parseMethod.value)}”导入该规则文件。`,
+        targetName: selectedFile.value.name,
+        targetLabel: '文件名称',
+        confirmText: '确认导入',
+        action: executeImportRuleDocument,
+    });
+}
+async function executeImportRuleDocument() {
+    if (!selectedFile.value) {
+        notice.value = '请先选择文件';
         return;
     }
     const formData = new FormData();
@@ -132,11 +178,19 @@ async function reindexRule(item) {
     await refreshAll();
 }
 async function deleteRule(item) {
-    if (!window.confirm(`确认删除风险规则 ${item.ruleCode}？`)) {
-        return;
-    }
+    openConfirm({
+        title: '删除风险规则',
+        message: '确认后会删除该风险规则。',
+        targetName: item.ruleName,
+        targetLabel: '规则名称',
+        confirmText: '确认删除',
+        danger: true,
+        action: () => executeDeleteRule(item),
+    });
+}
+async function executeDeleteRule(item) {
     await apiDelete(`/api/risk-rules/${item.ruleId}?requestId=${encodeURIComponent(randomRequestId('risk-rule-delete'))}`);
-    notice.value = `风险规则 ${item.ruleCode} 已删除`;
+    notice.value = `风险规则“${item.ruleName}”已删除`;
     await refreshAll();
 }
 function openDetail(item) {
@@ -231,12 +285,44 @@ async function toggleField(item) {
     await refreshAll();
 }
 async function deleteField(item) {
-    if (!window.confirm(`确认删除字段定义 ${item.fieldCode}？`)) {
-        return;
-    }
+    openConfirm({
+        title: '删除字段定义',
+        message: '确认后会删除该字段定义。',
+        targetName: item.fieldName,
+        targetLabel: '字段名称',
+        confirmText: '确认删除',
+        danger: true,
+        action: () => executeDeleteField(item),
+    });
+}
+async function executeDeleteField(item) {
     await apiDelete(`/api/risk-rules/fields/${item.fieldDefinitionId}?requestId=${encodeURIComponent(randomRequestId('field-definition-delete'))}`);
-    notice.value = `字段定义 ${item.fieldCode} 已删除`;
+    notice.value = `字段定义“${item.fieldName}”已删除`;
     await refreshAll();
+}
+function openConfirm(options) {
+    confirmState.value = {
+        visible: true,
+        title: options.title || '操作确认',
+        message: options.message || '请确认是否继续执行该操作。',
+        targetName: options.targetName || '',
+        targetLabel: options.targetLabel || '对象',
+        confirmText: options.confirmText || '确认',
+        eyebrow: options.eyebrow || '操作确认',
+        danger: Boolean(options.danger),
+        action: options.action,
+    };
+}
+function closeConfirm() {
+    confirmState.value.visible = false;
+    confirmState.value.action = null;
+}
+async function confirmAction() {
+    const action = confirmState.value.action;
+    closeConfirm();
+    if (action) {
+        await action();
+    }
 }
 debugger; /* PartiallyEnd: #3632/scriptSetup.vue */
 const __VLS_ctx = {};
@@ -646,6 +732,42 @@ if (__VLS_ctx.selectedRule) {
     }
 }
 var __VLS_3;
+/** @type {[typeof ConfirmDialog, ]} */ ;
+// @ts-ignore
+const __VLS_4 = __VLS_asFunctionalComponent(ConfirmDialog, new ConfirmDialog({
+    ...{ 'onCancel': {} },
+    ...{ 'onConfirm': {} },
+    modelValue: (__VLS_ctx.confirmState.visible),
+    title: (__VLS_ctx.confirmState.title),
+    message: (__VLS_ctx.confirmState.message),
+    targetName: (__VLS_ctx.confirmState.targetName),
+    targetLabel: (__VLS_ctx.confirmState.targetLabel),
+    confirmText: (__VLS_ctx.confirmState.confirmText),
+    eyebrow: (__VLS_ctx.confirmState.eyebrow),
+    danger: (__VLS_ctx.confirmState.danger),
+}));
+const __VLS_5 = __VLS_4({
+    ...{ 'onCancel': {} },
+    ...{ 'onConfirm': {} },
+    modelValue: (__VLS_ctx.confirmState.visible),
+    title: (__VLS_ctx.confirmState.title),
+    message: (__VLS_ctx.confirmState.message),
+    targetName: (__VLS_ctx.confirmState.targetName),
+    targetLabel: (__VLS_ctx.confirmState.targetLabel),
+    confirmText: (__VLS_ctx.confirmState.confirmText),
+    eyebrow: (__VLS_ctx.confirmState.eyebrow),
+    danger: (__VLS_ctx.confirmState.danger),
+}, ...__VLS_functionalComponentArgsRest(__VLS_4));
+let __VLS_7;
+let __VLS_8;
+let __VLS_9;
+const __VLS_10 = {
+    onCancel: (__VLS_ctx.closeConfirm)
+};
+const __VLS_11 = {
+    onConfirm: (__VLS_ctx.confirmAction)
+};
+var __VLS_6;
 __VLS_asFunctionalElement(__VLS_intrinsicElements.article, __VLS_intrinsicElements.article)({
     ...{ class: "card panel" },
 });
@@ -933,6 +1055,7 @@ var __VLS_dollars;
 const __VLS_self = (await import('vue')).defineComponent({
     setup() {
         return {
+            ConfirmDialog: ConfirmDialog,
             rules: rules,
             fieldDefinitions: fieldDefinitions,
             notice: notice,
@@ -942,6 +1065,7 @@ const __VLS_self = (await import('vue')).defineComponent({
             cleaningAvailable: cleaningAvailable,
             cleaningEnabled: cleaningEnabled,
             selectedRule: selectedRule,
+            confirmState: confirmState,
             manualRuleName: manualRuleName,
             manualRuleCode: manualRuleCode,
             manualSource: manualSource,
@@ -983,6 +1107,8 @@ const __VLS_self = (await import('vue')).defineComponent({
             saveFieldDefinition: saveFieldDefinition,
             toggleField: toggleField,
             deleteField: deleteField,
+            closeConfirm: closeConfirm,
+            confirmAction: confirmAction,
         };
     },
 });

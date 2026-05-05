@@ -1,5 +1,6 @@
 package com.legal.knowledge.service;
 
+import com.legal.auth.mapper.LegalUserMapper;
 import com.legal.common.AppException;
 import com.legal.config.DocumentProcessingProperties;
 import com.legal.enums.DocumentParseMethod;
@@ -11,8 +12,8 @@ import com.legal.knowledge.entity.KbChunkEntity;
 import com.legal.knowledge.entity.KbDocumentEntity;
 import com.legal.knowledge.entity.KbDocumentParseTaskEntity;
 import com.legal.knowledge.entity.KbIndexOutboxEntity;
-import com.legal.knowledge.mapper.KbChunkMapper;
 import com.legal.knowledge.mapper.KbChunkImageRefMapper;
+import com.legal.knowledge.mapper.KbChunkMapper;
 import com.legal.knowledge.mapper.KbDocumentMapper;
 import com.legal.knowledge.mapper.KbDocumentParseTaskMapper;
 import com.legal.knowledge.mapper.KbIndexOutboxMapper;
@@ -27,6 +28,7 @@ import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.eq;
+import static org.mockito.ArgumentMatchers.isNull;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.verify;
@@ -46,10 +48,10 @@ class DocumentProcessingServicesTest {
     }
 
     @Test
-    void capabilityShouldUseConfiguredDefaultAndFallbackWhenMineruUnavailable() {
+    void capabilityShouldResolveMineruOnlyWhenEnabledAndTokenConfigured() {
         DocumentProcessingProperties properties = new DocumentProcessingProperties();
-        properties.setDefaultParseMethod(DocumentParseMethod.MINERU_PRECISE);
         properties.getMineru().setEnabled(true);
+        properties.getMineru().setApiToken("");
         DocumentProcessingCapabilityService unavailable = new DocumentProcessingCapabilityService(properties);
 
         assertThat(unavailable.resolveParseMethod(null)).isEqualTo(DocumentParseMethod.NATIVE);
@@ -59,6 +61,7 @@ class DocumentProcessingServicesTest {
         DocumentProcessingCapabilityService available = new DocumentProcessingCapabilityService(properties);
 
         assertThat(available.resolveParseMethod(null)).isEqualTo(DocumentParseMethod.MINERU_PRECISE);
+        assertThat(available.resolveParseMethod("MINERU_PRECISE")).isEqualTo(DocumentParseMethod.MINERU_PRECISE);
         assertThat(available.availableParseMethods()).containsExactly(DocumentParseMethod.NATIVE, DocumentParseMethod.MINERU_PRECISE);
     }
 
@@ -68,7 +71,8 @@ class DocumentProcessingServicesTest {
         DocumentProcessingCapabilityService capabilityService = new DocumentProcessingCapabilityService(new DocumentProcessingProperties());
         NativeDocumentParser nativeDocumentParser = mock(NativeDocumentParser.class);
         DocumentParseTaskService parseTaskService = mock(DocumentParseTaskService.class);
-        DocumentImportService service = new DocumentImportService(documentMapper, capabilityService, nativeDocumentParser, parseTaskService);
+        MineruImageAssetStorageService storageService = mock(MineruImageAssetStorageService.class);
+        DocumentImportService service = new DocumentImportService(documentMapper, capabilityService, nativeDocumentParser, parseTaskService, storageService, mock(LegalUserMapper.class));
         MockMultipartFile file = new MockMultipartFile("file", "contract.txt", "text/plain", "合同内容".getBytes(StandardCharsets.UTF_8));
         when(nativeDocumentParser.parse(any(DocumentParseRequest.class)))
                 .thenReturn(new DocumentParseResult(DocumentParseMethod.NATIVE, "合同内容", null, List.of("合同内容"), null, null, null, null));
@@ -79,7 +83,7 @@ class DocumentProcessingServicesTest {
         assertThat(document.getParseStatus()).isEqualTo(DocumentParseStatus.PROCESSING);
         assertThat(document.getStatus()).isEqualTo(KbDocumentStatus.PROCESSING);
         verify(documentMapper).insert(document);
-        verify(parseTaskService).completeNative(eq(document), eq(List.of("合同内容")), eq(null));
+        verify(parseTaskService).completeNative(eq(document), eq(List.of("合同内容")), isNull(), isNull());
         verify(parseTaskService, never()).createTask(any(), any(), any());
     }
 
@@ -91,16 +95,10 @@ class DocumentProcessingServicesTest {
         KbDocumentMapper documentMapper = mock(KbDocumentMapper.class);
         NativeDocumentParser nativeDocumentParser = mock(NativeDocumentParser.class);
         DocumentParseTaskService parseTaskService = mock(DocumentParseTaskService.class);
-        DocumentImportService service = new DocumentImportService(
-                documentMapper,
-                new DocumentProcessingCapabilityService(properties),
-                nativeDocumentParser,
-                parseTaskService
-        );
+        DocumentImportService service = new DocumentImportService(documentMapper, new DocumentProcessingCapabilityService(properties), nativeDocumentParser, parseTaskService, mock(MineruImageAssetStorageService.class), mock(LegalUserMapper.class));
         MockMultipartFile file = new MockMultipartFile("file", "contract.pdf", "application/pdf", "PDF".getBytes(StandardCharsets.UTF_8));
 
-        KbDocumentEntity document = service.importDocument(principal(), file, "精准合同", "上传", KbDocumentBizType.KNOWLEDGE,
-                "MINERU_PRECISE", null, null, false, "内容过短");
+        KbDocumentEntity document = service.importDocument(principal(), file, "精准合同", "上传", KbDocumentBizType.KNOWLEDGE, "MINERU_PRECISE", null, null, false, "内容过短");
 
         assertThat(document.getParseMethod()).isEqualTo(DocumentParseMethod.MINERU_PRECISE);
         assertThat(document.getParseStatus()).isEqualTo(DocumentParseStatus.PENDING);
@@ -117,25 +115,22 @@ class DocumentProcessingServicesTest {
         KbChunkImageRefMapper chunkImageRefMapper = mock(KbChunkImageRefMapper.class);
         KbIndexOutboxMapper outboxMapper = mock(KbIndexOutboxMapper.class);
         KbDocumentParseTaskMapper taskMapper = mock(KbDocumentParseTaskMapper.class);
-        NativeDocumentParser nativeDocumentParser = mock(NativeDocumentParser.class);
         MineruClient mineruClient = mock(MineruClient.class);
         SemanticDocumentChunker semanticDocumentChunker = mock(SemanticDocumentChunker.class);
         DocumentProcessingProperties properties = new DocumentProcessingProperties();
         properties.getMineru().setChunkSize(456);
         properties.getMineru().setMinChunkSize(123);
-        MineruImageAssetProcessor imageAssetProcessor = mock(MineruImageAssetProcessor.class);
-        DocumentParseTaskService service = new DocumentParseTaskService(documentMapper, chunkMapper, chunkImageRefMapper, outboxMapper, taskMapper,
-                nativeDocumentParser, mineruClient, semanticDocumentChunker, new DocumentContentCleaner(properties),
-                mock(DocumentCleaningLogService.class), imageAssetProcessor, properties);
+        MineruImageAssetStorageService storageService = mock(MineruImageAssetStorageService.class);
+        DocumentParseTaskService service = new DocumentParseTaskService(documentMapper, chunkMapper, chunkImageRefMapper, outboxMapper, taskMapper, mock(NativeDocumentParser.class), mineruClient, semanticDocumentChunker, new DocumentContentCleaner(properties), mock(DocumentCleaningLogService.class), mock(MineruImageAssetProcessor.class), storageService, properties);
         KbDocumentEntity document = mineruDocument(KbDocumentBizType.KNOWLEDGE);
         KbDocumentParseTaskEntity task = mineruTask();
+        MineruParsePackage parsePackage = new MineruParsePackage("# 合同\n\n第一条 内容", List.of());
         when(documentMapper.selectOne(any())).thenReturn(document);
         when(mineruClient.submit("contract.pdf", task.getFileContent())).thenReturn(new MineruClient.MineruUploadSession("batch-1", "data-1"));
         when(mineruClient.waitForResult("batch-1", "data-1")).thenReturn(MineruClient.MineruExtractResult.done("https://example.test/full.zip"));
-        MineruParsePackage parsePackage = new MineruParsePackage("# 合同\n\n第一条 内容", List.of());
         when(mineruClient.downloadPackage("https://example.test/full.zip")).thenReturn(parsePackage);
-        when(imageAssetProcessor.process(document, parsePackage)).thenReturn(new MineruImageProcessingResult("# 合同\n\n第一条 内容", List.of()));
-        when(semanticDocumentChunker.chunkMarkdown("# 合同\n\n第一条 内容", 456, 123)).thenReturn(List.of("# 合同\n第一条 内容"));
+        when(storageService.uploadPackage(document, parsePackage, "contract.pdf", task.getFileContent())).thenReturn(new MineruPackageUploadResult("bucket", "prefix", "url", "# 合同\n\n第一条 内容"));
+        when(semanticDocumentChunker.chunkMarkdownStructured("# 合同\n\n第一条 内容", 456, 123)).thenReturn(List.of(SemanticChunk.normal("# 合同\n第一条 内容")));
 
         service.processTask(task);
 
@@ -145,7 +140,7 @@ class DocumentProcessingServicesTest {
         assertThat(document.getMineruFullZipUrl()).isEqualTo("https://example.test/full.zip");
         verify(chunkMapper).insert(any(KbChunkEntity.class));
         verify(outboxMapper).insert(any(KbIndexOutboxEntity.class));
-        verify(semanticDocumentChunker).chunkMarkdown("# 合同\n\n第一条 内容", 456, 123);
+        verify(semanticDocumentChunker).chunkMarkdownStructured("# 合同\n\n第一条 内容", 456, 123);
         verify(taskMapper).markCompleted(100L);
     }
 
@@ -155,9 +150,7 @@ class DocumentProcessingServicesTest {
         KbDocumentParseTaskMapper taskMapper = mock(KbDocumentParseTaskMapper.class);
         MineruClient mineruClient = mock(MineruClient.class);
         DocumentProcessingProperties properties = new DocumentProcessingProperties();
-        DocumentParseTaskService service = new DocumentParseTaskService(documentMapper, mock(KbChunkMapper.class), mock(KbChunkImageRefMapper.class), mock(KbIndexOutboxMapper.class),
-                taskMapper, mock(NativeDocumentParser.class), mineruClient, mock(SemanticDocumentChunker.class),
-                new DocumentContentCleaner(properties), mock(DocumentCleaningLogService.class), mock(MineruImageAssetProcessor.class), properties);
+        DocumentParseTaskService service = new DocumentParseTaskService(documentMapper, mock(KbChunkMapper.class), mock(KbChunkImageRefMapper.class), mock(KbIndexOutboxMapper.class), taskMapper, mock(NativeDocumentParser.class), mineruClient, mock(SemanticDocumentChunker.class), new DocumentContentCleaner(properties), mock(DocumentCleaningLogService.class), mock(MineruImageAssetProcessor.class), mock(MineruImageAssetStorageService.class), properties);
         KbDocumentEntity document = mineruDocument(KbDocumentBizType.KNOWLEDGE);
         KbDocumentParseTaskEntity task = mineruTask();
         when(documentMapper.selectOne(any())).thenReturn(document);

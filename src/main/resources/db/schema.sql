@@ -172,11 +172,15 @@ CREATE TABLE IF NOT EXISTS kb_chunk (
   document_id BIGINT NOT NULL COMMENT '文档ID',
   doc_version INT NOT NULL COMMENT '文档版本号',
   chunk_order INT NOT NULL COMMENT '切片顺序号',
+  chunk_type VARCHAR(16) NOT NULL DEFAULT 'NORMAL' COMMENT '切片类型（NORMAL普通分块/PARENT父分块/CHILD子分块）',
+  parent_chunk_id BIGINT DEFAULT NULL COMMENT '父分块ID，仅子分块填写，普通分块和父分块为空',
   content MEDIUMTEXT NOT NULL COMMENT '切片内容',
   content_hash VARCHAR(64) NOT NULL COMMENT '切片内容哈希',
   created_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP COMMENT '创建时间',
   PRIMARY KEY (chunk_id),
-  KEY idx_chunk_doc_ver_order (document_id, doc_version, chunk_order)
+  KEY idx_chunk_doc_ver_order (document_id, doc_version, chunk_order),
+  KEY idx_chunk_doc_ver_type_order (tenant_id, document_id, doc_version, chunk_type, chunk_order),
+  KEY idx_chunk_parent (tenant_id, parent_chunk_id)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COMMENT='知识库切片表';
 
 CREATE TABLE IF NOT EXISTS kb_document_image_asset (
@@ -262,7 +266,8 @@ CREATE TABLE IF NOT EXISTS retrieval_log (
   trace_id VARCHAR(64) NOT NULL COMMENT '链路追踪ID',
   tenant_id BIGINT NOT NULL COMMENT '租户ID',
   query_text TEXT NOT NULL COMMENT '检索查询文本',
-  hit_chunk_ids VARCHAR(1024) DEFAULT NULL COMMENT '命中的切片ID列表',
+  hit_chunk_ids VARCHAR(1024) DEFAULT NULL COMMENT '最终进入大模型上下文的切片ID列表',
+  raw_hit_chunk_ids VARCHAR(1024) DEFAULT NULL COMMENT 'Elasticsearch原始命中的切片ID列表',
   rerank_score DECIMAL(10,4) DEFAULT NULL COMMENT '重排得分',
   model_name VARCHAR(128) DEFAULT NULL COMMENT '使用的模型名称',
   latency_ms INT DEFAULT 0 COMMENT '检索耗时（毫秒）',
@@ -312,6 +317,7 @@ CREATE TABLE IF NOT EXISTS rag_retrieval_metric_evaluation (
   tenant_id BIGINT NOT NULL COMMENT '租户ID',
   query_text TEXT NOT NULL COMMENT '原始检索问题文本',
   original_hit_chunk_ids TEXT COMMENT '原始命中的切片ID列表（JSON数组）',
+  final_hit_chunk_ids TEXT COMMENT '最终进入大模型上下文的切片ID列表（JSON数组）',
   missed_relevant_chunk_ids TEXT COMMENT '评估发现的漏召回相关切片ID列表（JSON数组）',
   relevant_original_chunk_ids TEXT COMMENT '原始命中且被判定相关的切片ID列表（JSON数组）',
   irrelevant_original_chunk_ids TEXT COMMENT '原始命中但被判定不相关的切片ID列表（JSON数组）',

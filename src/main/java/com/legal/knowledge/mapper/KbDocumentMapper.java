@@ -24,4 +24,16 @@ public interface KbDocumentMapper extends BaseMapper<KbDocumentEntity> {
                           @Param("documentId") Long documentId,
                           @Param("parseStatus") DocumentParseStatus parseStatus,
                           @Param("status") KbDocumentStatus status);
+
+    @Update("""
+            UPDATE kb_document
+            SET parse_failure_reason = NULL,
+                updated_at = NOW()
+            WHERE tenant_id = #{tenantId}
+              AND document_id = #{documentId}
+              AND doc_version = #{docVersion}
+            """)
+    int clearParseFailureReason(@Param("tenantId") Long tenantId,
+                                @Param("documentId") Long documentId,
+                                @Param("docVersion") Integer docVersion);
 }

@@ -1,5 +1,7 @@
 package com.legal.retrieval.service;
 
+import com.legal.enums.KbChunkType;
+
 import java.time.LocalDateTime;
 import java.util.List;
 
@@ -12,6 +14,8 @@ public class ChunkIndexPayload {
     private final Integer chunkOrder;
     private final String source;
     private final String content;
+    private final KbChunkType chunkType;
+    private final Long parentChunkId;
     private final List<Float> contentVector;
     private final LocalDateTime updatedAt;
 
@@ -22,6 +26,8 @@ public class ChunkIndexPayload {
                              Integer chunkOrder,
                              String source,
                              String content,
+                             KbChunkType chunkType,
+                             Long parentChunkId,
                              List<Float> contentVector,
                              LocalDateTime updatedAt) {
         this.chunkId = chunkId;
@@ -31,6 +37,8 @@ public class ChunkIndexPayload {
         this.chunkOrder = chunkOrder;
         this.source = source;
         this.content = content;
+        this.chunkType = chunkType;
+        this.parentChunkId = parentChunkId;
         this.contentVector = contentVector;
         this.updatedAt = updatedAt;
     }
@@ -61,6 +69,14 @@ public class ChunkIndexPayload {
 
     public String getContent() {
         return content;
+    }
+
+    public KbChunkType getChunkType() {
+        return chunkType;
+    }
+
+    public Long getParentChunkId() {
+        return parentChunkId;
     }
 
     public List<Float> getContentVector() {

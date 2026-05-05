@@ -1,12 +1,14 @@
 import { onMounted, ref } from 'vue';
 import { apiDelete, apiGet, apiPost, apiPostForm, randomRequestId } from '../api/client';
+import ConfirmDialog from '../components/ConfirmDialog.vue';
 const title = ref('');
 const source = ref('');
 const selectedFiles = ref([]);
 const documents = ref([]);
 const notice = ref('');
-const parseMethod = ref('NATIVE');
+const parseMethod = ref('MINERU_PRECISE');
 const parseMethods = ref(['NATIVE']);
+const documentParseMethodFilter = ref('ALL');
 const maxUploadDocuments = ref(1);
 const cleaningAvailable = ref(false);
 const cleaningEnabled = ref(false);
@@ -16,6 +18,17 @@ const qaIndexScopes = ref(['NATIVE_ONLY', 'MINERU_ONLY', 'BOTH']);
 const nativeIndexName = ref('');
 const mineruIndexName = ref('');
 const selectedDocument = ref(null);
+const confirmState = ref({
+    visible: false,
+    title: '',
+    message: '',
+    targetName: '',
+    targetLabel: '对象',
+    confirmText: '确认',
+    eyebrow: '操作确认',
+    danger: false,
+    action: null,
+});
 onMounted(async () => {
     await loadCapabilities();
     await loadQaIndexConfig();
@@ -23,14 +36,37 @@ onMounted(async () => {
 });
 async function loadCapabilities() {
     const capabilities = await apiGet('/api/document-processing/capabilities');
-    parseMethods.value = capabilities.availableParseMethods?.length ? capabilities.availableParseMethods : ['NATIVE'];
-    parseMethod.value = capabilities.defaultParseMethod || parseMethods.value[0];
+    parseMethods.value = orderedParseMethods(capabilities.availableParseMethods?.length ? capabilities.availableParseMethods : ['NATIVE']);
+    parseMethod.value = preferredParseMethod(parseMethods.value, capabilities.defaultParseMethod);
     maxUploadDocuments.value = capabilities.maxUploadDocuments || 1;
     cleaningAvailable.value = Boolean(capabilities.cleaningAvailable);
     cleaningEnabled.value = false;
 }
+function orderedParseMethods(methods) {
+    return [...methods].sort((left, right) => {
+        if (left === 'MINERU_PRECISE') {
+            return -1;
+        }
+        if (right === 'MINERU_PRECISE') {
+            return 1;
+        }
+        return 0;
+    });
+}
+function preferredParseMethod(methods, defaultMethod) {
+    if (methods.includes('MINERU_PRECISE')) {
+        return 'MINERU_PRECISE';
+    }
+    if (defaultMethod && methods.includes(defaultMethod)) {
+        return defaultMethod;
+    }
+    return methods[0] || 'NATIVE';
+}
 async function refresh() {
-    documents.value = await apiGet('/api/knowledge/documents');
+    const query = documentParseMethodFilter.value && documentParseMethodFilter.value !== 'ALL'
+        ? `?parseMethod=${encodeURIComponent(documentParseMethodFilter.value)}`
+        : '';
+    documents.value = await apiGet(`/api/knowledge/documents${query}`);
 }
 async function loadQaIndexConfig() {
     const config = await apiGet('/api/knowledge/admin/qa-index-config');
@@ -40,9 +76,16 @@ async function loadQaIndexConfig() {
     mineruIndexName.value = config.mineruIndexName || '';
 }
 async function saveQaIndexConfig() {
-    if (!window.confirm(`确认将智能问答知识库检索范围切换为“${qaIndexScopeLabel(qaIndexScope.value)}”？`)) {
-        return;
-    }
+    openConfirm({
+        title: '切换问答检索范围',
+        message: '确认后，智能问答会按新的知识库索引范围进行检索。',
+        targetName: qaIndexScopeLabel(qaIndexScope.value),
+        targetLabel: '检索范围',
+        confirmText: '确认切换',
+        action: executeSaveQaIndexConfig,
+    });
+}
+async function executeSaveQaIndexConfig() {
     busy.value = true;
     notice.value = '正在保存智能问答检索范围…';
     try {
@@ -68,9 +111,16 @@ async function importDocument() {
         return;
     }
     const methodLabel = parseMethodLabel(parseMethod.value);
-    if (!window.confirm(`确认使用“${methodLabel}”导入 ${selectedFiles.value.length} 个文档？`)) {
-        return;
-    }
+    openConfirm({
+        title: '导入知识库文档',
+        message: `确认使用“${methodLabel}”导入 ${selectedFiles.value.length} 个文档。`,
+        targetName: selectedFiles.value.map((file) => file.name).join('、'),
+        targetLabel: '文档名称',
+        confirmText: '确认导入',
+        action: executeImportDocument,
+    });
+}
+async function executeImportDocument() {
     busy.value = true;
     notice.value = `正在导入 ${selectedFiles.value.length} 个文档…`;
     try {
@@ -99,30 +149,44 @@ async function importDocument() {
         busy.value = false;
     }
 }
-async function triggerIndex(documentId) {
-    if (!window.confirm(`确认重新触发文档 ${documentId} 的向量索引任务？`)) {
-        return;
-    }
+async function triggerIndex(item) {
+    openConfirm({
+        title: '重新触发向量索引',
+        message: '确认后会重新投递该文档的向量索引任务。',
+        targetName: item.title,
+        targetLabel: '文档名称',
+        confirmText: '触发索引',
+        action: () => executeTriggerIndex(item),
+    });
+}
+async function executeTriggerIndex(item) {
     busy.value = true;
-    notice.value = `正在投递文档 ${documentId} 的索引任务…`;
+    notice.value = `正在投递文档“${item.title}”的索引任务…`;
     try {
-        await apiPost(`/api/knowledge/documents/${documentId}/index?requestId=${encodeURIComponent(randomRequestId('kb-index'))}`);
-        notice.value = `文档 ${documentId} 已投递索引任务`;
+        await apiPost(`/api/knowledge/documents/${item.documentId}/index?requestId=${encodeURIComponent(randomRequestId('kb-index'))}`);
+        notice.value = `文档“${item.title}”已投递索引任务`;
         await refresh();
     }
     finally {
         busy.value = false;
     }
 }
-async function retryParse(documentId) {
-    if (!window.confirm(`确认重新提交文档 ${documentId} 的解析任务？`)) {
-        return;
-    }
+async function retryParse(item) {
+    openConfirm({
+        title: '重新提交解析任务',
+        message: '确认后会重新提交该文档的解析任务。',
+        targetName: item.title,
+        targetLabel: '文档名称',
+        confirmText: '重试解析',
+        action: () => executeRetryParse(item),
+    });
+}
+async function executeRetryParse(item) {
     busy.value = true;
-    notice.value = `正在重新提交文档 ${documentId} 的解析任务…`;
+    notice.value = `正在重新提交文档“${item.title}”的解析任务…`;
     try {
-        await apiPost(`/api/knowledge/documents/${documentId}/retry-parse?requestId=${encodeURIComponent(randomRequestId('kb-retry-parse'))}`);
-        notice.value = `文档 ${documentId} 已重新提交解析`;
+        await apiPost(`/api/knowledge/documents/${item.documentId}/retry-parse?requestId=${encodeURIComponent(randomRequestId('kb-retry-parse'))}`);
+        notice.value = `文档“${item.title}”已重新提交解析`;
         await refresh();
     }
     finally {
@@ -144,15 +208,23 @@ function qaIndexScopeLabel(scope) {
     }
     return '仅查询原生解析索引';
 }
-async function remove(documentId) {
-    if (!window.confirm(`确认删除知识库文档 ${documentId}？`)) {
-        return;
-    }
+async function remove(item) {
+    openConfirm({
+        title: '删除知识库文档',
+        message: '确认后会删除该文档，并同步清理数据库切片和 Elasticsearch 切片。',
+        targetName: item.title,
+        targetLabel: '文档名称',
+        confirmText: '确认删除',
+        danger: true,
+        action: () => executeRemove(item),
+    });
+}
+async function executeRemove(item) {
     busy.value = true;
-    notice.value = `正在删除文档 ${documentId} 及其切片…`;
+    notice.value = `正在删除文档“${item.title}”及其切片…`;
     try {
-        await apiDelete(`/api/knowledge/documents/${documentId}?requestId=${encodeURIComponent(randomRequestId('kb-delete'))}`);
-        notice.value = `文档 ${documentId} 已删除，数据库切片和 Elasticsearch 切片已同步清理`;
+        await apiDelete(`/api/knowledge/documents/${item.documentId}?requestId=${encodeURIComponent(randomRequestId('kb-delete'))}`);
+        notice.value = `文档“${item.title}”已删除，数据库切片和 Elasticsearch 切片已同步清理`;
         await refresh();
     }
     finally {
@@ -186,6 +258,30 @@ function formatDate(value) {
         return '-';
     }
     return new Date(value).toLocaleString();
+}
+function openConfirm(options) {
+    confirmState.value = {
+        visible: true,
+        title: options.title || '操作确认',
+        message: options.message || '请确认是否继续执行该操作。',
+        targetName: options.targetName || '',
+        targetLabel: options.targetLabel || '对象',
+        confirmText: options.confirmText || '确认',
+        eyebrow: options.eyebrow || '操作确认',
+        danger: Boolean(options.danger),
+        action: options.action,
+    };
+}
+function closeConfirm() {
+    confirmState.value.visible = false;
+    confirmState.value.action = null;
+}
+async function confirmAction() {
+    const action = confirmState.value.action;
+    closeConfirm();
+    if (action) {
+        await action();
+    }
 }
 debugger; /* PartiallyEnd: #3632/scriptSetup.vue */
 const __VLS_ctx = {};
@@ -348,6 +444,28 @@ __VLS_asFunctionalElement(__VLS_intrinsicElements.button, __VLS_intrinsicElement
     disabled: (__VLS_ctx.busy),
 });
 __VLS_asFunctionalElement(__VLS_intrinsicElements.div, __VLS_intrinsicElements.div)({
+    ...{ class: "filter-row" },
+});
+__VLS_asFunctionalElement(__VLS_intrinsicElements.label, __VLS_intrinsicElements.label)({
+    for: "knowledge-list-parse-method",
+});
+__VLS_asFunctionalElement(__VLS_intrinsicElements.select, __VLS_intrinsicElements.select)({
+    ...{ onChange: (__VLS_ctx.refresh) },
+    id: "knowledge-list-parse-method",
+    value: (__VLS_ctx.documentParseMethodFilter),
+    ...{ class: "console-select" },
+});
+__VLS_asFunctionalElement(__VLS_intrinsicElements.option, __VLS_intrinsicElements.option)({
+    value: "ALL",
+});
+for (const [method] of __VLS_getVForSourceType((__VLS_ctx.parseMethods))) {
+    __VLS_asFunctionalElement(__VLS_intrinsicElements.option, __VLS_intrinsicElements.option)({
+        key: (method),
+        value: (method),
+    });
+    (__VLS_ctx.parseMethodLabel(method));
+}
+__VLS_asFunctionalElement(__VLS_intrinsicElements.div, __VLS_intrinsicElements.div)({
     ...{ class: "doc-list" },
 });
 for (const [item] of __VLS_getVForSourceType((__VLS_ctx.documents))) {
@@ -382,7 +500,7 @@ for (const [item] of __VLS_getVForSourceType((__VLS_ctx.documents))) {
     });
     __VLS_asFunctionalElement(__VLS_intrinsicElements.button, __VLS_intrinsicElements.button)({
         ...{ onClick: (...[$event]) => {
-                __VLS_ctx.triggerIndex(item.documentId);
+                __VLS_ctx.triggerIndex(item);
             } },
         ...{ class: "ghost-btn" },
         type: "button",
@@ -393,7 +511,7 @@ for (const [item] of __VLS_getVForSourceType((__VLS_ctx.documents))) {
             ...{ onClick: (...[$event]) => {
                     if (!(item.parseStatus === 'FAILED'))
                         return;
-                    __VLS_ctx.retryParse(item.documentId);
+                    __VLS_ctx.retryParse(item);
                 } },
             ...{ class: "ghost-btn" },
             type: "button",
@@ -402,7 +520,7 @@ for (const [item] of __VLS_getVForSourceType((__VLS_ctx.documents))) {
     }
     __VLS_asFunctionalElement(__VLS_intrinsicElements.button, __VLS_intrinsicElements.button)({
         ...{ onClick: (...[$event]) => {
-                __VLS_ctx.remove(item.documentId);
+                __VLS_ctx.remove(item);
             } },
         ...{ class: "warn-btn" },
         type: "button",
@@ -533,6 +651,42 @@ if (__VLS_ctx.selectedDocument) {
     }
 }
 var __VLS_3;
+/** @type {[typeof ConfirmDialog, ]} */ ;
+// @ts-ignore
+const __VLS_4 = __VLS_asFunctionalComponent(ConfirmDialog, new ConfirmDialog({
+    ...{ 'onCancel': {} },
+    ...{ 'onConfirm': {} },
+    modelValue: (__VLS_ctx.confirmState.visible),
+    title: (__VLS_ctx.confirmState.title),
+    message: (__VLS_ctx.confirmState.message),
+    targetName: (__VLS_ctx.confirmState.targetName),
+    targetLabel: (__VLS_ctx.confirmState.targetLabel),
+    confirmText: (__VLS_ctx.confirmState.confirmText),
+    eyebrow: (__VLS_ctx.confirmState.eyebrow),
+    danger: (__VLS_ctx.confirmState.danger),
+}));
+const __VLS_5 = __VLS_4({
+    ...{ 'onCancel': {} },
+    ...{ 'onConfirm': {} },
+    modelValue: (__VLS_ctx.confirmState.visible),
+    title: (__VLS_ctx.confirmState.title),
+    message: (__VLS_ctx.confirmState.message),
+    targetName: (__VLS_ctx.confirmState.targetName),
+    targetLabel: (__VLS_ctx.confirmState.targetLabel),
+    confirmText: (__VLS_ctx.confirmState.confirmText),
+    eyebrow: (__VLS_ctx.confirmState.eyebrow),
+    danger: (__VLS_ctx.confirmState.danger),
+}, ...__VLS_functionalComponentArgsRest(__VLS_4));
+let __VLS_7;
+let __VLS_8;
+let __VLS_9;
+const __VLS_10 = {
+    onCancel: (__VLS_ctx.closeConfirm)
+};
+const __VLS_11 = {
+    onConfirm: (__VLS_ctx.confirmAction)
+};
+var __VLS_6;
 /** @type {__VLS_StyleScopedClasses['knowledge-grid']} */ ;
 /** @type {__VLS_StyleScopedClasses['card']} */ ;
 /** @type {__VLS_StyleScopedClasses['panel']} */ ;
@@ -561,6 +715,8 @@ var __VLS_3;
 /** @type {__VLS_StyleScopedClasses['header-row']} */ ;
 /** @type {__VLS_StyleScopedClasses['tag']} */ ;
 /** @type {__VLS_StyleScopedClasses['ghost-btn']} */ ;
+/** @type {__VLS_StyleScopedClasses['filter-row']} */ ;
+/** @type {__VLS_StyleScopedClasses['console-select']} */ ;
 /** @type {__VLS_StyleScopedClasses['doc-list']} */ ;
 /** @type {__VLS_StyleScopedClasses['doc-item']} */ ;
 /** @type {__VLS_StyleScopedClasses['doc-status']} */ ;
@@ -588,12 +744,14 @@ var __VLS_dollars;
 const __VLS_self = (await import('vue')).defineComponent({
     setup() {
         return {
+            ConfirmDialog: ConfirmDialog,
             title: title,
             source: source,
             documents: documents,
             notice: notice,
             parseMethod: parseMethod,
             parseMethods: parseMethods,
+            documentParseMethodFilter: documentParseMethodFilter,
             maxUploadDocuments: maxUploadDocuments,
             cleaningAvailable: cleaningAvailable,
             cleaningEnabled: cleaningEnabled,
@@ -603,6 +761,7 @@ const __VLS_self = (await import('vue')).defineComponent({
             nativeIndexName: nativeIndexName,
             mineruIndexName: mineruIndexName,
             selectedDocument: selectedDocument,
+            confirmState: confirmState,
             refresh: refresh,
             saveQaIndexConfig: saveQaIndexConfig,
             onSelectFile: onSelectFile,
@@ -617,6 +776,8 @@ const __VLS_self = (await import('vue')).defineComponent({
             openDocumentAsset: openDocumentAsset,
             importerLabel: importerLabel,
             formatDate: formatDate,
+            closeConfirm: closeConfirm,
+            confirmAction: confirmAction,
         };
     },
 });

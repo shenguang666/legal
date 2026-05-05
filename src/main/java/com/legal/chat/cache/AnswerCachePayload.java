@@ -25,6 +25,7 @@ public class AnswerCachePayload {
     private String modelName;
     private Boolean knowledgeHit;
     private String hitChunkIds;
+    private String rawHitChunkIds;
 
     private String cacheScope; // USER / TENANT
     private String cacheType;  // EXACT / SEMANTIC

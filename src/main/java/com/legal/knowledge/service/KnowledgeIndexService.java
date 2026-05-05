@@ -7,6 +7,7 @@ import com.legal.enums.DocumentParseMethod;
 import com.legal.enums.KbDocumentBizType;
 import com.legal.enums.KbDocumentStatus;
 import com.legal.enums.KbIndexStatus;
+import com.legal.enums.KbChunkType;
 import com.legal.enums.KbOutboxOp;
 import com.legal.knowledge.entity.KbChunkEntity;
 import com.legal.knowledge.entity.KbDocumentEntity;
@@ -82,6 +83,10 @@ public class KnowledgeIndexService {
         String source = document.getTitle() + "（" + document.getSource() + "）";
         String targetIndex = resolveIndexName(document);
         for (KbChunkEntity chunk : chunks) {
+            KbChunkType chunkType = chunk.getChunkType() == null ? KbChunkType.NORMAL : chunk.getChunkType();
+            if (chunkType == KbChunkType.PARENT) {
+                continue;
+            }
             List<Float> vector = embeddingClient.embed(chunk.getContent());
             int expectedDims = elasticsearchProperties.getIndex().getVectorDims();
             if (vector.size() != expectedDims) {
@@ -96,9 +101,14 @@ public class KnowledgeIndexService {
                     chunk.getChunkOrder(),
                     source,
                     chunk.getContent(),
+                    chunkType,
+                    chunk.getParentChunkId(),
                     vector,
                     LocalDateTime.now()
             ));
+        }
+        if (payloads.isEmpty()) {
+            throw AppException.badRequest("文档无可索引切片内容，无法建立索引");
         }
 
         deleteKnowledgeDocumentFromAllIndexes(task.getTenantId(), task.getDocumentId(), document.getBizType());

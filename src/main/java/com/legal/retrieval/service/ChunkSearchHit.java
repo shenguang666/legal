@@ -1,5 +1,7 @@
 package com.legal.retrieval.service;
 
+import com.legal.enums.KbChunkType;
+
 public class ChunkSearchHit {
 
     private final Long chunkId;
@@ -7,6 +9,8 @@ public class ChunkSearchHit {
     private final Integer chunkOrder;
     private final String source;
     private final String content;
+    private final KbChunkType chunkType;
+    private final Long parentChunkId;
     private final double score;
 
     public ChunkSearchHit(Long chunkId,
@@ -14,12 +18,16 @@ public class ChunkSearchHit {
                           Integer chunkOrder,
                           String source,
                           String content,
+                          KbChunkType chunkType,
+                          Long parentChunkId,
                           double score) {
         this.chunkId = chunkId;
         this.documentId = documentId;
         this.chunkOrder = chunkOrder;
         this.source = source;
         this.content = content;
+        this.chunkType = chunkType;
+        this.parentChunkId = parentChunkId;
         this.score = score;
     }
 
@@ -41,6 +49,14 @@ public class ChunkSearchHit {
 
     public String getContent() {
         return content;
+    }
+
+    public KbChunkType getChunkType() {
+        return chunkType;
+    }
+
+    public Long getParentChunkId() {
+        return parentChunkId;
     }
 
     public double getScore() {

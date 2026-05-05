@@ -1,6 +1,7 @@
 package com.legal.knowledge.service;
 
 import com.legal.config.DocumentProcessingProperties;
+import com.legal.enums.KbChunkType;
 import org.springframework.stereotype.Component;
 import org.springframework.util.StringUtils;
 
@@ -22,17 +23,36 @@ public class SemanticDocumentChunker {
         this.fallbackChunker = fallbackChunker;
     }
 
+    public List<String> chunkMarkdown(String markdown) {
+        return chunkMarkdown(markdown, properties.getMineru().getChunkSize());
+    }
+
+    public List<String> chunkMarkdown(String markdown, Integer maxChunkSizeOverride) {
+        return chunkMarkdown(markdown, maxChunkSizeOverride, properties.getMineru().getMinChunkSize());
+    }
+
     public List<String> chunkMarkdown(String markdown, Integer maxChunkSizeOverride, Integer minChunkSizeOverride) {
+        return chunkMarkdownStructured(markdown, maxChunkSizeOverride, minChunkSizeOverride).stream()
+                .filter(chunk -> chunk.chunkType() != KbChunkType.PARENT)
+                .map(SemanticChunk::content)
+                .toList();
+    }
+
+    public List<SemanticChunk> chunkMarkdownStructured(String markdown, Integer maxChunkSizeOverride, Integer minChunkSizeOverride) {
         if (!StringUtils.hasText(markdown)) {
             return List.of();
         }
         int maxChunkSize = resolveMaxChunkSize(maxChunkSizeOverride);
-        int minChunkSize = resolveMinChunkSize(maxChunkSize, minChunkSizeOverride);
         List<String> blocks = toBlocks(markdown);
         if (blocks.isEmpty()) {
-            return fallbackChunker.chunk(markdown, maxChunkSize, resolveFallbackOverlap(maxChunkSize));
+            return fallbackChunker.chunk(markdown, maxChunkSize, resolveFallbackOverlap(maxChunkSize)).stream()
+                    .map(SemanticChunk::normal)
+                    .toList();
         }
-        return mergeBlocks(blocks, maxChunkSize, minChunkSize);
+        boolean mergeEnabled = properties.getMineru().isMergeEnabled();
+        int maxMergeSize = resolveMaxMergeSize(properties.getMineru().getMaxMergeSize());
+        int minChunkSize = resolveMinChunkSize(maxMergeSize, minChunkSizeOverride);
+        return mergeBlocksStructured(blocks, maxChunkSize, mergeEnabled, maxMergeSize, minChunkSize);
     }
 
     private List<String> toBlocks(String markdown) {
@@ -80,60 +100,128 @@ public class SemanticDocumentChunker {
         }
     }
 
-    private List<String> mergeBlocks(List<String> blocks, int maxChunkSize, int minChunkSize) {
-        List<String> chunks = new ArrayList<>();
+    private List<SemanticChunk> mergeBlocksStructured(List<String> blocks,
+                                                      int maxChunkSize,
+                                                      boolean mergeEnabled,
+                                                      int maxMergeSize,
+                                                      int minChunkSize) {
+        List<SemanticChunk> chunks = new ArrayList<>();
         StringBuilder current = new StringBuilder();
+        int parentGroup = 1;
         for (String block : blocks) {
-            List<String> parts = block.length() > maxChunkSize ? splitOversizedBlock(block, maxChunkSize) : List.of(block);
-            for (String part : parts) {
-                if (current.isEmpty()) {
-                    current.append(part);
-                    continue;
-                }
-                int combinedLength = current.length() + 2 + part.length();
-                if (combinedLength <= maxChunkSize || current.length() < minChunkSize) {
-                    current.append("\n\n").append(part);
-                } else {
-                    addBlock(chunks, current.toString());
+            // chunk-size 只用于判断是否生成父子分块，以及控制子块切分大小。
+            if (block.length() > maxChunkSize) {
+                if (!current.isEmpty()) {
+                    addNormalChunk(chunks, current.toString());
                     current.setLength(0);
-                    current.append(part);
                 }
+                int currentParentGroup = parentGroup++;
+                chunks.add(SemanticChunk.parent(block, currentParentGroup));
+                for (String child : splitOversizedBlockForMineru(block, maxChunkSize)) {
+                    addChildChunk(chunks, child, currentParentGroup);
+                }
+                continue;
+            }
+            if (!mergeEnabled) {
+                addNormalChunk(chunks, block);
+                continue;
+            }
+            // 合并开关开启后，普通语义块使用 max-merge-size 控制相邻块合并大小。
+            if (current.isEmpty()) {
+                current.append(block);
+                continue;
+            }
+            int combinedLength = current.length() + 2 + block.length();
+            // min-chunk-size 仅在合并开启时生效，用于尽量避免生成过短、语义不完整的切片。
+            if (combinedLength <= maxMergeSize || current.length() < minChunkSize) {
+                current.append("\n\n").append(block);
+            } else {
+                addNormalChunk(chunks, current.toString());
+                current.setLength(0);
+                current.append(block);
             }
         }
+        // 循环结束后将最后一个未写入的普通切片补充到结果集中。
         if (!current.isEmpty()) {
-            addBlock(chunks, current.toString());
+            addNormalChunk(chunks, current.toString());
         }
         return chunks;
     }
 
-    private List<String> splitOversizedBlock(String block, int maxChunkSize) {
-        List<String> sentenceParts = splitByPreferredBoundary(block, maxChunkSize);
-        if (!sentenceParts.isEmpty()) {
-            return sentenceParts;
+    private void addNormalChunk(List<SemanticChunk> chunks, String value) {
+        String normalized = value.trim();
+        if (StringUtils.hasText(normalized)) {
+            chunks.add(SemanticChunk.normal(normalized));
         }
-        return fallbackChunker.chunk(block, maxChunkSize, resolveFallbackOverlap(maxChunkSize));
+    }
+
+    private void addChildChunk(List<SemanticChunk> chunks, String value, int parentGroup) {
+        String normalized = value.trim();
+        if (StringUtils.hasText(normalized)) {
+            chunks.add(SemanticChunk.child(normalized, parentGroup));
+        }
+    }
+
+    private List<String> splitOversizedBlockForMineru(String block, int maxChunkSize) {
+        List<String> units = splitByNaturalBoundary(block);
+        List<String> childUnits = new ArrayList<>();
+        for (String unit : units) {
+            if (unit.length() <= maxChunkSize) {
+                childUnits.add(unit);
+            } else {
+                childUnits.addAll(splitLongUnitBySecondaryBoundary(unit, maxChunkSize));
+            }
+        }
+        if (childUnits.isEmpty()) {
+            childUnits = splitLongUnitBySecondaryBoundary(block, maxChunkSize);
+        }
+        return combineWithSemanticOverlap(childUnits, maxChunkSize);
     }
 
     private int resolveMaxChunkSize(Integer maxChunkSizeOverride) {
         return Math.max(100, maxChunkSizeOverride);
     }
 
-    private int resolveMinChunkSize(int maxChunkSize, Integer minChunkSizeOverride) {
-        return Math.min(maxChunkSize, Math.max(1, minChunkSizeOverride));
+    private int resolveMaxMergeSize(Integer maxMergeSizeOverride) {
+        return Math.max(1, maxMergeSizeOverride);
+    }
+
+    private int resolveMinChunkSize(int maxMergeSize, Integer minChunkSizeOverride) {
+        return Math.min(maxMergeSize, Math.max(1, minChunkSizeOverride));
     }
 
     private int resolveFallbackOverlap(int maxChunkSize) {
         return Math.max(0, Math.min(properties.getFallbackOverlap(), maxChunkSize / 2));
     }
 
-    private List<String> splitByPreferredBoundary(String block, int maxChunkSize) {
-        List<String> result = new ArrayList<>();
+    private List<String> splitByNaturalBoundary(String block) {
         String[] units = block.split("(?<=[。！？；;!?])|\\n+");
-        StringBuilder current = new StringBuilder();
+        List<String> result = new ArrayList<>();
         for (String unit : units) {
             String trimmed = unit.trim();
-            if (!StringUtils.hasText(trimmed) || trimmed.length() > maxChunkSize) {
-                return List.of();
+            if (StringUtils.hasText(trimmed)) {
+                result.add(trimmed);
+            }
+        }
+        return result;
+    }
+
+    private List<String> splitLongUnitBySecondaryBoundary(String unit, int maxChunkSize) {
+        List<String> result = new ArrayList<>();
+        String[] parts = unit.split("(?<=[，,、：:（）()])|\\n+");
+        StringBuilder current = new StringBuilder();
+        for (String part : parts) {
+            String trimmed = part.trim();
+            if (!StringUtils.hasText(trimmed)) {
+                continue;
+            }
+            if (trimmed.length() > maxChunkSize) {
+                if (!current.isEmpty()) {
+                    addBlock(result, current.toString());
+                    current.setLength(0);
+                }
+                result.addAll(fallbackChunker.chunk(trimmed, maxChunkSize, 0));
+                continue;
             }
             if (current.length() + trimmed.length() + 1 > maxChunkSize) {
                 addBlock(result, current.toString());
@@ -148,5 +236,60 @@ public class SemanticDocumentChunker {
             addBlock(result, current.toString());
         }
         return result;
+    }
+
+    private List<String> combineWithSemanticOverlap(List<String> units, int maxChunkSize) {
+        List<String> result = new ArrayList<>();
+        StringBuilder current = new StringBuilder();
+        String previousTail = "";
+        int maxOverlapChars = Math.max(0, (int) Math.floor(maxChunkSize * 0.15d));
+        for (String unit : units) {
+            if (!StringUtils.hasText(unit)) {
+                continue;
+            }
+            String candidate = current.isEmpty() ? unit : current + "\n" + unit;
+            if (candidate.length() <= maxChunkSize) {
+                if (!current.isEmpty()) {
+                    current.append('\n');
+                }
+                current.append(unit);
+                continue;
+            }
+            if (!current.isEmpty()) {
+                String chunk = current.toString();
+                result.add(chunk);
+                previousTail = resolveOverlapTail(chunk, maxOverlapChars);
+                current.setLength(0);
+            }
+            if (StringUtils.hasText(previousTail) && previousTail.length() + 1 + unit.length() <= maxChunkSize) {
+                current.append(previousTail).append('\n');
+            }
+            current.append(unit);
+        }
+        if (!current.isEmpty()) {
+            result.add(current.toString().trim());
+        }
+        return result;
+    }
+
+    private String resolveOverlapTail(String chunk, int maxOverlapChars) {
+        if (maxOverlapChars <= 0 || !StringUtils.hasText(chunk)) {
+            return "";
+        }
+        List<String> units = splitByNaturalBoundary(chunk);
+        StringBuilder tail = new StringBuilder();
+        for (int i = units.size() - 1; i >= 0; i--) {
+            String unit = units.get(i);
+            int candidateLength = tail.isEmpty() ? unit.length() : unit.length() + 1 + tail.length();
+            if (candidateLength > maxOverlapChars) {
+                break;
+            }
+            if (tail.isEmpty()) {
+                tail.insert(0, unit);
+            } else {
+                tail.insert(0, unit + "\n");
+            }
+        }
+        return tail.toString().trim();
     }
 }

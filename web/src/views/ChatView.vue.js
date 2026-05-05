@@ -15,13 +15,10 @@ let cancelStream = null;
 onMounted(async () => {
     await loadQuickPrompts();
     const querySessionId = route.query.sessionId;
-    const cacheSessionId = localStorage.getItem('legal.activeSessionId');
-    sessionId.value = querySessionId || cacheSessionId || '';
-    if (!sessionId.value) {
-        await newSession();
-        return;
+    sessionId.value = querySessionId || '';
+    if (sessionId.value) {
+        await loadMessages();
     }
-    await loadMessages();
 });
 async function newSession() {
     const data = await apiPost('/api/chat/session', {
@@ -31,7 +28,18 @@ async function newSession() {
     sessionId.value = data.sessionId;
     localStorage.setItem('legal.activeSessionId', data.sessionId);
     messages.value = [];
-    notice.value = `新会话已创建：${data.sessionId}`;
+    notice.value = '新会话已创建';
+}
+function startDraftSession() {
+    if (cancelStream) {
+        cancelStream();
+        cancelStream = null;
+    }
+    sessionId.value = '';
+    localStorage.removeItem('legal.activeSessionId');
+    messages.value = [];
+    latestCitations.value = [];
+    notice.value = '已准备新会话，发送第一条消息时会自动创建';
 }
 async function loadMessages() {
     if (!sessionId.value) {
@@ -40,11 +48,14 @@ async function loadMessages() {
     messages.value = await apiGet(`/api/chat/session/${sessionId.value}/messages`);
 }
 async function ask() {
-    if (!question.value.trim() || !sessionId.value) {
+    if (!question.value.trim()) {
         return;
     }
     loading.value = true;
     try {
+        if (!sessionId.value) {
+            await newSession();
+        }
         const payload = {
             sessionId: sessionId.value,
             question: question.value.trim(),
@@ -66,7 +77,7 @@ async function ask() {
 }
 // 保留旧 ask()，新增流式按钮已指向 askStream()
 async function askStream() {
-    if (!question.value.trim() || !sessionId.value) {
+    if (!question.value.trim()) {
         return;
     }
     if (cancelStream) {
@@ -76,6 +87,17 @@ async function askStream() {
     loading.value = true;
     latestCitations.value = [];
     notice.value = '';
+    if (!sessionId.value) {
+        try {
+            await newSession();
+            notice.value = '';
+        }
+        catch (error) {
+            loading.value = false;
+            notice.value = error instanceof Error ? error.message : '会话创建失败';
+            return;
+        }
+    }
     const payload = {
         sessionId: sessionId.value,
         question: question.value.trim(),
@@ -226,7 +248,7 @@ __VLS_asFunctionalElement(__VLS_intrinsicElements.p, __VLS_intrinsicElements.p)(
     ...{ class: "subtle" },
 });
 __VLS_asFunctionalElement(__VLS_intrinsicElements.button, __VLS_intrinsicElements.button)({
-    ...{ onClick: (__VLS_ctx.newSession) },
+    ...{ onClick: (__VLS_ctx.startDraftSession) },
     ...{ class: "ghost-btn" },
     type: "button",
 });
@@ -503,7 +525,7 @@ const __VLS_self = (await import('vue')).defineComponent({
             hotwordLoading: hotwordLoading,
             latestCitations: latestCitations,
             quickPrompts: quickPrompts,
-            newSession: newSession,
+            startDraftSession: startDraftSession,
             askStream: askStream,
             stopStream: stopStream,
             usePrompt: usePrompt,

@@ -8,6 +8,7 @@ import com.legal.enums.DocumentParseStatus;
 import com.legal.enums.KbDocumentBizType;
 import com.legal.enums.KbDocumentStatus;
 import com.legal.enums.KbIndexStatus;
+import com.legal.enums.KbChunkType;
 import com.legal.enums.KbOutboxOp;
 import com.legal.enums.KbOutboxStatus;
 import com.legal.knowledge.entity.KbChunkEntity;
@@ -31,7 +32,9 @@ import java.nio.charset.StandardCharsets;
 import java.security.MessageDigest;
 import java.security.NoSuchAlgorithmException;
 import java.time.LocalDateTime;
+import java.util.HashMap;
 import java.util.List;
+import java.util.Map;
 
 @Service
 public class DocumentParseTaskService {
@@ -101,7 +104,7 @@ public class DocumentParseTaskService {
 
     @Transactional
     public void completeNative(KbDocumentEntity document, List<String> chunks, DocumentCleaningReport cleaningReport) {
-        completeDocument(document, chunks, cleaningReport, "TEXT", null, null, null);
+        completeDocument(document, toNormalChunks(chunks), cleaningReport, "TEXT", null, null, null);
     }
 
     @Transactional
@@ -109,7 +112,7 @@ public class DocumentParseTaskService {
                                List<String> chunks,
                                DocumentCleaningReport cleaningReport,
                                MineruPackageUploadResult originalUploadResult) {
-        completeDocument(document, chunks, cleaningReport, "TEXT", null, null, null, originalUploadResult);
+        completeDocument(document, toNormalChunks(chunks), cleaningReport, "TEXT", null, null, null, originalUploadResult);
     }
 
     public List<String> buildNativeChunks(String text, Integer chunkSize, Integer chunkOverlap) {
@@ -140,7 +143,7 @@ public class DocumentParseTaskService {
             boolean cleaningEnabled = Boolean.TRUE.equals(task.getCleaningEnabled()) && properties.getCleaning().isEnabled();
             DocumentCleaningResult cleaningResult = cleaningEnabled ? documentContentCleaner.cleanMarkdown(markdown) : null;
             String chunkSource = cleaningResult == null ? markdown : cleaningResult.getContent();
-            List<String> chunks = semanticDocumentChunker.chunkMarkdown(
+            List<SemanticChunk> chunks = semanticDocumentChunker.chunkMarkdownStructured(
                     chunkSource,
                     properties.getMineru().getChunkSize(),
                     properties.getMineru().getMinChunkSize()
@@ -199,7 +202,7 @@ public class DocumentParseTaskService {
     }
 
     private void completeDocument(KbDocumentEntity document,
-                                  List<String> chunks,
+                                  List<SemanticChunk> chunks,
                                   DocumentCleaningReport cleaningReport,
                                   String contentFormat,
                                   String mineruBatchId,
@@ -247,7 +250,7 @@ public class DocumentParseTaskService {
     }
 
     private void completeDocument(KbDocumentEntity document,
-                                  List<String> chunks,
+                                  List<SemanticChunk> chunks,
                                   DocumentCleaningReport cleaningReport,
                                   String contentFormat,
                                   String mineruBatchId,
@@ -287,7 +290,7 @@ public class DocumentParseTaskService {
     private void persistChunks(Long tenantId,
                                Long documentId,
                                int docVersion,
-                               List<String> chunks,
+                               List<SemanticChunk> chunks,
                                LocalDateTime now) {
         persistChunks(tenantId, documentId, docVersion, chunks, now, false);
     }
@@ -295,14 +298,20 @@ public class DocumentParseTaskService {
     private DocumentCleaningReport persistChunks(Long tenantId,
                                                  Long documentId,
                                                  int docVersion,
-                                                 List<String> chunks,
+                                                 List<SemanticChunk> chunks,
                                                  LocalDateTime now,
                                                  boolean filterLowQuality) {
-        DocumentCleaningReport report = new DocumentCleaningReport(chunks.stream().mapToInt(value -> value == null ? 0 : value.length()).sum());
+        DocumentCleaningReport report = new DocumentCleaningReport(chunks.stream().mapToInt(value -> value == null || value.content() == null ? 0 : value.content().length()).sum());
         int order = 1;
-        for (String content : chunks) {
+        Map<Integer, Long> parentChunkIds = new HashMap<>();
+        int cleanedChars = 0;
+        for (SemanticChunk chunk : chunks) {
+            String content = chunk == null ? null : chunk.content();
             if (filterLowQuality && documentContentCleaner.isLowQualityChunk(content)) {
                 report.addRemovedChunk("LOW_QUALITY_CHUNK", content, properties.getCleaning().getRemovedSampleLimit(), properties.getCleaning().getRemovedSampleMaxChars());
+                continue;
+            }
+            if (chunk != null && chunk.chunkType() == KbChunkType.CHILD && !parentChunkIds.containsKey(chunk.parentGroup())) {
                 continue;
             }
             KbChunkEntity entity = new KbChunkEntity();
@@ -310,16 +319,25 @@ public class DocumentParseTaskService {
             entity.setDocumentId(documentId);
             entity.setDocVersion(docVersion);
             entity.setChunkOrder(order++);
+            entity.setChunkType(chunk == null || chunk.chunkType() == null ? KbChunkType.NORMAL : chunk.chunkType());
+            entity.setParentChunkId(entity.getChunkType() == KbChunkType.CHILD ? parentChunkIds.get(chunk.parentGroup()) : null);
             entity.setContent(content);
             entity.setContentHash(sha256(content));
             entity.setCreatedAt(now);
             kbChunkMapper.insert(entity);
+            if (chunk != null && chunk.chunkType() == KbChunkType.PARENT && chunk.parentGroup() != null) {
+                parentChunkIds.put(chunk.parentGroup(), entity.getChunkId());
+            }
+            cleanedChars += content == null ? 0 : content.length();
         }
-        report.setCleanedChars(chunks.stream()
-                .filter(content -> !filterLowQuality || !documentContentCleaner.isLowQualityChunk(content))
-                .mapToInt(value -> value == null ? 0 : value.length())
-                .sum());
+        report.setCleanedChars(cleanedChars);
         return report;
+    }
+
+    private List<SemanticChunk> toNormalChunks(List<String> chunks) {
+        return chunks.stream()
+                .map(SemanticChunk::normal)
+                .toList();
     }
 
     private void linkImagesToChunks(KbDocumentEntity document, List<KbDocumentImageAssetEntity> assets) {

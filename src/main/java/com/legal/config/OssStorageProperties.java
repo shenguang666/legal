@@ -2,6 +2,7 @@ package com.legal.config;
 
 import lombok.Data;
 import org.springframework.boot.context.properties.ConfigurationProperties;
+import org.springframework.util.StringUtils;
 
 import java.time.Duration;
 
@@ -35,4 +36,12 @@ public class OssStorageProperties {
 
     /** 私有 Bucket 图片访问签名 URL 有效期。 */
     private Duration presignedUrlExpiration = Duration.ofHours(1);
+
+    public String resolvedAccessKeyId() {
+        return StringUtils.hasText(accessKeyId) ? accessKeyId.trim() : "";
+    }
+
+    public String resolvedAccessKeySecret() {
+        return StringUtils.hasText(accessKeySecret) ? accessKeySecret.trim() : "";
+    }
 }

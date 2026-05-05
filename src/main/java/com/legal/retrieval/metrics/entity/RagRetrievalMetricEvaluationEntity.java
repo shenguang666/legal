@@ -25,6 +25,8 @@ public class RagRetrievalMetricEvaluationEntity {
     private String queryText;
     /** 原始命中的切片ID列表，JSON 数组格式。 */
     private String originalHitChunkIds;
+    /** 最终进入大模型上下文的切片ID列表，JSON 数组格式。 */
+    private String finalHitChunkIds;
     /** 评估发现的漏召回相关切片ID列表，JSON 数组格式。 */
     private String missedRelevantChunkIds;
     /** 原始命中且被判定相关的切片ID列表，JSON 数组格式。 */

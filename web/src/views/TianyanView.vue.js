@@ -1,29 +1,61 @@
 import { onMounted, ref } from 'vue';
 import { useRouter } from 'vue-router';
 import { apiDelete, apiGet, apiPost, apiPostForm, randomRequestId } from '../api/client';
+import ConfirmDialog from '../components/ConfirmDialog.vue';
 const router = useRouter();
 const title = ref('');
 const source = ref('');
 const selectedFile = ref(null);
 const documents = ref([]);
 const notice = ref('');
-const parseMethod = ref('NATIVE');
+const parseMethod = ref('MINERU_PRECISE');
 const parseMethods = ref(['NATIVE']);
 const maxUploadDocuments = ref(1);
 const cleaningAvailable = ref(false);
 const cleaningEnabled = ref(false);
 const selectedDocument = ref(null);
+const confirmState = ref({
+    visible: false,
+    title: '',
+    message: '',
+    targetName: '',
+    targetLabel: '对象',
+    confirmText: '确认',
+    eyebrow: '操作确认',
+    danger: false,
+    action: null,
+});
 onMounted(async () => {
     await loadCapabilities();
     await refresh();
 });
 async function loadCapabilities() {
     const capabilities = await apiGet('/api/document-processing/capabilities');
-    parseMethods.value = capabilities.availableParseMethods?.length ? capabilities.availableParseMethods : ['NATIVE'];
-    parseMethod.value = capabilities.defaultParseMethod || parseMethods.value[0];
+    parseMethods.value = orderedParseMethods(capabilities.availableParseMethods?.length ? capabilities.availableParseMethods : ['NATIVE']);
+    parseMethod.value = preferredParseMethod(parseMethods.value, capabilities.defaultParseMethod);
     maxUploadDocuments.value = capabilities.maxUploadDocuments || 1;
     cleaningAvailable.value = Boolean(capabilities.cleaningAvailable);
     cleaningEnabled.value = false;
+}
+function orderedParseMethods(methods) {
+    return [...methods].sort((left, right) => {
+        if (left === 'MINERU_PRECISE') {
+            return -1;
+        }
+        if (right === 'MINERU_PRECISE') {
+            return 1;
+        }
+        return 0;
+    });
+}
+function preferredParseMethod(methods, defaultMethod) {
+    if (methods.includes('MINERU_PRECISE')) {
+        return 'MINERU_PRECISE';
+    }
+    if (defaultMethod && methods.includes(defaultMethod)) {
+        return defaultMethod;
+    }
+    return methods[0] || 'NATIVE';
 }
 async function refresh() {
     documents.value = await apiGet('/api/tianyan/documents');
@@ -33,6 +65,20 @@ function onSelectFile(event) {
     selectedFile.value = input.files?.[0] || null;
 }
 async function importDocument() {
+    if (!selectedFile.value) {
+        notice.value = '请先选择文件';
+        return;
+    }
+    openConfirm({
+        title: '导入审查文档',
+        message: `确认使用“${parseMethodLabel(parseMethod.value)}”导入该审查文档。`,
+        targetName: selectedFile.value.name,
+        targetLabel: '文件名称',
+        confirmText: '确认导入',
+        action: executeImportDocument,
+    });
+}
+async function executeImportDocument() {
     if (!selectedFile.value) {
         notice.value = '请先选择文件';
         return;
@@ -56,12 +102,20 @@ async function importDocument() {
     notice.value = parseMethod.value === 'MINERU_PRECISE' ? '审查文档已导入，MinerU 精准解析完成后可发起天眼审查' : '审查文档已导入，可立即发起天眼审查';
     await refresh();
 }
-async function remove(documentId) {
-    if (!window.confirm(`确认删除审查文档 ${documentId}？`)) {
-        return;
-    }
-    await apiDelete(`/api/tianyan/documents/${documentId}?requestId=${encodeURIComponent(randomRequestId('tianyan-delete'))}`);
-    notice.value = `审查文档 ${documentId} 已标记删除`;
+async function remove(item) {
+    openConfirm({
+        title: '删除审查文档',
+        message: '确认后会将该审查文档标记删除。',
+        targetName: item.title,
+        targetLabel: '文档名称',
+        confirmText: '确认删除',
+        danger: true,
+        action: () => executeRemove(item),
+    });
+}
+async function executeRemove(item) {
+    await apiDelete(`/api/tianyan/documents/${item.documentId}?requestId=${encodeURIComponent(randomRequestId('tianyan-delete'))}`);
+    notice.value = `审查文档“${item.title}”已标记删除`;
     await refresh();
 }
 function openReview(item) {
@@ -76,9 +130,19 @@ function openReview(item) {
         },
     });
 }
-async function retryParse(documentId) {
-    await apiPost(`/api/tianyan/documents/${documentId}/retry-parse?requestId=${encodeURIComponent(randomRequestId('tianyan-retry-parse'))}`);
-    notice.value = `审查文档 ${documentId} 已重新提交解析`;
+async function retryParse(item) {
+    openConfirm({
+        title: '重新提交解析任务',
+        message: '确认后会重新提交该审查文档的解析任务。',
+        targetName: item.title,
+        targetLabel: '文档名称',
+        confirmText: '重试解析',
+        action: () => executeRetryParse(item),
+    });
+}
+async function executeRetryParse(item) {
+    await apiPost(`/api/tianyan/documents/${item.documentId}/retry-parse?requestId=${encodeURIComponent(randomRequestId('tianyan-retry-parse'))}`);
+    notice.value = `审查文档“${item.title}”已重新提交解析`;
     await refresh();
 }
 function parseMethodLabel(method) {
@@ -114,6 +178,30 @@ function formatDate(value) {
         return '-';
     }
     return new Date(value).toLocaleString();
+}
+function openConfirm(options) {
+    confirmState.value = {
+        visible: true,
+        title: options.title || '操作确认',
+        message: options.message || '请确认是否继续执行该操作。',
+        targetName: options.targetName || '',
+        targetLabel: options.targetLabel || '对象',
+        confirmText: options.confirmText || '确认',
+        eyebrow: options.eyebrow || '操作确认',
+        danger: Boolean(options.danger),
+        action: options.action,
+    };
+}
+function closeConfirm() {
+    confirmState.value.visible = false;
+    confirmState.value.action = null;
+}
+async function confirmAction() {
+    const action = confirmState.value.action;
+    closeConfirm();
+    if (action) {
+        await action();
+    }
 }
 debugger; /* PartiallyEnd: #3632/scriptSetup.vue */
 const __VLS_ctx = {};
@@ -275,7 +363,7 @@ for (const [item] of __VLS_getVForSourceType((__VLS_ctx.documents))) {
             ...{ onClick: (...[$event]) => {
                     if (!(item.parseStatus === 'FAILED'))
                         return;
-                    __VLS_ctx.retryParse(item.documentId);
+                    __VLS_ctx.retryParse(item);
                 } },
             ...{ class: "ghost-btn" },
             type: "button",
@@ -283,7 +371,7 @@ for (const [item] of __VLS_getVForSourceType((__VLS_ctx.documents))) {
     }
     __VLS_asFunctionalElement(__VLS_intrinsicElements.button, __VLS_intrinsicElements.button)({
         ...{ onClick: (...[$event]) => {
-                __VLS_ctx.remove(item.documentId);
+                __VLS_ctx.remove(item);
             } },
         ...{ class: "warn-btn" },
         type: "button",
@@ -405,6 +493,42 @@ if (__VLS_ctx.selectedDocument) {
     }
 }
 var __VLS_3;
+/** @type {[typeof ConfirmDialog, ]} */ ;
+// @ts-ignore
+const __VLS_4 = __VLS_asFunctionalComponent(ConfirmDialog, new ConfirmDialog({
+    ...{ 'onCancel': {} },
+    ...{ 'onConfirm': {} },
+    modelValue: (__VLS_ctx.confirmState.visible),
+    title: (__VLS_ctx.confirmState.title),
+    message: (__VLS_ctx.confirmState.message),
+    targetName: (__VLS_ctx.confirmState.targetName),
+    targetLabel: (__VLS_ctx.confirmState.targetLabel),
+    confirmText: (__VLS_ctx.confirmState.confirmText),
+    eyebrow: (__VLS_ctx.confirmState.eyebrow),
+    danger: (__VLS_ctx.confirmState.danger),
+}));
+const __VLS_5 = __VLS_4({
+    ...{ 'onCancel': {} },
+    ...{ 'onConfirm': {} },
+    modelValue: (__VLS_ctx.confirmState.visible),
+    title: (__VLS_ctx.confirmState.title),
+    message: (__VLS_ctx.confirmState.message),
+    targetName: (__VLS_ctx.confirmState.targetName),
+    targetLabel: (__VLS_ctx.confirmState.targetLabel),
+    confirmText: (__VLS_ctx.confirmState.confirmText),
+    eyebrow: (__VLS_ctx.confirmState.eyebrow),
+    danger: (__VLS_ctx.confirmState.danger),
+}, ...__VLS_functionalComponentArgsRest(__VLS_4));
+let __VLS_7;
+let __VLS_8;
+let __VLS_9;
+const __VLS_10 = {
+    onCancel: (__VLS_ctx.closeConfirm)
+};
+const __VLS_11 = {
+    onConfirm: (__VLS_ctx.confirmAction)
+};
+var __VLS_6;
 /** @type {__VLS_StyleScopedClasses['knowledge-grid']} */ ;
 /** @type {__VLS_StyleScopedClasses['card']} */ ;
 /** @type {__VLS_StyleScopedClasses['panel']} */ ;
@@ -451,6 +575,7 @@ var __VLS_dollars;
 const __VLS_self = (await import('vue')).defineComponent({
     setup() {
         return {
+            ConfirmDialog: ConfirmDialog,
             title: title,
             source: source,
             documents: documents,
@@ -461,6 +586,7 @@ const __VLS_self = (await import('vue')).defineComponent({
             cleaningAvailable: cleaningAvailable,
             cleaningEnabled: cleaningEnabled,
             selectedDocument: selectedDocument,
+            confirmState: confirmState,
             refresh: refresh,
             onSelectFile: onSelectFile,
             importDocument: importDocument,
@@ -473,6 +599,8 @@ const __VLS_self = (await import('vue')).defineComponent({
             openDocumentAsset: openDocumentAsset,
             importerLabel: importerLabel,
             formatDate: formatDate,
+            closeConfirm: closeConfirm,
+            confirmAction: confirmAction,
         };
     },
 });

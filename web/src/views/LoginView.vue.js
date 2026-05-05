@@ -1,15 +1,12 @@
 import { ref } from 'vue';
 import { useRouter } from 'vue-router';
-import { apiLogin, hasToken } from '../api/client';
+import { apiLogin } from '../api/client';
 const router = useRouter();
 const tenantId = ref(localStorage.getItem('legal.tenantId') || '1001');
 const username = ref(localStorage.getItem('legal.username') || 'user');
 const password = ref('');
 const notice = ref('');
 const loading = ref(false);
-if (hasToken()) {
-    router.replace('/chat');
-}
 async function login() {
     const tenantIdValue = String(tenantId.value ?? '').trim();
     const usernameValue = username.value.trim();

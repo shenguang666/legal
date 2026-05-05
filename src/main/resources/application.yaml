@@ -266,9 +266,9 @@ legal:
       repeated-line-max-length: ${LEGAL_DOCUMENT_CLEANING_REPEATED_LINE_MAX_LENGTH:80}
       # 切块后保留切片的最小有效字符数，法律短标题和编号条款不受该限制。
       min-effective-chunk-length: ${LEGAL_DOCUMENT_CLEANING_MIN_EFFECTIVE_CHUNK_LENGTH:20}
-      # 每个文档最多保存多少条被清洗内容样例。
+      # 清洗日志中最多保存多少条被移除内容预览样例，不限制全文清洗范围。
       removed-sample-limit: ${LEGAL_DOCUMENT_CLEANING_REMOVED_SAMPLE_LIMIT:50}
-      # 每条被清洗内容样例最多保存多少个字符。
+      # 清洗日志中每条被移除内容预览样例最多保存多少个字符，不截断原文档或实际清洗内容。
       removed-sample-max-chars: ${LEGAL_DOCUMENT_CLEANING_REMOVED_SAMPLE_MAX_CHARS:500}
       # 是否启用页码类噪声过滤规则。
       remove-page-numbers: ${LEGAL_DOCUMENT_CLEANING_REMOVE_PAGE_NUMBERS:true}
@@ -298,10 +298,14 @@ legal:
       enable-formula: ${LEGAL_MINERU_ENABLE_FORMULA:true}
       # 是否启用 MinerU OCR。
       ocr: ${LEGAL_MINERU_OCR:false}
-      # MinerU Markdown 语义切片目标最大字符数，独立于原生解析切片大小。
+      # MinerU Markdown 父子分块触发与子块切分的最大字符数。
       chunk-size: ${LEGAL_MINERU_CHUNK_SIZE:800}
-      # MinerU Markdown 相邻短语义块合并时的目标最小字符数，独立于原生解析切片大小。
-      min-chunk-size: ${LEGAL_MINERU_MIN_CHUNK_SIZE:10}
+      # 是否启用 MinerU Markdown 相邻语义块合并。
+      merge-enabled: ${LEGAL_MINERU_MERGE_ENABLED:true}
+      # MinerU Markdown 相邻语义块合并时的最大字符数，仅在启用合并时生效。
+      max-merge-size: ${LEGAL_MINERU_MAX_MERGE_SIZE:300}
+      # MinerU Markdown 相邻短语义块合并时的目标最小字符数，仅在启用合并时生效。
+      min-chunk-size: ${LEGAL_MINERU_MIN_CHUNK_SIZE:30}
       # MinerU 结果包图片资产处理配置。
       image-asset:
         # 是否启用 MinerU 结果包图片资产处理。

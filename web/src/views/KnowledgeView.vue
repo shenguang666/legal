@@ -67,6 +67,13 @@
         </div>
         <button class="ghost-btn" type="button" :disabled="busy" @click="refresh">刷新</button>
       </div>
+      <div class="filter-row">
+        <label for="knowledge-list-parse-method">解析类型</label>
+        <select id="knowledge-list-parse-method" v-model="documentParseMethodFilter" class="console-select" @change="refresh">
+          <option value="ALL">全部解析类型</option>
+          <option v-for="method in parseMethods" :key="method" :value="method">{{ parseMethodLabel(method) }}</option>
+        </select>
+      </div>
 
       <div class="doc-list">
         <div v-for="item in documents" :key="item.documentId" class="doc-item">
@@ -183,8 +190,9 @@ const source = ref('');
 const selectedFiles = ref<File[]>([]);
 const documents = ref<DocumentItem[]>([]);
 const notice = ref('');
-const parseMethod = ref('NATIVE');
+const parseMethod = ref('MINERU_PRECISE');
 const parseMethods = ref<string[]>(['NATIVE']);
+const documentParseMethodFilter = ref('ALL');
 const maxUploadDocuments = ref(1);
 const cleaningAvailable = ref(false);
 const cleaningEnabled = ref(false);
@@ -214,15 +222,40 @@ onMounted(async () => {
 
 async function loadCapabilities() {
   const capabilities = await apiGet<DocumentProcessingCapabilities>('/api/document-processing/capabilities');
-  parseMethods.value = capabilities.availableParseMethods?.length ? capabilities.availableParseMethods : ['NATIVE'];
-  parseMethod.value = capabilities.defaultParseMethod || parseMethods.value[0];
+  parseMethods.value = orderedParseMethods(capabilities.availableParseMethods?.length ? capabilities.availableParseMethods : ['NATIVE']);
+  parseMethod.value = preferredParseMethod(parseMethods.value, capabilities.defaultParseMethod);
   maxUploadDocuments.value = capabilities.maxUploadDocuments || 1;
   cleaningAvailable.value = Boolean(capabilities.cleaningAvailable);
   cleaningEnabled.value = false;
 }
 
+function orderedParseMethods(methods: string[]) {
+  return [...methods].sort((left, right) => {
+    if (left === 'MINERU_PRECISE') {
+      return -1;
+    }
+    if (right === 'MINERU_PRECISE') {
+      return 1;
+    }
+    return 0;
+  });
+}
+
+function preferredParseMethod(methods: string[], defaultMethod?: string) {
+  if (methods.includes('MINERU_PRECISE')) {
+    return 'MINERU_PRECISE';
+  }
+  if (defaultMethod && methods.includes(defaultMethod)) {
+    return defaultMethod;
+  }
+  return methods[0] || 'NATIVE';
+}
+
 async function refresh() {
-  documents.value = await apiGet<DocumentItem[]>('/api/knowledge/documents');
+  const query = documentParseMethodFilter.value && documentParseMethodFilter.value !== 'ALL'
+    ? `?parseMethod=${encodeURIComponent(documentParseMethodFilter.value)}`
+    : '';
+  documents.value = await apiGet<DocumentItem[]>(`/api/knowledge/documents${query}`);
 }
 
 async function loadQaIndexConfig() {

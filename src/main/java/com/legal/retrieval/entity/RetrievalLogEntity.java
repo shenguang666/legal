@@ -24,8 +24,10 @@ public class RetrievalLogEntity {
     private Long tenantId;
     /** 检索查询文本。 */
     private String queryText;
-    /** 命中的切片ID列表。 */
+    /** 最终进入大模型上下文的切片ID列表。 */
     private String hitChunkIds;
+    /** Elasticsearch 原始命中的切片ID列表。 */
+    private String rawHitChunkIds;
     /** 重排得分。 */
     private BigDecimal rerankScore;
     /** 使用的模型名称。 */

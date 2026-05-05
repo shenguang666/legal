@@ -26,6 +26,7 @@ import com.legal.chat.mapper.ChatMessageMapper;
 import com.legal.chat.mapper.ChatSessionMapper;
 import com.legal.chat.rag.RagAnswer;
 import com.legal.chat.rag.RagAnswerService;
+import com.legal.chat.rag.RetrievedChunk;
 import com.legal.common.AppException;
 import com.legal.common.JsonUtils;
 import com.legal.retrieval.entity.RetrievalLogEntity;
@@ -136,9 +137,8 @@ public class ChatService {
         payload.setSourceQuestion(question);
         payload.setModelName(ragAnswer.getModelName());
         payload.setKnowledgeHit(ragAnswer.isKnowledgeHit());
-        payload.setHitChunkIds(ragAnswer.getRetrievedChunks().stream()
-                .map(chunk -> String.valueOf(chunk.getChunkId()))
-                .collect(Collectors.joining(",")));
+        payload.setHitChunkIds(joinChunkIds(ragAnswer.getRetrievedChunks()));
+        payload.setRawHitChunkIds(joinChunkIds(ragAnswer.getRawRetrievedChunks()));
         return payload;
     }
 
@@ -153,6 +153,7 @@ public class ChatService {
         retrievalLog.setTenantId(principal.tenantId());
         retrievalLog.setQueryText(question);
         retrievalLog.setHitChunkIds(payload.getHitChunkIds());
+        retrievalLog.setRawHitChunkIds(StringUtils.hasText(payload.getRawHitChunkIds()) ? payload.getRawHitChunkIds() : payload.getHitChunkIds());
         retrievalLog.setRerankScore(BigDecimal.ZERO);
         String model = payload.getModelName();
         retrievalLog.setModelName("CACHE-" + (model == null ? "unknown" : model)
@@ -186,14 +187,22 @@ public class ChatService {
         retrievalLog.setTraceId(traceId);
         retrievalLog.setTenantId(principal.tenantId());
         retrievalLog.setQueryText(question);
-        retrievalLog.setHitChunkIds(ragAnswer.getRetrievedChunks().stream()
-                .map(chunk -> String.valueOf(chunk.getChunkId()))
-                .collect(Collectors.joining(",")));
+        retrievalLog.setHitChunkIds(joinChunkIds(ragAnswer.getRetrievedChunks()));
+        retrievalLog.setRawHitChunkIds(joinChunkIds(ragAnswer.getRawRetrievedChunks()));
         retrievalLog.setRerankScore(BigDecimal.ZERO);
         retrievalLog.setModelName(ragAnswer.getModelName());
         retrievalLog.setLatencyMs(latencyMs);
         retrievalLog.setCreatedAt(LocalDateTime.now());
         retrievalLogMapper.insert(retrievalLog);
+    }
+
+    private String joinChunkIds(List<RetrievedChunk> chunks) {
+        if (chunks == null || chunks.isEmpty()) {
+            return "";
+        }
+        return chunks.stream()
+                .map(chunk -> String.valueOf(chunk.getChunkId()))
+                .collect(Collectors.joining(","));
     }
 
     /**
@@ -421,37 +430,15 @@ public class ChatService {
                 assistantMessage.setLatencyMs(latency);
                 chatMessageMapper.updateById(assistantMessage);
 
-                // retrieval log
-                RetrievalLogEntity retrievalLog = new RetrievalLogEntity();
-                retrievalLog.setTraceId(traceId);
-                retrievalLog.setTenantId(principal.tenantId());
-                retrievalLog.setQueryText(question);
-                retrievalLog.setHitChunkIds(ragAnswer.getRetrievedChunks().stream()
-                        .map(chunk -> String.valueOf(chunk.getChunkId()))
-                        .collect(Collectors.joining(",")));
-                retrievalLog.setRerankScore(BigDecimal.ZERO);
-                retrievalLog.setModelName(ragAnswer.getModelName());
-                retrievalLog.setLatencyMs(latency);
-                retrievalLog.setCreatedAt(LocalDateTime.now());
-                retrievalLogMapper.insert(retrievalLog);
+                writeRetrievalLogForRag(principal, traceId, question, ragAnswer, latency);
 
                 session.setLastActiveAt(LocalDateTime.now());
                 chatSessionMapper.updateById(session);
 
                 // 仅非高风险才写缓存
                 if (!highRiskGuard.isHighRisk(question)) {
-                    AnswerCachePayload payload = new AnswerCachePayload();
+                    AnswerCachePayload payload = toCachePayload(question, traceId, ragAnswer);
                     payload.setAnswer(answerBuf.toString());
-                    payload.setCitations(ragAnswer.getCitations());
-                    payload.setConfidence(ragAnswer.isKnowledgeHit() ? 0.81 : 0.45);
-                    payload.setWarning("本回答基于知识库检索与大模型生成，仅供法律知识参考，不构成正式法律意见");
-                    payload.setSourceTraceId(traceId);
-                    payload.setSourceQuestion(question);
-                    payload.setModelName(ragAnswer.getModelName());
-                    payload.setKnowledgeHit(ragAnswer.isKnowledgeHit());
-                    payload.setHitChunkIds(ragAnswer.getRetrievedChunks().stream()
-                            .map(chunk -> String.valueOf(chunk.getChunkId()))
-                            .collect(Collectors.joining(",")));
 
                     answerCacheService.putUserExact(principal.tenantId(), principal.userId(), kbSnapshotVersion, question, payload);
                     answerCacheService.putUserSemanticCandidate(principal.tenantId(), principal.userId(), kbSnapshotVersion, question, payload);

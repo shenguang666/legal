@@ -16,7 +16,7 @@ import java.util.List;
 public class DocumentProcessingProperties {
 
     /** 默认文档解析方式，未显式传入解析方式时使用。 */
-    private DocumentParseMethod defaultParseMethod = DocumentParseMethod.NATIVE;
+    private DocumentParseMethod defaultParseMethod = DocumentParseMethod.MINERU_PRECISE;
 
     /** 单次上传请求允许的最大文档数量。 */
     private int maxUploadDocuments = 5;
@@ -57,10 +57,10 @@ public class DocumentProcessingProperties {
         /** 切块后保留切片的最小有效字符数，法律短标题和编号条款不受该限制。 */
         private int minEffectiveChunkLength = 20;
 
-        /** 每个文档最多保存多少条被清洗内容样例。 */
+        /** 清洗日志中最多保存多少条被移除内容预览样例，不限制全文清洗范围。 */
         private int removedSampleLimit = 50;
 
-        /** 每条被清洗内容样例最多保存多少个字符。 */
+        /** 清洗日志中每条被移除内容预览样例最多保存多少个字符，不截断原文档或实际清洗内容。 */
         private int removedSampleMaxChars = 300;
 
         /** 是否启用页码类噪声过滤规则。 */
@@ -109,11 +109,17 @@ public class DocumentProcessingProperties {
         /** 是否启用 OCR，适用于扫描件或图片型 PDF。 */
         private boolean ocr = false;
 
-        /** MinerU Markdown 语义切片目标最大字符数，独立于原生解析切片大小。 */
+        /** MinerU Markdown 父子分块触发与子块切分的最大字符数。 */
         private int chunkSize = 800;
 
-        /** MinerU Markdown 相邻短语义块合并时的目标最小字符数，独立于原生解析切片大小。 */
-        private int minChunkSize = 180;
+        /** 是否启用 MinerU Markdown 相邻语义块合并。 */
+        private boolean mergeEnabled = true;
+
+        /** MinerU Markdown 相邻语义块合并时的最大字符数，仅在启用合并时生效。 */
+        private int maxMergeSize = 800;
+
+        /** MinerU Markdown 相邻短语义块合并时的目标最小字符数，仅在启用合并时生效。 */
+        private int minChunkSize = 10;
 
         /** MinerU 结果包图片资产处理配置。 */
         private ImageAsset imageAsset = new ImageAsset();

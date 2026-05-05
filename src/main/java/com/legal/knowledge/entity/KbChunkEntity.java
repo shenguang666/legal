@@ -3,6 +3,7 @@ package com.legal.knowledge.entity;
 import com.baomidou.mybatisplus.annotation.IdType;
 import com.baomidou.mybatisplus.annotation.TableId;
 import com.baomidou.mybatisplus.annotation.TableName;
+import com.legal.enums.KbChunkType;
 import lombok.Data;
 
 import java.time.LocalDateTime;
@@ -25,6 +26,10 @@ public class KbChunkEntity {
     private Integer docVersion;
     /** 切片顺序号。 */
     private Integer chunkOrder;
+    /** 切片类型（NORMAL普通分块/PARENT父分块/CHILD子分块）。 */
+    private KbChunkType chunkType;
+    /** 父分块ID，仅子分块需要填写。 */
+    private Long parentChunkId;
     /** 切片内容。 */
     private String content;
     /** 切片内容哈希。 */

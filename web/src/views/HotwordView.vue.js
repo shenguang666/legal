@@ -1,11 +1,23 @@
 import { onMounted, reactive, ref } from 'vue';
 import { apiDelete, apiGet, apiPost, randomRequestId } from '../api/client';
+import ConfirmDialog from '../components/ConfirmDialog.vue';
 const hotwords = ref([]);
 const notice = ref('');
 const error = ref('');
 const editingId = ref(null);
 const page = reactive({ total: 0, pageNo: 1, pageSize: 10 });
 const form = reactive({ hotwordKey: '', content: '', presetAnswer: '', category: '', weight: 0, sortOrder: 0, enabled: true });
+const confirmState = ref({
+    visible: false,
+    title: '',
+    message: '',
+    targetName: '',
+    targetLabel: '对象',
+    confirmText: '确认',
+    eyebrow: '操作确认',
+    danger: false,
+    action: null,
+});
 onMounted(loadHotwords);
 async function loadHotwords() {
     error.value = '';
@@ -93,9 +105,17 @@ async function toggleHotword(item) {
     }
 }
 async function removeHotword(item) {
-    if (!window.confirm(`确认删除热词“${item.content}”？`)) {
-        return;
-    }
+    openConfirm({
+        title: '删除热词',
+        message: '确认后会删除该聊天快捷问题热词。',
+        targetName: item.content,
+        targetLabel: '热词内容',
+        confirmText: '确认删除',
+        danger: true,
+        action: () => executeRemoveHotword(item),
+    });
+}
+async function executeRemoveHotword(item) {
     error.value = '';
     try {
         await apiDelete(`/api/hotwords/${item.hotwordId}?requestId=${encodeURIComponent(randomRequestId('hotword-delete'))}`);
@@ -104,6 +124,30 @@ async function removeHotword(item) {
     }
     catch (err) {
         error.value = err instanceof Error ? err.message : '热词删除失败';
+    }
+}
+function openConfirm(options) {
+    confirmState.value = {
+        visible: true,
+        title: options.title || '操作确认',
+        message: options.message || '请确认是否继续执行该操作。',
+        targetName: options.targetName || '',
+        targetLabel: options.targetLabel || '对象',
+        confirmText: options.confirmText || '确认',
+        eyebrow: options.eyebrow || '操作确认',
+        danger: Boolean(options.danger),
+        action: options.action,
+    };
+}
+function closeConfirm() {
+    confirmState.value.visible = false;
+    confirmState.value.action = null;
+}
+async function confirmAction() {
+    const action = confirmState.value.action;
+    closeConfirm();
+    if (action) {
+        await action();
     }
 }
 function prevPage() {
@@ -392,6 +436,42 @@ __VLS_asFunctionalElement(__VLS_intrinsicElements.button, __VLS_intrinsicElement
     type: "button",
     disabled: (__VLS_ctx.page.pageNo * __VLS_ctx.page.pageSize >= __VLS_ctx.page.total),
 });
+/** @type {[typeof ConfirmDialog, ]} */ ;
+// @ts-ignore
+const __VLS_0 = __VLS_asFunctionalComponent(ConfirmDialog, new ConfirmDialog({
+    ...{ 'onCancel': {} },
+    ...{ 'onConfirm': {} },
+    modelValue: (__VLS_ctx.confirmState.visible),
+    title: (__VLS_ctx.confirmState.title),
+    message: (__VLS_ctx.confirmState.message),
+    targetName: (__VLS_ctx.confirmState.targetName),
+    targetLabel: (__VLS_ctx.confirmState.targetLabel),
+    confirmText: (__VLS_ctx.confirmState.confirmText),
+    eyebrow: (__VLS_ctx.confirmState.eyebrow),
+    danger: (__VLS_ctx.confirmState.danger),
+}));
+const __VLS_1 = __VLS_0({
+    ...{ 'onCancel': {} },
+    ...{ 'onConfirm': {} },
+    modelValue: (__VLS_ctx.confirmState.visible),
+    title: (__VLS_ctx.confirmState.title),
+    message: (__VLS_ctx.confirmState.message),
+    targetName: (__VLS_ctx.confirmState.targetName),
+    targetLabel: (__VLS_ctx.confirmState.targetLabel),
+    confirmText: (__VLS_ctx.confirmState.confirmText),
+    eyebrow: (__VLS_ctx.confirmState.eyebrow),
+    danger: (__VLS_ctx.confirmState.danger),
+}, ...__VLS_functionalComponentArgsRest(__VLS_0));
+let __VLS_3;
+let __VLS_4;
+let __VLS_5;
+const __VLS_6 = {
+    onCancel: (__VLS_ctx.closeConfirm)
+};
+const __VLS_7 = {
+    onConfirm: (__VLS_ctx.confirmAction)
+};
+var __VLS_2;
 /** @type {__VLS_StyleScopedClasses['hotword-page']} */ ;
 /** @type {__VLS_StyleScopedClasses['card']} */ ;
 /** @type {__VLS_StyleScopedClasses['panel']} */ ;
@@ -441,18 +521,22 @@ var __VLS_dollars;
 const __VLS_self = (await import('vue')).defineComponent({
     setup() {
         return {
+            ConfirmDialog: ConfirmDialog,
             hotwords: hotwords,
             notice: notice,
             error: error,
             editingId: editingId,
             page: page,
             form: form,
+            confirmState: confirmState,
             loadHotwords: loadHotwords,
             submitHotword: submitHotword,
             beginEdit: beginEdit,
             resetForm: resetForm,
             toggleHotword: toggleHotword,
             removeHotword: removeHotword,
+            closeConfirm: closeConfirm,
+            confirmAction: confirmAction,
             prevPage: prevPage,
             nextPage: nextPage,
             formatTime: formatTime,

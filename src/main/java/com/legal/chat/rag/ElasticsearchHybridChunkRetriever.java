@@ -85,7 +85,9 @@ public class ElasticsearchHybridChunkRetriever implements ChunkRetriever {
                         hit.getDocumentId(),
                         hit.getChunkOrder(),
                         hit.getSource(),
-                        hit.getContent()
+                        hit.getContent(),
+                        hit.getChunkType(),
+                        hit.getParentChunkId()
                 ))
                 .toList();
     }

@@ -86,6 +86,7 @@ public final class RagRetrievalMetricDtos {
         private Long retrievalLogId;
         private String queryText;
         private List<Long> originalHitChunkIds;
+        private List<Long> finalHitChunkIds;
         private List<Long> relevantOriginalChunkIds;
         private List<Long> irrelevantOriginalChunkIds;
         private List<Long> missedRelevantChunkIds;

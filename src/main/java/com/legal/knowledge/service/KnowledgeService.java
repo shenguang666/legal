@@ -32,6 +32,7 @@ import java.security.MessageDigest;
 import java.security.NoSuchAlgorithmException;
 import java.time.LocalDateTime;
 import java.util.List;
+import java.util.Locale;
 import java.util.Map;
 
 import static java.util.stream.Collectors.toList;
@@ -87,7 +88,7 @@ public class KnowledgeService {
         entity.setStatus(KbDocumentStatus.PENDING);
         entity.setDocVersion(1);
         entity.setIndexStatus(KbIndexStatus.PENDING);
-        entity.setParseMethod(DocumentParseMethod.NATIVE);
+        entity.setParseMethod(DocumentParseMethod.MINERU_PRECISE);
         entity.setParseStatus(DocumentParseStatus.PENDING);
         entity.setCreatedAt(LocalDateTime.now());
         entity.setUpdatedAt(LocalDateTime.now());
@@ -145,16 +146,33 @@ public class KnowledgeService {
     }
 
     public List<DocumentDto> listDocuments(AuthPrincipal principal) {
+        return listDocuments(principal, null);
+    }
+
+    public List<DocumentDto> listDocuments(AuthPrincipal principal, String parseMethodValue) {
+        DocumentParseMethod parseMethod = resolveParseMethodFilter(parseMethodValue);
         return kbDocumentMapper.selectList(
                         new LambdaQueryWrapper<KbDocumentEntity>()
                                 .eq(KbDocumentEntity::getTenantId, principal.tenantId())
                                 .eq(KbDocumentEntity::getOwnerUserId, principal.userId())
                                 .eq(KbDocumentEntity::getBizType, KbDocumentBizType.KNOWLEDGE)
                                 .ne(KbDocumentEntity::getStatus, KbDocumentStatus.DELETED)
+                                .eq(parseMethod != null, KbDocumentEntity::getParseMethod, parseMethod)
                                 .orderByDesc(KbDocumentEntity::getUpdatedAt)
                 ).stream()
                 .map(this::toDto)
                 .toList();
+    }
+
+    private DocumentParseMethod resolveParseMethodFilter(String parseMethodValue) {
+        if (!StringUtils.hasText(parseMethodValue) || "ALL".equalsIgnoreCase(parseMethodValue.trim())) {
+            return null;
+        }
+        try {
+            return DocumentParseMethod.valueOf(parseMethodValue.trim().toUpperCase(Locale.ROOT));
+        } catch (IllegalArgumentException ex) {
+            throw AppException.badRequest("不支持的文档解析方式筛选条件: " + parseMethodValue);
+        }
     }
 
     public List<ChunkDto> listChunks(AuthPrincipal principal, Long documentId) {
@@ -165,6 +183,8 @@ public class KnowledgeService {
                     ChunkDto dto = new ChunkDto();
                     dto.setChunkId(chunk.getChunkId());
                     dto.setChunkOrder(chunk.getChunkOrder());
+                    dto.setChunkType(chunk.getChunkType());
+                    dto.setParentChunkId(chunk.getParentChunkId());
                     dto.setContent(chunk.getContent());
                     return dto;
                 })

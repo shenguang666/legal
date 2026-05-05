@@ -6,6 +6,9 @@ import com.legal.chat.memory.ChatMemoryFactory;
 import com.legal.common.AppException;
 import com.legal.config.OpenAiChatModelProperties;
 import com.legal.config.RagProperties;
+import com.legal.enums.KbChunkType;
+import com.legal.knowledge.entity.KbChunkEntity;
+import com.legal.knowledge.mapper.KbChunkMapper;
 import com.legal.knowledge.mapper.KbChunkImageRefMapper;
 import dev.langchain4j.data.message.ChatMessage;
 import dev.langchain4j.data.message.SystemMessage;
@@ -20,9 +23,11 @@ import org.springframework.stereotype.Service;
 import org.springframework.util.StringUtils;
 
 import java.util.ArrayList;
+import java.util.LinkedHashSet;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.Set;
 import java.util.stream.Collectors;
 
 @Service
@@ -37,6 +42,7 @@ public class RagAnswerService {
     private final ChatMemoryFactory chatMemoryFactory;
     private final ChatModel chatModel;
     private final KbChunkImageRefMapper kbChunkImageRefMapper;
+    private final KbChunkMapper kbChunkMapper;
 
     public RagAnswerService(RagProperties ragProperties,
                             OpenAiChatModelProperties openAiChatModelProperties,
@@ -44,6 +50,7 @@ public class RagAnswerService {
                             ChunkRetriever chunkRetriever,
                             ChatMemoryFactory chatMemoryFactory,
                             KbChunkImageRefMapper kbChunkImageRefMapper,
+                            KbChunkMapper kbChunkMapper,
                             @Nullable ChatModel chatModel) {
         this.ragProperties = ragProperties;
         this.openAiChatModelProperties = openAiChatModelProperties;
@@ -51,6 +58,7 @@ public class RagAnswerService {
         this.chunkRetriever = chunkRetriever;
         this.chatMemoryFactory = chatMemoryFactory;
         this.kbChunkImageRefMapper = kbChunkImageRefMapper;
+        this.kbChunkMapper = kbChunkMapper;
         this.chatModel = chatModel;
     }
 
@@ -62,7 +70,8 @@ public class RagAnswerService {
             throw AppException.badRequest("请先配置 LEGAL_LLM_API_KEY 后再使用智能问答");
         }
 
-        List<RetrievedChunk> chunks = chunkRetriever.retrieve(tenantId, question, ragProperties.getTopK());
+        List<RetrievedChunk> rawChunks = chunkRetriever.retrieve(tenantId, question, ragProperties.getTopK());
+        List<RetrievedChunk> chunks = expandParentChunks(tenantId, rawChunks);
         String context = buildContext(chunks);
         String knowledgeWarning = chunks.isEmpty() ? ragProperties.getEmptyHitWarning() : "已命中知识库片段，请优先依据知识库内容回答。";
         String systemPrompt = promptTemplateService.renderSystemPrompt(question, context, knowledgeWarning);
@@ -80,6 +89,7 @@ public class RagAnswerService {
                 openAiChatModelProperties.getModelName(),
                 tokenUsage,
                 chunks,
+                rawChunks,
                 buildCitations(tenantId, chunks),
                 !chunks.isEmpty()
         );
@@ -92,12 +102,14 @@ public class RagAnswerService {
         if (!ragProperties.isEnabled()) {
             throw AppException.badRequest("当前环境未启用 RAG 功能");
         }
-        List<RetrievedChunk> chunks = chunkRetriever.retrieve(tenantId, question, ragProperties.getTopK());
+        List<RetrievedChunk> rawChunks = chunkRetriever.retrieve(tenantId, question, ragProperties.getTopK());
+        List<RetrievedChunk> chunks = expandParentChunks(tenantId, rawChunks);
         return new RagAnswer(
                 "",
                 openAiChatModelProperties.getModelName(),
                 0,
                 chunks,
+                rawChunks,
                 buildCitations(tenantId, chunks),
                 !chunks.isEmpty()
         );
@@ -130,6 +142,58 @@ public class RagAnswerService {
      */
     public ChatMemory createMemoryForStreaming(String sessionId) {
         return chatMemoryFactory.create(sessionId);
+    }
+
+    private List<RetrievedChunk> expandParentChunks(Long tenantId, List<RetrievedChunk> rawChunks) {
+        if (rawChunks == null || rawChunks.isEmpty()) {
+            return List.of();
+        }
+        Set<Long> parentIds = rawChunks.stream()
+                .filter(chunk -> chunk.getChunkType() == KbChunkType.CHILD)
+                .map(RetrievedChunk::getParentChunkId)
+                .filter(id -> id != null)
+                .collect(Collectors.toCollection(LinkedHashSet::new));
+        Map<Long, KbChunkEntity> parentsById = loadParentChunks(tenantId, parentIds);
+        List<RetrievedChunk> result = new ArrayList<>();
+        Set<Long> emittedChunkIds = new LinkedHashSet<>();
+        for (RetrievedChunk chunk : rawChunks) {
+            if (chunk.getChunkType() == KbChunkType.CHILD) {
+                Long parentChunkId = chunk.getParentChunkId();
+                KbChunkEntity parent = parentChunkId == null ? null : parentsById.get(parentChunkId);
+                if (parent == null) {
+                    log.warn("RAG 子分块父分块缺失，tenantId={} childChunkId={} parentChunkId={}", tenantId, chunk.getChunkId(), parentChunkId);
+                    continue;
+                }
+                if (emittedChunkIds.add(parent.getChunkId())) {
+                    result.add(new RetrievedChunk(
+                            parent.getChunkId(),
+                            parent.getDocumentId(),
+                            parent.getChunkOrder(),
+                            chunk.getSource(),
+                            parent.getContent(),
+                            KbChunkType.PARENT,
+                            null
+                    ));
+                }
+                continue;
+            }
+            if (emittedChunkIds.add(chunk.getChunkId())) {
+                result.add(chunk);
+            }
+        }
+        return result;
+    }
+
+    private Map<Long, KbChunkEntity> loadParentChunks(Long tenantId, Set<Long> parentIds) {
+        if (parentIds == null || parentIds.isEmpty()) {
+            return Map.of();
+        }
+        List<KbChunkEntity> parents = kbChunkMapper.selectParentChunksByIds(tenantId, new ArrayList<>(parentIds));
+        Map<Long, KbChunkEntity> result = new LinkedHashMap<>();
+        for (KbChunkEntity parent : parents) {
+            result.put(parent.getChunkId(), parent);
+        }
+        return result;
     }
 
     private String buildContext(List<RetrievedChunk> chunks) {

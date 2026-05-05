@@ -160,7 +160,7 @@ const source = ref('');
 const selectedFile = ref<File | null>(null);
 const documents = ref<DocumentItem[]>([]);
 const notice = ref('');
-const parseMethod = ref('NATIVE');
+const parseMethod = ref('MINERU_PRECISE');
 const parseMethods = ref<string[]>(['NATIVE']);
 const maxUploadDocuments = ref(1);
 const cleaningAvailable = ref(false);
@@ -185,11 +185,33 @@ onMounted(async () => {
 
 async function loadCapabilities() {
   const capabilities = await apiGet<DocumentProcessingCapabilities>('/api/document-processing/capabilities');
-  parseMethods.value = capabilities.availableParseMethods?.length ? capabilities.availableParseMethods : ['NATIVE'];
-  parseMethod.value = capabilities.defaultParseMethod || parseMethods.value[0];
+  parseMethods.value = orderedParseMethods(capabilities.availableParseMethods?.length ? capabilities.availableParseMethods : ['NATIVE']);
+  parseMethod.value = preferredParseMethod(parseMethods.value, capabilities.defaultParseMethod);
   maxUploadDocuments.value = capabilities.maxUploadDocuments || 1;
   cleaningAvailable.value = Boolean(capabilities.cleaningAvailable);
   cleaningEnabled.value = false;
+}
+
+function orderedParseMethods(methods: string[]) {
+  return [...methods].sort((left, right) => {
+    if (left === 'MINERU_PRECISE') {
+      return -1;
+    }
+    if (right === 'MINERU_PRECISE') {
+      return 1;
+    }
+    return 0;
+  });
+}
+
+function preferredParseMethod(methods: string[], defaultMethod?: string) {
+  if (methods.includes('MINERU_PRECISE')) {
+    return 'MINERU_PRECISE';
+  }
+  if (defaultMethod && methods.includes(defaultMethod)) {
+    return defaultMethod;
+  }
+  return methods[0] || 'NATIVE';
 }
 
 async function refresh() {

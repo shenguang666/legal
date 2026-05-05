@@ -54,9 +54,9 @@ public class KnowledgeController {
     }
 
     @GetMapping
-    public ApiResponse<List<DocumentDto>> list() {
+    public ApiResponse<List<DocumentDto>> list(@RequestParam(value = "parseMethod", required = false) String parseMethod) {
         AuthPrincipal principal = AuthContextHolder.getRequired();
-        return ApiResponse.ok(knowledgeService.listDocuments(principal));
+        return ApiResponse.ok(knowledgeService.listDocuments(principal, parseMethod));
     }
 
     @GetMapping("/{id}/chunks")

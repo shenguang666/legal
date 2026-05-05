@@ -45,8 +45,8 @@ public class MineruImageAssetStorageService {
         return properties.isEnabled()
                 && StringUtils.hasText(properties.getRegion())
                 && StringUtils.hasText(properties.getBucket())
-                && StringUtils.hasText(properties.getAccessKeyId())
-                && StringUtils.hasText(properties.getAccessKeySecret());
+                && StringUtils.hasText(properties.resolvedAccessKeyId())
+                && StringUtils.hasText(properties.resolvedAccessKeySecret());
     }
 
     public OssObjectReference upload(KbDocumentBizType bizType,
@@ -68,7 +68,7 @@ public class MineruImageAssetStorageService {
                     .body(BinaryData.fromBytes(image.bytes()))
                     .build());
         } catch (Exception ex) {
-            throw AppException.badRequest("上传 MinerU 图片到 OSS 失败：" + ex.getMessage());
+            throw AppException.badRequest("上传 MinerU 图片到 OSS 失败：" + ossFailureMessage(ex));
         }
         return new OssObjectReference(properties.getBucket(), objectKey, resolveUrl(objectKey));
     }
@@ -129,7 +129,7 @@ public class MineruImageAssetStorageService {
                         .build());
             }
         } catch (Exception ex) {
-            throw AppException.badRequest("上传 MinerU 解析结果包到 OSS 失败：" + ex.getMessage());
+            throw AppException.badRequest("上传 MinerU 解析结果包到 OSS 失败：" + ossFailureMessage(ex));
         }
         return new MineruPackageUploadResult(properties.getBucket(), objectPrefix, resolveDirectoryUrl(objectPrefix), rewrittenMarkdown);
     }
@@ -153,7 +153,7 @@ public class MineruImageAssetStorageService {
                     .body(BinaryData.fromBytes(originalFileContent))
                     .build());
         } catch (Exception ex) {
-            throw AppException.badRequest("保存原文档到 OSS 失败：" + ex.getMessage());
+            throw AppException.badRequest("保存原文档到 OSS 失败：" + ossFailureMessage(ex));
         }
         return new MineruPackageUploadResult(properties.getBucket(), objectPrefix, resolveDirectoryUrl(objectPrefix), null);
     }
@@ -172,7 +172,7 @@ public class MineruImageAssetStorageService {
                     .key(objectKey)
                     .build());
         } catch (Exception ex) {
-            throw AppException.badRequest("删除 OSS 图片对象失败：" + ex.getMessage());
+            throw AppException.badRequest("删除 OSS 图片对象失败：" + ossFailureMessage(ex));
         }
         return true;
     }
@@ -212,7 +212,7 @@ public class MineruImageAssetStorageService {
                 continuationToken = Boolean.TRUE.equals(result.isTruncated()) ? result.nextContinuationToken() : null;
             } while (StringUtils.hasText(continuationToken));
         } catch (Exception ex) {
-            throw AppException.badRequest("删除 OSS 文档目录失败：" + ex.getMessage());
+            throw AppException.badRequest("删除 OSS 文档目录失败：" + ossFailureMessage(ex));
         }
         return deletedCount;
     }
@@ -230,7 +230,7 @@ public class MineruImageAssetStorageService {
                     .build());
             return result.contents() != null && !result.contents().isEmpty();
         } catch (Exception ex) {
-            throw AppException.badRequest("检查 OSS 目录是否为空失败：" + ex.getMessage());
+            throw AppException.badRequest("检查 OSS 目录是否为空失败：" + ossFailureMessage(ex));
         }
     }
 
@@ -337,7 +337,7 @@ public class MineruImageAssetStorageService {
             PresignResult result = Presigner.getObject(client, request, options);
             return result.url();
         } catch (Exception ex) {
-            throw AppException.badRequest("生成 OSS 图片访问地址失败：" + ex.getMessage());
+            throw AppException.badRequest("生成 OSS 图片访问地址失败：" + ossFailureMessage(ex));
         }
     }
 
@@ -481,7 +481,43 @@ public class MineruImageAssetStorageService {
     }
 
     private StaticCredentialsProvider credentialsProvider() {
-        return new StaticCredentialsProvider(properties.getAccessKeyId(), properties.getAccessKeySecret());
+        return new StaticCredentialsProvider(properties.resolvedAccessKeyId(), properties.resolvedAccessKeySecret());
+    }
+
+    private String ossFailureMessage(Exception ex) {
+        String message = ex == null ? "未知错误" : ex.getMessage();
+        String credentialHint = "OSS 配置：bucket=" + safeConfig(properties.getBucket())
+                + ", region=" + safeConfig(properties.getRegion())
+                + ", endpoint=" + safeConfig(properties.getEndpoint())
+                + ", accessKeyId=" + maskAccessKeyId(properties.resolvedAccessKeyId());
+        if (message != null && message.contains("InvalidAccessKeyId")) {
+            return "AccessKeyId 无效或不属于当前阿里云账号，请检查 LEGAL_OSS_ACCESS_KEY_ID / ALIBABA_CLOUD_ACCESS_KEY_ID 配置；"
+                    + credentialHint + "；原始错误：" + message;
+        }
+        if (message != null && message.contains("SignatureDoesNotMatch")) {
+            return "AccessKeySecret 与 AccessKeyId 不匹配，请检查 LEGAL_OSS_ACCESS_KEY_SECRET / ALIBABA_CLOUD_ACCESS_KEY_SECRET 配置；"
+                    + credentialHint + "；原始错误：" + message;
+        }
+        if (message != null && (message.contains("AccessDenied") || message.contains("Forbidden"))) {
+            return "OSS 凭证无 Bucket 写入权限，请为当前 AccessKey 授权 oss:PutObject/oss:GetObject/oss:DeleteObject；"
+                    + credentialHint + "；原始错误：" + message;
+        }
+        return credentialHint + "；原始错误：" + message;
+    }
+
+    private String safeConfig(String value) {
+        return StringUtils.hasText(value) ? value.trim() : "-";
+    }
+
+    private String maskAccessKeyId(String value) {
+        if (!StringUtils.hasText(value)) {
+            return "未配置";
+        }
+        String trimmed = value.trim();
+        if (trimmed.length() <= 8) {
+            return trimmed.charAt(0) + "***" + trimmed.charAt(trimmed.length() - 1);
+        }
+        return trimmed.substring(0, 4) + "***" + trimmed.substring(trimmed.length() - 4);
     }
 
     private String sanitizeSegment(String value) {

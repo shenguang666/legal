@@ -3,6 +3,7 @@ package com.legal.retrieval.service;
 import com.fasterxml.jackson.databind.JsonNode;
 import com.legal.common.AppException;
 import com.legal.config.ElasticsearchProperties;
+import com.legal.enums.KbChunkType;
 import org.springframework.http.MediaType;
 import org.springframework.http.client.SimpleClientHttpRequestFactory;
 import org.springframework.stereotype.Component;
@@ -194,7 +195,7 @@ public class ElasticsearchChunkStore {
                         "num_candidates", numCandidates,
                         "filter", Map.of("term", Map.of("tenant_id", tenantId))
                 ),
-                "_source", List.of("chunk_id", "document_id", "chunk_order", "source", "content")
+                "_source", List.of("chunk_id", "document_id", "chunk_order", "source", "content", "chunk_type", "parent_chunk_id")
         );
         JsonNode response = restClient.post()
                 .uri("/" + indexName + "/_search")
@@ -219,7 +220,7 @@ public class ElasticsearchChunkStore {
                                 )
                         )
                 ),
-                "_source", List.of("chunk_id", "document_id", "chunk_order", "source", "content")
+                "_source", List.of("chunk_id", "document_id", "chunk_order", "source", "content", "chunk_type", "parent_chunk_id")
         );
         JsonNode response = restClient.post()
                 .uri("/" + indexName + "/_search")
@@ -245,11 +246,13 @@ public class ElasticsearchChunkStore {
             Integer chunkOrder = asInt(source.path("chunk_order"));
             String sourceText = source.path("source").asText("知识库文档");
             String content = source.path("content").asText("");
+            KbChunkType chunkType = resolveChunkType(source.path("chunk_type").asText(null));
+            Long parentChunkId = asLong(source.path("parent_chunk_id"));
             double score = hitNode.path("_score").asDouble(0D);
             if (chunkId == null || documentId == null) {
                 continue;
             }
-            result.add(new ChunkSearchHit(chunkId, documentId, chunkOrder, sourceText, content, score));
+            result.add(new ChunkSearchHit(chunkId, documentId, chunkOrder, sourceText, content, chunkType, parentChunkId, score));
         }
         return result;
     }
@@ -270,6 +273,8 @@ public class ElasticsearchChunkStore {
                         holder.hit.getChunkOrder(),
                         holder.hit.getSource(),
                         holder.hit.getContent(),
+                        holder.hit.getChunkType(),
+                        holder.hit.getParentChunkId(),
                         holder.score
                 ))
                 .collect(Collectors.toList());
@@ -315,21 +320,23 @@ public class ElasticsearchChunkStore {
     private Object buildIndexMapping() {
         return Map.of(
                 "mappings", Map.of(
-                        "properties", Map.of(
-                                "chunk_id", Map.of("type", "long"),
-                                "tenant_id", Map.of("type", "long"),
-                                "document_id", Map.of("type", "long"),
-                                "doc_version", Map.of("type", "integer"),
-                                "chunk_order", Map.of("type", "integer"),
-                                "source", Map.of("type", "keyword"),
-                                "content", Map.of("type", "text"),
-                                "content_vector", Map.of(
+                        "properties", Map.ofEntries(
+                                Map.entry("chunk_id", Map.of("type", "long")),
+                                Map.entry("tenant_id", Map.of("type", "long")),
+                                Map.entry("document_id", Map.of("type", "long")),
+                                Map.entry("doc_version", Map.of("type", "integer")),
+                                Map.entry("chunk_order", Map.of("type", "integer")),
+                                Map.entry("chunk_type", Map.of("type", "keyword")),
+                                Map.entry("parent_chunk_id", Map.of("type", "long")),
+                                Map.entry("source", Map.of("type", "keyword")),
+                                Map.entry("content", Map.of("type", "text")),
+                                Map.entry("content_vector", Map.of(
                                         "type", "dense_vector",
                                         "dims", properties.getIndex().getVectorDims(),
                                         "index", true,
                                         "similarity", "cosine"
-                                ),
-                                "updated_at", Map.of("type", "date")
+                                )),
+                                Map.entry("updated_at", Map.of("type", "date"))
                         )
                 )
         );
@@ -344,6 +351,8 @@ public class ElasticsearchChunkStore {
                 + ",\"document_id\":" + chunk.getDocumentId()
                 + ",\"doc_version\":" + chunk.getDocVersion()
                 + ",\"chunk_order\":" + chunk.getChunkOrder()
+                + ",\"chunk_type\":\"" + escapeJson(resolveChunkTypeCode(chunk.getChunkType())) + "\""
+                + (chunk.getParentChunkId() == null ? "" : ",\"parent_chunk_id\":" + chunk.getParentChunkId())
                 + ",\"source\":\"" + escapeJson(chunk.getSource()) + "\""
                 + ",\"content\":\"" + escapeJson(chunk.getContent()) + "\""
                 + ",\"content_vector\":[" + vector + "]"
@@ -400,6 +409,21 @@ public class ElasticsearchChunkStore {
 
     private static Integer asInt(JsonNode node) {
         return node == null || node.isNull() ? null : node.asInt();
+    }
+
+    private static KbChunkType resolveChunkType(String value) {
+        if (!StringUtils.hasText(value)) {
+            return KbChunkType.NORMAL;
+        }
+        try {
+            return KbChunkType.valueOf(value);
+        } catch (IllegalArgumentException ex) {
+            return KbChunkType.NORMAL;
+        }
+    }
+
+    private static String resolveChunkTypeCode(KbChunkType chunkType) {
+        return chunkType == null ? KbChunkType.NORMAL.getCode() : chunkType.getCode();
     }
 
     private static String summarizeError(String body) {
