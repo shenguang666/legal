@@ -1,4 +1,4 @@
-## Requirements
+## MODIFIED Requirements
 
 ### Requirement: 使用语义边界切分解析文档
 系统 SHALL 在从结构化解析结果或 Markdown 解析结果生成切片时，优先使用清洗后的语义文档边界而非固定字符窗口；对于 MinerU 超长语义块，系统 MUST 将完整父分块语义和子分块检索粒度分离。
@@ -15,9 +15,8 @@
 
 #### Scenario: MinerU 文档使用独立切片大小策略
 - **WHEN** 文档通过 MinerU 精准解析生成 Markdown
-- **THEN** 系统 MUST 使用 MinerU 专属 `chunk-size` 配置控制父子分块触发阈值和子分块切分大小
-- **THEN** 系统 MUST 使用 MinerU 专属 `merge-enabled` 配置控制相邻语义块是否合并
-- **THEN** 系统 MUST 仅在启用合并时使用 `max-merge-size` 和 `min-chunk-size` 控制相邻短语义块合并策略
+- **THEN** 系统 MUST 使用 MinerU 专属切片大小配置控制 Markdown 语义切片目标最大字符数
+- **THEN** 系统 MUST 使用 MinerU 专属最小切片大小配置控制相邻短语义块合并策略
 - **THEN** 该配置 MUST 不影响原生解析文档的切片大小
 
 #### Scenario: MinerU 超长语义块生成父子分块
@@ -25,14 +24,6 @@
 - **THEN** 系统 MUST 保存一个包含完整语义块内容的父分块
 - **THEN** 系统 MUST 基于该父分块内容生成一个或多个子分块作为检索粒度
 - **THEN** 每个子分块 MUST 记录其父分块 `chunk_id`
-
-### Requirement: 保留表格和结构块证据完整性
-系统 SHALL 避免以丢失检索和审查证据含义的方式拆分表格和结构化块。
-
-#### Scenario: 解析内容包含表格块
-- **WHEN** 解析文档包含以 Markdown 或结构化内容表示的表格
-- **THEN** 系统 MUST 在可行时保持表头和相关行位于同一切片
-- **THEN** 生成的切片 MUST 适合作为 RAG、规则匹配和天眼审查的证据
 
 ### Requirement: 对超长或非结构化内容安全兜底
 系统 SHALL 在语义边界不可用或单个块超过最大切片长度时，使用确定性的安全拆分策略兜底，并在持久化前过滤低质量切片；对于 MinerU Markdown 中超过最大切片长度的语义块，系统 MUST 使用父子分块策略，父分块保留完整语义块，子分块按自然边界拆分并作为检索粒度。
