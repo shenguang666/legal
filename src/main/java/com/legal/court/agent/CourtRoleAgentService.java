@@ -1,10 +1,12 @@
 package com.legal.court.agent;
 
 import com.legal.common.AppException;
+import com.legal.config.SmartCourtLlmModelSettings;
+import com.legal.config.SmartCourtLlmModelSettingsResolver;
 import com.legal.config.OpenAiChatModelProperties;
+import com.legal.config.SmartCourtProperties;
 import com.legal.court.dto.CourtJudgeOutput;
 import com.legal.court.dto.CourtJudgeValidationResult;
-import com.legal.court.dto.CourtEvidenceAllowedRefs;
 import com.legal.court.dto.CourtRoleAgentRequest;
 import com.legal.court.dto.CourtRoleAgentResult;
 import com.legal.enums.CourtArgumentSpeaker;
@@ -12,12 +14,11 @@ import dev.langchain4j.data.message.SystemMessage;
 import dev.langchain4j.data.message.UserMessage;
 import dev.langchain4j.model.chat.ChatModel;
 import dev.langchain4j.model.chat.response.ChatResponse;
+import org.springframework.beans.factory.annotation.Qualifier;
 import org.springframework.lang.Nullable;
 import org.springframework.stereotype.Service;
-import org.springframework.util.StringUtils;
 
 import java.util.List;
-import java.util.stream.Collectors;
 
 /**
  * 智能小法庭多角色 Agent 服务。
@@ -26,16 +27,25 @@ import java.util.stream.Collectors;
 public class CourtRoleAgentService {
 
     private final ChatModel chatModel;
-    private final OpenAiChatModelProperties modelProperties;
+    private final SmartCourtProperties smartCourtProperties;
+    private final OpenAiChatModelProperties fallbackModelProperties;
+    private final SmartCourtLlmModelSettingsResolver settingsResolver;
+    private final CourtRolePromptTemplateService promptTemplateService;
     private final CourtJudgePerspectiveAnonymizer judgePerspectiveAnonymizer;
     private final CourtJudgeOutputValidator judgeOutputValidator;
 
-    public CourtRoleAgentService(@Nullable ChatModel chatModel,
-                                 OpenAiChatModelProperties modelProperties,
+    public CourtRoleAgentService(@Nullable @Qualifier("smartCourtChatModel") ChatModel chatModel,
+                                 SmartCourtProperties smartCourtProperties,
+                                 OpenAiChatModelProperties fallbackModelProperties,
+                                 SmartCourtLlmModelSettingsResolver settingsResolver,
+                                 CourtRolePromptTemplateService promptTemplateService,
                                  CourtJudgePerspectiveAnonymizer judgePerspectiveAnonymizer,
                                  CourtJudgeOutputValidator judgeOutputValidator) {
         this.chatModel = chatModel;
-        this.modelProperties = modelProperties;
+        this.smartCourtProperties = smartCourtProperties;
+        this.fallbackModelProperties = fallbackModelProperties;
+        this.settingsResolver = settingsResolver;
+        this.promptTemplateService = promptTemplateService;
         this.judgePerspectiveAnonymizer = judgePerspectiveAnonymizer;
         this.judgeOutputValidator = judgeOutputValidator;
     }
@@ -44,7 +54,7 @@ public class CourtRoleAgentService {
      * 调用 AI 法官 Agent。
      */
     public CourtRoleAgentResult invokeJudge(CourtRoleAgentRequest request) {
-        return invoke(CourtArgumentSpeaker.JUDGE, judgeSystemPrompt(), buildJudgeUserPrompt(request));
+        return invoke(CourtArgumentSpeaker.JUDGE, request, buildJudgeUserPrompt(request));
     }
 
     /**
@@ -53,13 +63,17 @@ public class CourtRoleAgentService {
     public CourtJudgeValidationResult invokeJudgeWithValidation(CourtRoleAgentRequest request) {
         AppException lastException = null;
         CourtRoleAgentResult lastResult = null;
+        int tokenUsage = 0;
         for (int retry = 0; retry <= 2; retry++) {
             lastResult = invokeJudge(request);
+            tokenUsage += lastResult.getTokenUsage() == null ? 0 : lastResult.getTokenUsage();
             try {
                 CourtJudgeOutput output = judgeOutputValidator.validate(lastResult.getRawText());
                 CourtJudgeValidationResult result = new CourtJudgeValidationResult();
                 result.setOutput(output);
                 result.setRawText(lastResult.getRawText());
+                result.setModelName(lastResult.getModelName());
+                result.setTokenUsage(tokenUsage);
                 result.setValid(true);
                 result.setRetryCount(retry);
                 return result;
@@ -70,6 +84,8 @@ public class CourtRoleAgentService {
         CourtJudgeValidationResult fallback = new CourtJudgeValidationResult();
         fallback.setOutput(fallbackJudgeOutput(lastException));
         fallback.setRawText(lastResult == null ? "" : lastResult.getRawText());
+        fallback.setModelName(lastResult == null ? null : lastResult.getModelName());
+        fallback.setTokenUsage(tokenUsage);
         fallback.setValid(false);
         fallback.setRetryCount(2);
         fallback.setFailureReason(lastException == null ? "法官输出不符合双向不利点要求" : lastException.getMessage());
@@ -80,78 +96,37 @@ public class CourtRoleAgentService {
      * 调用 AI 对方代理人 Agent。
      */
     public CourtRoleAgentResult invokeOpponent(CourtRoleAgentRequest request) {
-        return invoke(CourtArgumentSpeaker.OPPONENT, opponentSystemPrompt(), buildCommonUserPrompt(request));
+        return invoke(CourtArgumentSpeaker.OPPONENT, request, buildCommonUserPrompt());
     }
 
     /**
      * 调用 AI 用户辅助律师 Agent。
      */
     public CourtRoleAgentResult invokeUserAdvisor(CourtRoleAgentRequest request) {
-        return invoke(CourtArgumentSpeaker.USER_ADVISOR, userAdvisorSystemPrompt(), buildCommonUserPrompt(request));
+        return invoke(CourtArgumentSpeaker.USER_ADVISOR, request, buildCommonUserPrompt());
     }
 
-    private CourtRoleAgentResult invoke(CourtArgumentSpeaker speaker, String systemPrompt, String userPrompt) {
+    private CourtRoleAgentResult invoke(CourtArgumentSpeaker speaker, CourtRoleAgentRequest request, String userPrompt) {
         if (chatModel == null) {
-            throw AppException.badRequest("请先配置 LEGAL_LLM_API_KEY 后再使用智能小法庭 Agent");
+            throw AppException.badRequest("请先配置 LEGAL_SMART_COURT_LLM_API_KEY 或 LEGAL_LLM_API_KEY 后再使用智能小法庭 Agent");
         }
+        String systemPrompt = promptTemplateService.render(speaker, request);
         ChatResponse response = chatModel.chat(List.of(SystemMessage.from(systemPrompt), UserMessage.from(userPrompt)));
         CourtRoleAgentResult result = new CourtRoleAgentResult();
         result.setSpeaker(speaker);
-        result.setModelName(modelProperties.getModelName());
+        SmartCourtLlmModelSettings settings = settingsResolver.resolve(smartCourtProperties, fallbackModelProperties);
+        result.setModelName(settings.modelName());
         result.setRawText(response.aiMessage() == null ? "" : response.aiMessage().text());
         result.setTokenUsage(response.tokenUsage() == null ? 0 : response.tokenUsage().totalTokenCount());
         return result;
     }
 
-    private String judgeSystemPrompt() {
-        return "你是中立的合同纠纷模拟法官。必须只输出 JSON，不得偏向任何一方，不得出现 user、用户、一方是用户等措辞。必须同时指出 PartyA 与 PartyB 的不利点。";
-    }
-
-    private String opponentSystemPrompt() {
-        return "你是合同纠纷模拟庭审中的对方代理人。必须只输出 JSON。只能引用白名单中的 evidenceId、parentChunkId、childChunkId，不得编造合同条款、事实或证据编号。";
-    }
-
-    private String userAdvisorSystemPrompt() {
-        return "你是用户一方的辅助律师。必须只输出 JSON。职责是帮助用户补强主张、提示证据缺口，但不得编造证据，不得引用白名单外的编号。";
-    }
-
     private String buildJudgeUserPrompt(CourtRoleAgentRequest request) {
-        return judgePerspectiveAnonymizer.anonymize(buildBasePrompt(request), request.getUserSide())
-                + "\n输出 JSON schema：{\"focusIssues\":[],\"acceptedFacts\":[],\"rejectedFacts\":[],\"unfavorableToPartyA\":[],\"unfavorableToPartyB\":[],\"openQuestions\":[]}。";
+        return judgePerspectiveAnonymizer.anonymize("请基于系统提示词中的案件材料输出本轮中立法官 JSON。", request.getUserSide());
     }
 
-    private String buildCommonUserPrompt(CourtRoleAgentRequest request) {
-        return buildBasePrompt(request)
-                + "\n输出 JSON schema：{\"content\":\"...\",\"stance\":\"SUPPORT|REBUT|NEUTRAL|PENDING_PROOF\",\"rationale\":\"...\",\"evidenceRefs\":[{\"evidenceId\":1,\"parentChunkId\":2,\"childChunkId\":3,\"reason\":\"...\"}]}。";
-    }
-
-    private String buildBasePrompt(CourtRoleAgentRequest request) {
-        return "庭审阶段：" + safe(request.getStage() == null ? null : request.getStage().getCode())
-                + "\n案件摘要：" + safe(request.getCaseSummary())
-                + "\n本轮指令：" + safe(request.getInstruction())
-                + "\n历史庭审摘要：" + history(request.getHearingHistory())
-                + "\n证据上下文：" + safe(request.getEvidenceContext())
-                + "\n允许引用白名单：" + whitelist(request.getAllowedRefs());
-    }
-
-    private String whitelist(CourtEvidenceAllowedRefs refs) {
-        if (refs == null) {
-            return "evidenceIds=[], parentChunkIds=[], childChunkIds=[]";
-        }
-        return "evidenceIds=" + refs.getEvidenceIds()
-                + ", parentChunkIds=" + refs.getParentChunkIds()
-                + ", childChunkIds=" + refs.getChildChunkIds();
-    }
-
-    private String history(List<String> history) {
-        if (history == null || history.isEmpty()) {
-            return "无";
-        }
-        return history.stream().filter(StringUtils::hasText).collect(Collectors.joining("\n"));
-    }
-
-    private String safe(String text) {
-        return StringUtils.hasText(text) ? text : "无";
+    private String buildCommonUserPrompt() {
+        return "请基于系统提示词中的案件材料输出本轮角色 JSON。";
     }
 
     private CourtJudgeOutput fallbackJudgeOutput(AppException ex) {

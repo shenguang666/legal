@@ -75,11 +75,11 @@ public class CourtCaseService {
         entity.setUpdatedAt(LocalDateTime.now());
         courtCaseMapper.insert(entity);
         log.info("court.case.create tenantId={} userId={} caseId={} title={}", principal.tenantId(), principal.userId(), entity.getCaseId(), entity.getTitle());
+        publishCaseNode(entity);
         for (Long documentId : request.getDocumentIds() == null ? List.<Long>of() : request.getDocumentIds()) {
             KbDocumentEntity document = requireAllowedDocument(principal, documentId);
             addEvidence(entity, document);
         }
-        publishCaseNode(entity);
         return entity;
     }
 
@@ -232,6 +232,8 @@ public class CourtCaseService {
         evidence.setCreatedAt(LocalDateTime.now());
         evidence.setUpdatedAt(LocalDateTime.now());
         courtCaseEvidenceMapper.insert(evidence);
+        publishEvidenceNode(courtCase, evidence);
+        publishCaseEvidenceRelation(courtCase, evidence);
     }
 
     private void publishCaseNode(CourtCaseEntity entity) {
@@ -242,5 +244,28 @@ public class CourtCaseService {
         payload.getProperties().put("status", entity.getStatus().getCode());
         payload.getProperties().put("userSide", entity.getUserSide() == null ? null : entity.getUserSide().getCode());
         graphEventPublisher.publish(entity.getTenantId(), entity.getCaseId(), null, CourtGraphEventType.UPSERT_NODE, payload);
+    }
+
+    private void publishEvidenceNode(CourtCaseEntity courtCase, CourtCaseEvidenceEntity evidence) {
+        CourtGraphEventPayload payload = new CourtGraphEventPayload();
+        payload.setLabel("Evidence");
+        payload.setBusinessId("evidence-" + evidence.getEvidenceId());
+        payload.getProperties().put("displayName", evidence.getDisplayName());
+        payload.getProperties().put("documentId", evidence.getDocumentId());
+        payload.getProperties().put("status", evidence.getStatus() == null ? null : evidence.getStatus().getCode());
+        graphEventPublisher.publish(courtCase.getTenantId(), courtCase.getCaseId(), null, CourtGraphEventType.UPSERT_NODE, payload);
+    }
+
+    private void publishCaseEvidenceRelation(CourtCaseEntity courtCase, CourtCaseEvidenceEntity evidence) {
+        CourtGraphEventPayload payload = new CourtGraphEventPayload();
+        payload.setBusinessId("case-" + courtCase.getCaseId() + "-HAS_EVIDENCE-evidence-" + evidence.getEvidenceId());
+        payload.setFromLabel("Case");
+        payload.setFromBusinessId("case-" + courtCase.getCaseId());
+        payload.setToLabel("Evidence");
+        payload.setToBusinessId("evidence-" + evidence.getEvidenceId());
+        payload.setRelationType("HAS_EVIDENCE");
+        payload.getProperties().put("sourceBusinessId", payload.getFromBusinessId());
+        payload.getProperties().put("targetBusinessId", payload.getToBusinessId());
+        graphEventPublisher.publish(courtCase.getTenantId(), courtCase.getCaseId(), null, CourtGraphEventType.UPSERT_RELATION, payload);
     }
 }

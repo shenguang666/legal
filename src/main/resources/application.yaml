@@ -466,6 +466,20 @@ legal:
     judge-bilateral-retry: ${LEGAL_SMART_COURT_JUDGE_BILATERAL_RETRY:2}
     # 模拟裁判报告导出时附加的合规水印文案。
     report-watermark: ${LEGAL_SMART_COURT_REPORT_WATERMARK:仅供模拟参考、不构成法律意见}
+    # 智能小法庭专用大模型配置，留空时按后端逻辑复用在线问答模型配置。
+    llm:
+      # 智能小法庭模型 OpenAI 兼容接口地址，留空时复用在线问答模型接口地址。
+      base-url: ${LEGAL_SMART_COURT_LLM_BASE_URL:}
+      # 智能小法庭模型 API Key，留空时复用在线问答模型 API Key。
+      api-key: ${LEGAL_SMART_COURT_LLM_API_KEY:}
+      # 智能小法庭模型名称，留空时复用在线问答模型名称。
+      model-name: ${LEGAL_SMART_COURT_LLM_MODEL:deepseek-v4-pro}
+      # 智能小法庭模型采样温度，留空时复用在线问答模型采样温度。
+      temperature: ${LEGAL_SMART_COURT_LLM_TEMPERATURE:0.2}
+      # 智能小法庭模型单次最大输出 token 数，留空时复用在线问答模型输出上限。
+      max-output-tokens: ${LEGAL_SMART_COURT_LLM_MAX_OUTPUT_TOKENS:2048}
+      # 智能小法庭模型调用超时时间，留空时复用在线问答模型超时时间。
+      timeout: ${LEGAL_SMART_COURT_LLM_TIMEOUT:60s}
     # 庭审流程控制配置。
     hearing:
       # 默认庭审起始阶段，创建案件后首次进入的庭审阶段。

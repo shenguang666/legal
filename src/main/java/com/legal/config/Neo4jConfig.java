@@ -2,9 +2,12 @@ package com.legal.config;
 
 import org.neo4j.cypherdsl.core.renderer.Configuration;
 import org.neo4j.cypherdsl.core.renderer.Dialect;
+import org.neo4j.driver.Driver;
 import org.springframework.boot.context.properties.EnableConfigurationProperties;
 import org.springframework.context.annotation.Bean;
+import org.springframework.data.neo4j.core.DatabaseSelectionProvider;
 import org.springframework.data.neo4j.repository.config.EnableNeo4jRepositories;
+import org.springframework.data.neo4j.core.transaction.Neo4jTransactionManager;
 import org.springframework.transaction.annotation.EnableTransactionManagement;
 
 /**
@@ -14,7 +17,7 @@ import org.springframework.transaction.annotation.EnableTransactionManagement;
  */
 @org.springframework.context.annotation.Configuration
 @EnableConfigurationProperties(SmartCourtProperties.class)
-@EnableNeo4jRepositories(basePackages = "com.legal.court.graph.repository")
+@EnableNeo4jRepositories(basePackages = "com.legal.court.graph.repository", transactionManagerRef = "neo4jTransactionManager")
 @EnableTransactionManagement
 public class Neo4jConfig {
 
@@ -24,5 +27,10 @@ public class Neo4jConfig {
     @Bean
     public Configuration cypherDslConfiguration() {
         return Configuration.newConfig().withDialect(Dialect.NEO4J_5).build();
+    }
+
+    @Bean("neo4jTransactionManager")
+    public Neo4jTransactionManager neo4jTransactionManager(Driver driver, DatabaseSelectionProvider databaseSelectionProvider) {
+        return new Neo4jTransactionManager(driver, databaseSelectionProvider);
     }
 }

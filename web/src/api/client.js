@@ -127,6 +127,60 @@ export function apiPostSse(path, payload, onEvent, auth = true) {
     });
     return () => controller.abort();
 }
+// fetch + ReadableStream 解析 GET SSE（用于需要 Authorization 请求头的流式接口）
+export function apiGetSse(path, onEvent, auth = true) {
+    const controller = new AbortController();
+    const headers = {};
+    if (auth) {
+        Object.assign(headers, authHeaders());
+    }
+    fetch(`${API_BASE_URL}${path}`, {
+        method: 'GET',
+        headers,
+        signal: controller.signal,
+    })
+        .then(async (resp) => {
+        if (!resp.ok || !resp.body) {
+            throw new Error(`SSE 请求失败: ${resp.status}`);
+        }
+        const reader = resp.body.getReader();
+        const decoder = new TextDecoder('utf-8');
+        let buffer = '';
+        let currentEvent = 'message';
+        while (true) {
+            const { done, value } = await reader.read();
+            if (done)
+                break;
+            buffer += decoder.decode(value, { stream: true });
+            let idx;
+            while ((idx = buffer.indexOf('\n')) >= 0) {
+                const line = buffer.slice(0, idx).trimEnd();
+                buffer = buffer.slice(idx + 1);
+                if (!line)
+                    continue;
+                if (line.startsWith('event:')) {
+                    currentEvent = line.slice('event:'.length).trim();
+                    continue;
+                }
+                if (line.startsWith('data:')) {
+                    const raw = line.slice('data:'.length).trim();
+                    let data = raw;
+                    try {
+                        data = JSON.parse(raw);
+                    }
+                    catch {
+                        // ignore
+                    }
+                    onEvent({ name: currentEvent, data });
+                }
+            }
+        }
+    })
+        .catch((err) => {
+        onEvent({ name: 'error', data: { message: err?.message || String(err) } });
+    });
+    return () => controller.abort();
+}
 export async function apiLogin(payload) {
     const user = await apiPost('/api/auth/login', payload, false);
     saveAuth(user);

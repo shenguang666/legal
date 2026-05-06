@@ -36,7 +36,8 @@ public class CourtGraphProjector {
             "HAS_PARTY", "RAISES_CLAIM", "RAISES_DEFENSE", "ASSERTS_FACT", "SUPPORTED_BY", "CONTRADICTED_BY",
             "DERIVED_FROM", "QUOTES_CLAUSE", "PROVES_AMOUNT", "PROVES_DATE", "CREATES_OBLIGATION",
             "BREACHES_OBLIGATION", "SUPPORTS_ARGUMENT", "CHALLENGES_ARGUMENT", "HAS_RISK", "HAS_GAP",
-            "NEEDS_EVIDENCE", "SUPPORTS_JUDGMENT"
+            "NEEDS_EVIDENCE", "SUPPORTS_JUDGMENT", "HAS_EVIDENCE", "PRESENTS_ARGUMENT",
+            "ADVISES_ARGUMENT", "OPPOSES_ARGUMENT", "REBUTS_ARGUMENT", "SUMMARIZES_ARGUMENT"
     );
 
     private final CourtGraphEventMapper courtGraphEventMapper;
@@ -169,6 +170,8 @@ public class CourtGraphProjector {
         assertAllowedLabel(payload.getToLabel());
         assertAllowedRelation(payload.getRelationType());
         Map<String, Object> props = baseProps(event, payload);
+        props.put("sourceBusinessId", payload.getFromBusinessId());
+        props.put("targetBusinessId", payload.getToBusinessId());
         String cypher = "MATCH (a:" + payload.getFromLabel() + " {tenantId:$tenantId, businessId:$fromBusinessId}) "
                 + "MATCH (b:" + payload.getToLabel() + " {tenantId:$tenantId, businessId:$toBusinessId}) "
                 + "MERGE (a)-[r:" + payload.getRelationType() + " {tenantId:$tenantId, businessId:$businessId}]->(b) SET r += $props";

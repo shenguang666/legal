@@ -1,4 +1,4 @@
-import { apiDelete, apiGet, apiPost, apiPut } from './client';
+import { apiDelete, apiGet, apiPost, apiPostSse, apiPut } from './client';
 
 export interface CourtCase {
   caseId: number;
@@ -78,6 +78,44 @@ export interface CourtJudgmentReport {
   watermark: string;
 }
 
+export interface CourtHearingStreamEvent {
+  type: string;
+  caseId?: number;
+  roundId?: number;
+  attemptId?: number;
+  speaker?: 'USER' | 'JUDGE' | 'OPPONENT' | 'USER_ADVISOR' | 'SYSTEM';
+  content?: string;
+  modelName?: string;
+  tokenUsage?: number;
+}
+
+export interface CourtHearingStreamRequest {
+  userStatement?: string;
+  userNoStatement?: boolean;
+  advisorAutoSpeak?: boolean;
+}
+
+export interface CourtHearingRecord {
+  roundId: number;
+  roundNo: number;
+  stage: string;
+  state: string;
+  startedAt?: string;
+  endedAt?: string;
+  messages: Array<{
+    messageId?: number;
+    argumentId?: number;
+    speaker: 'USER' | 'JUDGE' | 'OPPONENT' | 'USER_ADVISOR' | 'SYSTEM';
+    speakerParty?: string;
+    stance?: string;
+    content: string;
+    rationale?: string;
+    evidenceRefsJson?: string;
+    tokenUsage?: number;
+    createdAt?: string;
+  }>;
+}
+
 export function listCourtCases(pageNo = 1, pageSize = 10) {
   return apiGet<CourtCasePage>(`/api/smart-court/cases?pageNo=${pageNo}&pageSize=${pageSize}`);
 }
@@ -96,6 +134,16 @@ export function confirmCourtFacts(caseId: number) {
 
 export function startCourtHearing(caseId: number) {
   return apiPost<CourtCase>(`/api/smart-court/cases/${caseId}/start-hearing`);
+}
+
+export function streamCourtHearing(caseId: number, payload: CourtHearingStreamRequest, onEvent: (eventName: string, event: CourtHearingStreamEvent) => void) {
+  return apiPostSse(`/api/smart-court/cases/${caseId}/hearing-stream`, payload, ({ name, data }) => {
+    onEvent(name, data as CourtHearingStreamEvent);
+  });
+}
+
+export function listCourtHearingRecords(caseId: number) {
+  return apiGet<CourtHearingRecord[]>(`/api/smart-court/cases/${caseId}/hearing-records`);
 }
 
 export function deleteCourtCase(caseId: number) {
@@ -123,7 +171,7 @@ export function resolveCourtSuggestion(caseId: number, suggestionId: number) {
   return apiPost<void>(`/api/smart-court/cases/${caseId}/suggestions/${suggestionId}/resolve`);
 }
 
-export function generateCourtReport(caseId: number, roundId: number | null, judgeOutput: CourtJudgeOutput) {
+export function generateCourtReport(caseId: number, roundId: number | null = null, judgeOutput?: CourtJudgeOutput) {
   return apiPost<CourtJudgmentReport>(`/api/smart-court/cases/${caseId}/judgment-report`, { roundId, judgeOutput });
 }
 

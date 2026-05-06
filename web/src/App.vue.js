@@ -245,21 +245,19 @@ if (__VLS_ctx.isAdmin) {
     __VLS_31.slots.default;
     var __VLS_31;
 }
-if (__VLS_ctx.isAdmin) {
-    const __VLS_32 = {}.RouterLink;
-    /** @type {[typeof __VLS_components.RouterLink, typeof __VLS_components.RouterLink, ]} */ ;
-    // @ts-ignore
-    const __VLS_33 = __VLS_asFunctionalComponent(__VLS_32, new __VLS_32({
-        to: "/tianyan",
-        ...{ class: "menu-link" },
-    }));
-    const __VLS_34 = __VLS_33({
-        to: "/tianyan",
-        ...{ class: "menu-link" },
-    }, ...__VLS_functionalComponentArgsRest(__VLS_33));
-    __VLS_35.slots.default;
-    var __VLS_35;
-}
+const __VLS_32 = {}.RouterLink;
+/** @type {[typeof __VLS_components.RouterLink, typeof __VLS_components.RouterLink, ]} */ ;
+// @ts-ignore
+const __VLS_33 = __VLS_asFunctionalComponent(__VLS_32, new __VLS_32({
+    to: "/tianyan",
+    ...{ class: "menu-link" },
+}));
+const __VLS_34 = __VLS_33({
+    to: "/tianyan",
+    ...{ class: "menu-link" },
+}, ...__VLS_functionalComponentArgsRest(__VLS_33));
+__VLS_35.slots.default;
+var __VLS_35;
 __VLS_asFunctionalElement(__VLS_intrinsicElements.button, __VLS_intrinsicElements.button)({
     ...{ onClick: (...[$event]) => {
             __VLS_ctx.scrollMenu(1);

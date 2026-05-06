@@ -1,6 +1,5 @@
 package com.legal.knowledge.controller;
 
-import cn.dev33.satoken.annotation.SaCheckRole;
 import com.legal.common.ApiResponse;
 import com.legal.knowledge.service.DocumentAssetService;
 import com.legal.security.AuthContextHolder;
@@ -11,7 +10,6 @@ import org.springframework.web.bind.annotation.PathVariable;
 import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RestController;
 
-@SaCheckRole("ADMIN")
 @Validated
 @RestController
 @RequestMapping("/api/document-assets")

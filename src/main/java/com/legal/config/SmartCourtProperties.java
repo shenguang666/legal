@@ -34,6 +34,9 @@ public class SmartCourtProperties {
     /** 模拟裁判报告导出时附加的合规水印文案。 */
     private String reportWatermark = "仅供模拟参考、不构成法律意见";
 
+    /** 智能小法庭专用大模型配置。 */
+    private Llm llm = new Llm();
+
     /** 庭审流程控制配置。 */
     private Hearing hearing = new Hearing();
 
@@ -60,6 +63,29 @@ public class SmartCourtProperties {
 
     /** 证据链知识图谱相关配置。 */
     private Graph graph = new Graph();
+
+    /** 智能小法庭专用大模型配置项。 */
+    @Data
+    public static class Llm {
+
+        /** 智能小法庭模型 OpenAI 兼容接口地址。 */
+        private String baseUrl;
+
+        /** 智能小法庭模型 API Key。 */
+        private String apiKey;
+
+        /** 智能小法庭模型名称。 */
+        private String modelName;
+
+        /** 智能小法庭模型采样温度。 */
+        private Double temperature;
+
+        /** 智能小法庭模型单次最大输出 token 数。 */
+        private Integer maxOutputTokens;
+
+        /** 智能小法庭模型调用超时时间。 */
+        private Duration timeout;
+    }
 
     /** 庭审流程控制配置项。 */
     @Data

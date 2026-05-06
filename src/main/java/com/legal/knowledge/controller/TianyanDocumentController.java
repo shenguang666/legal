@@ -1,6 +1,5 @@
 package com.legal.knowledge.controller;
 
-import cn.dev33.satoken.annotation.SaCheckRole;
 import com.legal.common.ApiResponse;
 import com.legal.knowledge.dto.DocumentDto;
 import com.legal.knowledge.service.TianyanDocumentService;
@@ -18,7 +17,6 @@ import org.springframework.web.multipart.MultipartFile;
 
 import java.util.List;
 
-@SaCheckRole("ADMIN")
 @Validated
 @RestController
 @RequestMapping("/api/tianyan/documents")

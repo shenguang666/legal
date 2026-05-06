@@ -25,4 +25,17 @@ public interface CourtCaseMapper extends BaseMapper<CourtCaseEntity> {
     int increaseTotalTokens(@Param("tenantId") Long tenantId,
                             @Param("caseId") Long caseId,
                             @Param("tokenUsage") Integer tokenUsage);
+
+    /**
+     * 累加案件已完成庭审轮次数。
+     */
+    @Update("""
+            UPDATE court_case
+            SET total_rounds = COALESCE(total_rounds, 0) + 1,
+                updated_at = NOW()
+            WHERE case_id = #{caseId}
+              AND tenant_id = #{tenantId}
+            """)
+    int increaseTotalRounds(@Param("tenantId") Long tenantId,
+                            @Param("caseId") Long caseId);
 }

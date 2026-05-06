@@ -12,6 +12,7 @@ import dev.langchain4j.model.openai.OpenAiStreamingChatModel;
 import org.springframework.boot.context.properties.EnableConfigurationProperties;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
+import org.springframework.context.annotation.Primary;
 import org.springframework.util.StringUtils;
 
 @Configuration
@@ -26,11 +27,13 @@ import org.springframework.util.StringUtils;
         RagRetrievalMetricProperties.class,
         TokenUsageMetricProperties.class,
         DocumentProcessingProperties.class,
-        OssStorageProperties.class
+        OssStorageProperties.class,
+        SmartCourtProperties.class
 })
 public class LangChain4jConfig {
 
     @Bean
+    @Primary
     public ChatModel chatModel(OpenAiChatModelProperties properties) {
         if (!StringUtils.hasText(properties.getApiKey())) {
             return null;
@@ -48,6 +51,7 @@ public class LangChain4jConfig {
     }
 
     @Bean
+    @Primary
     public StreamingChatModel streamingChatModel(OpenAiStreamingChatModelProperties properties) {
         if (!StringUtils.hasText(properties.getApiKey())) {
             return null;
@@ -61,6 +65,45 @@ public class LangChain4jConfig {
                 .temperature(properties.getTemperature())
                 .maxCompletionTokens(properties.getMaxOutputTokens())
                 .timeout(properties.getTimeout())
+                .build();
+    }
+
+    @Bean("smartCourtChatModel")
+    public ChatModel smartCourtChatModel(SmartCourtProperties smartCourtProperties,
+                                         OpenAiChatModelProperties fallbackProperties,
+                                         SmartCourtLlmModelSettingsResolver resolver) {
+        SmartCourtLlmModelSettings settings = resolver.resolve(smartCourtProperties, fallbackProperties);
+        if (!StringUtils.hasText(settings.apiKey())) {
+            return null;
+        }
+        return OpenAiChatModel.builder()
+                .baseUrl(settings.baseUrl())
+                .apiKey(settings.apiKey())
+                .modelName(settings.modelName())
+                .temperature(settings.temperature())
+                .maxCompletionTokens(settings.maxOutputTokens())
+                .timeout(settings.timeout())
+                .logRequests(fallbackProperties.isLogRequests())
+                .logResponses(fallbackProperties.isLogResponses())
+                .build();
+    }
+
+    @Bean("smartCourtStreamingChatModel")
+    public StreamingChatModel smartCourtStreamingChatModel(SmartCourtProperties smartCourtProperties,
+                                                           OpenAiStreamingChatModelProperties fallbackProperties,
+                                                           SmartCourtLlmModelSettingsResolver resolver) {
+        SmartCourtLlmModelSettings settings = resolver.resolveStreaming(smartCourtProperties, fallbackProperties);
+        if (!StringUtils.hasText(settings.apiKey())) {
+            return null;
+        }
+        return OpenAiStreamingChatModel.builder()
+                .baseUrl(settings.baseUrl())
+                .apiKey(settings.apiKey())
+                .modelName(settings.modelName())
+                .accumulateToolCallId(false)
+                .temperature(settings.temperature())
+                .maxCompletionTokens(settings.maxOutputTokens())
+                .timeout(settings.timeout())
                 .build();
     }
 

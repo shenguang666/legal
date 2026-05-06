@@ -2,9 +2,12 @@ package com.legal.court.controller;
 
 import com.baomidou.mybatisplus.extension.plugins.pagination.Page;
 import com.legal.common.ApiResponse;
+import com.legal.court.agent.CourtHearingStreamService;
 import com.legal.court.agent.CourtOrchestrator;
 import com.legal.court.dto.CourtCaseCreateRequest;
 import com.legal.court.dto.CourtCaseUpdateRequest;
+import com.legal.court.dto.CourtHearingRecordDto;
+import com.legal.court.dto.CourtHearingStreamRequest;
 import com.legal.court.dto.CourtJudgmentReportRequest;
 import com.legal.court.entity.CourtCaseEntity;
 import com.legal.court.entity.CourtHearingRoundEntity;
@@ -14,6 +17,7 @@ import com.legal.court.service.CourtJudgmentService;
 import com.legal.security.AuthContextHolder;
 import com.legal.security.AuthPrincipal;
 import org.springframework.validation.annotation.Validated;
+import org.slf4j.MDC;
 import org.springframework.web.bind.annotation.DeleteMapping;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PathVariable;
@@ -23,6 +27,9 @@ import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.RestController;
+import org.springframework.web.servlet.mvc.method.annotation.SseEmitter;
+
+import java.util.List;
 
 /**
  * 智能小法庭案件与庭审 Controller。
@@ -33,13 +40,16 @@ import org.springframework.web.bind.annotation.RestController;
 public class SmartCourtController {
 
     private final CourtCaseService courtCaseService;
+    private final CourtHearingStreamService courtHearingStreamService;
     private final CourtOrchestrator courtOrchestrator;
     private final CourtJudgmentService courtJudgmentService;
 
     public SmartCourtController(CourtCaseService courtCaseService,
+                                CourtHearingStreamService courtHearingStreamService,
                                 CourtOrchestrator courtOrchestrator,
                                 CourtJudgmentService courtJudgmentService) {
         this.courtCaseService = courtCaseService;
+        this.courtHearingStreamService = courtHearingStreamService;
         this.courtOrchestrator = courtOrchestrator;
         this.courtJudgmentService = courtJudgmentService;
     }
@@ -79,6 +89,24 @@ public class SmartCourtController {
     public ApiResponse<CourtCaseEntity> startHearing(@PathVariable Long caseId) {
         AuthPrincipal principal = AuthContextHolder.getRequired();
         return ApiResponse.ok(courtCaseService.startHearing(principal, caseId));
+    }
+
+    @GetMapping("/{caseId}/hearing-stream")
+    public SseEmitter startHearingStream(@PathVariable Long caseId) {
+        AuthPrincipal principal = AuthContextHolder.getRequired();
+        return courtHearingStreamService.startHearingStream(principal, caseId, MDC.get("traceId"));
+    }
+
+    @PostMapping("/{caseId}/hearing-stream")
+    public SseEmitter startHearingStream(@PathVariable Long caseId, @RequestBody(required = false) CourtHearingStreamRequest request) {
+        AuthPrincipal principal = AuthContextHolder.getRequired();
+        return courtHearingStreamService.startHearingStream(principal, caseId, request, MDC.get("traceId"));
+    }
+
+    @GetMapping("/{caseId}/hearing-records")
+    public ApiResponse<List<CourtHearingRecordDto>> hearingRecords(@PathVariable Long caseId) {
+        AuthPrincipal principal = AuthContextHolder.getRequired();
+        return ApiResponse.ok(courtHearingStreamService.listRecords(principal, caseId));
     }
 
     @PostMapping("/{caseId}/rounds/{roundId}/start")

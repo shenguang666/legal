@@ -5,6 +5,7 @@ import com.fasterxml.jackson.core.type.TypeReference;
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.legal.common.AppException;
+import com.legal.config.SmartCourtProperties;
 import com.legal.config.OpenAiChatModelProperties;
 import com.legal.court.dto.CourtSuggestionGap;
 import com.legal.court.entity.CourtSupplementSuggestionEntity;
@@ -46,6 +47,7 @@ public class CourtSuggestionService {
     private final ChatModel chatModel;
     private final OpenAiChatModelProperties modelProperties;
     private final CourtMetricsService courtMetricsService;
+    private final SmartCourtProperties smartCourtProperties;
 
     public CourtSuggestionService(CourtSuggestionRuleEngine ruleEngine,
                                   CourtCaseService courtCaseService,
@@ -53,7 +55,8 @@ public class CourtSuggestionService {
                                   ObjectMapper objectMapper,
                                   @Nullable ChatModel chatModel,
                                   OpenAiChatModelProperties modelProperties,
-                                  CourtMetricsService courtMetricsService) {
+                                  CourtMetricsService courtMetricsService,
+                                  SmartCourtProperties smartCourtProperties) {
         this.ruleEngine = ruleEngine;
         this.courtCaseService = courtCaseService;
         this.suggestionMapper = suggestionMapper;
@@ -61,6 +64,7 @@ public class CourtSuggestionService {
         this.chatModel = chatModel;
         this.modelProperties = modelProperties;
         this.courtMetricsService = courtMetricsService;
+        this.smartCourtProperties = smartCourtProperties;
     }
 
     /**
@@ -68,7 +72,7 @@ public class CourtSuggestionService {
      */
     @Transactional
     public List<CourtSupplementSuggestionEntity> refreshSuggestions(Long tenantId, Long caseId, Long roundId) {
-        List<CourtSuggestionGap> gaps = ruleEngine.detectGaps(tenantId, caseId, 100);
+        List<CourtSuggestionGap> gaps = detectGapsSafely(tenantId, caseId);
         List<CourtSuggestionGap> rewritten = rewriteGaps(gaps);
         Map<String, CourtSupplementSuggestionEntity> existing = loadOpenSuggestions(tenantId, caseId);
         Set<String> currentKeys = rewritten.stream().map(this::gapKey).collect(Collectors.toSet());
@@ -95,6 +99,18 @@ public class CourtSuggestionService {
         courtMetricsService.recordHighSuggestions(highCount);
         log.info("suggestion.refresh tenantId={} caseId={} roundId={} total={} highCount={}", tenantId, caseId, roundId, saved.size(), highCount);
         return saved;
+    }
+
+    private List<CourtSuggestionGap> detectGapsSafely(Long tenantId, Long caseId) {
+        try {
+            return ruleEngine.detectGaps(tenantId, caseId, 100);
+        } catch (RuntimeException ex) {
+            if (smartCourtProperties.getDegrade().isAllowHearingWithoutGraph()) {
+                log.warn("智能小法庭 Neo4j 补证规则不可用，跳过本次补证刷新 tenantId={} caseId={} error={}", tenantId, caseId, ex.getMessage());
+                return List.of();
+            }
+            throw ex;
+        }
     }
 
     /**

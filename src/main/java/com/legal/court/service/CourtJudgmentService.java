@@ -1,12 +1,18 @@
 package com.legal.court.service;
 
+import com.baomidou.mybatisplus.core.conditions.query.LambdaQueryWrapper;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.legal.common.AppException;
 import com.legal.court.dto.CourtJudgeOutput;
 import com.legal.court.dto.CourtJudgmentReportRequest;
+import com.legal.court.entity.CourtArgumentEntity;
 import com.legal.court.entity.CourtCaseEntity;
+import com.legal.court.entity.CourtHearingMessageEntity;
 import com.legal.court.entity.CourtJudgmentReportEntity;
+import com.legal.court.mapper.CourtArgumentMapper;
 import com.legal.court.mapper.CourtCaseMapper;
+import com.legal.court.mapper.CourtHearingMessageMapper;
+import com.legal.enums.CourtArgumentSpeaker;
 import com.legal.court.mapper.CourtJudgmentReportMapper;
 import com.legal.enums.CourtCaseStatus;
 import com.legal.enums.CourtJudgmentReportStatus;
@@ -32,15 +38,21 @@ public class CourtJudgmentService {
     private final CourtCaseService courtCaseService;
     private final CourtJudgmentReportMapper reportMapper;
     private final CourtCaseMapper courtCaseMapper;
+    private final CourtArgumentMapper courtArgumentMapper;
+    private final CourtHearingMessageMapper courtHearingMessageMapper;
     private final ObjectMapper objectMapper;
 
     public CourtJudgmentService(CourtCaseService courtCaseService,
                                 CourtJudgmentReportMapper reportMapper,
                                 CourtCaseMapper courtCaseMapper,
+                                CourtArgumentMapper courtArgumentMapper,
+                                CourtHearingMessageMapper courtHearingMessageMapper,
                                 ObjectMapper objectMapper) {
         this.courtCaseService = courtCaseService;
         this.reportMapper = reportMapper;
         this.courtCaseMapper = courtCaseMapper;
+        this.courtArgumentMapper = courtArgumentMapper;
+        this.courtHearingMessageMapper = courtHearingMessageMapper;
         this.objectMapper = objectMapper;
     }
 
@@ -50,12 +62,17 @@ public class CourtJudgmentService {
     @Transactional
     public CourtJudgmentReportEntity generateReport(AuthPrincipal principal, Long caseId, CourtJudgmentReportRequest request) {
         CourtCaseEntity courtCase = courtCaseService.requireCase(principal, caseId);
-        CourtJudgeOutput output = request.getJudgeOutput();
+        CourtArgumentEntity judgeArgument = null;
+        CourtJudgeOutput output = request == null ? null : request.getJudgeOutput();
+        if (output == null) {
+            judgeArgument = latestJudgeArgument(principal.tenantId(), caseId);
+            output = readJudgeOutput(judgeArgument);
+        }
         validateJudgeOutput(output);
         CourtJudgmentReportEntity report = new CourtJudgmentReportEntity();
         report.setTenantId(principal.tenantId());
         report.setCaseId(caseId);
-        report.setRoundId(request.getRoundId());
+        report.setRoundId(resolveRoundId(request, judgeArgument));
         report.setStatus(CourtJudgmentReportStatus.GENERATED);
         report.setFocusIssuesJson(toJson(output.getFocusIssues()));
         report.setAcceptedFactsJson(toJson(output.getAcceptedFacts()));
@@ -72,6 +89,38 @@ public class CourtJudgmentService {
         courtCase.setUpdatedAt(LocalDateTime.now());
         courtCaseMapper.updateById(courtCase);
         return report;
+    }
+
+    private CourtArgumentEntity latestJudgeArgument(Long tenantId, Long caseId) {
+        CourtArgumentEntity argument = courtArgumentMapper.selectOne(new LambdaQueryWrapper<CourtArgumentEntity>()
+                .eq(CourtArgumentEntity::getTenantId, tenantId)
+                .eq(CourtArgumentEntity::getCaseId, caseId)
+                .eq(CourtArgumentEntity::getSpeakerRole, CourtArgumentSpeaker.JUDGE)
+                .orderByDesc(CourtArgumentEntity::getCreatedAt)
+                .last("limit 1"));
+        if (argument == null) {
+            throw AppException.badRequest("暂无法官发言，无法生成模拟裁判报告");
+        }
+        return argument;
+    }
+
+    private CourtJudgeOutput readJudgeOutput(CourtArgumentEntity judgeArgument) {
+        CourtHearingMessageEntity message = judgeArgument.getMessageId() == null ? null : courtHearingMessageMapper.selectById(judgeArgument.getMessageId());
+        if (message == null || !StringUtils.hasText(message.getContent())) {
+            throw AppException.badRequest("法官原始输出不存在，无法生成模拟裁判报告");
+        }
+        try {
+            return objectMapper.readValue(message.getContent(), CourtJudgeOutput.class);
+        } catch (Exception ex) {
+            throw AppException.badRequest("法官原始输出格式异常，无法生成模拟裁判报告");
+        }
+    }
+
+    private Long resolveRoundId(CourtJudgmentReportRequest request, CourtArgumentEntity judgeArgument) {
+        if (request != null && request.getRoundId() != null) {
+            return request.getRoundId();
+        }
+        return judgeArgument == null ? null : judgeArgument.getRoundId();
     }
 
     /**

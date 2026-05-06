@@ -150,6 +150,8 @@ public class CourtGraphQueryService {
         edges.computeIfAbsent(businessId, ignored -> {
             CourtGraphSnapshotDto.EdgeDto dto = new CourtGraphSnapshotDto.EdgeDto();
             dto.setBusinessId(businessId);
+            dto.setSourceBusinessId(String.valueOf(props.getOrDefault("sourceBusinessId", relation.startNodeId())));
+            dto.setTargetBusinessId(String.valueOf(props.getOrDefault("targetBusinessId", relation.endNodeId())));
             dto.setType(relation.type());
             dto.setLabel(relation.type());
             dto.setProperties(props);

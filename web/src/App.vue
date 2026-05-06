@@ -19,7 +19,7 @@
           <RouterLink v-if="isAdmin" to="/risk-rules" class="menu-link">风险规则</RouterLink>
           <RouterLink v-if="isAdmin" to="/rag-metrics" class="menu-link">RAG指标</RouterLink>
           <RouterLink v-if="isAdmin" to="/token-usage-metrics" class="menu-link">Token指标</RouterLink>
-          <RouterLink v-if="isAdmin" to="/tianyan" class="menu-link">天眼审查</RouterLink>
+          <RouterLink to="/tianyan" class="menu-link">天眼审查</RouterLink>
         </nav>
         <button class="menu-arrow" type="button" :disabled="!canScrollMenuRight" aria-label="向右切换导航" @click="scrollMenu(1)">›</button>
       </div>

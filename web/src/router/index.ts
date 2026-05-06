@@ -24,8 +24,8 @@ const router = createRouter({
     { path: '/risk-rules', component: RiskRuleView, meta: { adminOnly: true } },
     { path: '/rag-metrics', component: RagMetricsView, meta: { adminOnly: true } },
     { path: '/token-usage-metrics', component: TokenUsageMetricsView, meta: { adminOnly: true } },
-    { path: '/tianyan', component: TianyanView, meta: { adminOnly: true } },
-    { path: '/tianyan/reviews/:documentId', component: ContractReviewView, meta: { adminOnly: true } },
+    { path: '/tianyan', component: TianyanView },
+    { path: '/tianyan/reviews/:documentId', component: ContractReviewView },
     { path: '/smart-court', component: SmartCourtView },
   ],
   scrollBehavior() {

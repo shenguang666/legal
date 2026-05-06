@@ -5,6 +5,8 @@ import com.legal.court.entity.CourtHearingMessageEntity;
 import com.legal.court.mapper.CourtCaseMapper;
 import com.legal.court.mapper.CourtHearingMessageMapper;
 import com.legal.court.mapper.CourtHearingRoundMapper;
+import com.legal.enums.CourtArgumentSpeaker;
+import com.legal.enums.CourtPartyRole;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
@@ -54,6 +56,32 @@ public class CourtTokenUsageService {
             courtHearingRoundMapper.increaseTotalTokens(tenantId, caseId, roundId, totalTokens);
             courtCaseMapper.increaseTotalTokens(tenantId, caseId, totalTokens);
         }
+        return message;
+    }
+
+    /**
+     * 记录用户庭审发言消息。
+     */
+    @Transactional
+    public CourtHearingMessageEntity recordUserMessage(Long tenantId,
+                                                       Long caseId,
+                                                       Long roundId,
+                                                       Integer attemptId,
+                                                       CourtPartyRole speakerParty,
+                                                       String content) {
+        CourtHearingMessageEntity message = new CourtHearingMessageEntity();
+        message.setTenantId(tenantId);
+        message.setCaseId(caseId);
+        message.setRoundId(roundId);
+        message.setAttemptId(attemptId);
+        message.setSpeakerRole(CourtArgumentSpeaker.USER);
+        message.setSpeakerParty(speakerParty);
+        message.setMessageType("USER_INPUT");
+        message.setContent(content == null ? "" : content);
+        message.setTokenInput(0);
+        message.setTokenOutput(0);
+        message.setCreatedAt(LocalDateTime.now());
+        courtHearingMessageMapper.insert(message);
         return message;
     }
 }
