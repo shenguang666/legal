@@ -36,16 +36,5 @@ build/
 web/node_modules/
 web/dist/
 web/*.tsbuildinfo
-/docs/
-/.claude/settings.local.json
 /legal.cp
-/.claude/worktrees/agent-af26122a6e0e879c6/
-/.playwright-mcp/
-/src/main/resources/document/
-/src/main/resources/result/
-/tools/
 
-/.claude/
-/.windsurf/
-/src/test/
-/docker/

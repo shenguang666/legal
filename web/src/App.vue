@@ -13,6 +13,7 @@
         <nav ref="menuRef" class="menu" aria-label="主导航" @scroll="updateMenuScrollState">
           <RouterLink to="/chat" class="menu-link">问答</RouterLink>
           <RouterLink to="/sessions" class="menu-link">会话</RouterLink>
+          <RouterLink to="/smart-court" class="menu-link">小法庭</RouterLink>
           <RouterLink v-if="isAdmin" to="/knowledge" class="menu-link">知识库</RouterLink>
           <RouterLink v-if="isAdmin" to="/hotwords" class="menu-link">热词管理</RouterLink>
           <RouterLink v-if="isAdmin" to="/risk-rules" class="menu-link">风险规则</RouterLink>

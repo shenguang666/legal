@@ -63,6 +63,9 @@ export function apiGet(path) {
 export function apiPost(path, body, auth = true) {
     return request(path, { method: 'POST', body, auth });
 }
+export function apiPut(path, body) {
+    return request(path, { method: 'PUT', body });
+}
 export function apiPostForm(path, formData, auth = true) {
     return request(path, { method: 'POST', body: formData, auth, formData: true });
 }

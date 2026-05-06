@@ -95,6 +95,35 @@ public interface KbChunkMapper extends BaseMapper<KbChunkEntity> {
     List<KbChunkEntity> selectParentChunksByIds(@Param("tenantId") Long tenantId,
                                                 @Param("chunkIds") List<Long> chunkIds);
 
+    @Select("""
+            <script>
+            SELECT c.chunk_id,
+                   c.tenant_id,
+                   c.document_id,
+                   c.doc_version,
+                   c.chunk_order,
+                   c.chunk_type,
+                   c.parent_chunk_id,
+                   c.content,
+                   c.content_hash,
+                   c.created_at
+            FROM kb_chunk c
+            INNER JOIN kb_document d ON d.document_id = c.document_id
+            WHERE c.tenant_id = #{tenantId}
+              AND d.tenant_id = #{tenantId}
+              AND d.status != 'DELETED'
+              AND d.doc_version = c.doc_version
+              AND (c.chunk_type IS NULL OR c.chunk_type != 'PARENT')
+              AND c.document_id IN
+              <foreach collection='documentIds' item='documentId' open='(' separator=',' close=')'>
+                #{documentId}
+              </foreach>
+            ORDER BY c.document_id ASC, c.chunk_order ASC, c.chunk_id ASC
+            </script>
+            """)
+    List<KbChunkEntity> selectCourtAllowedChunksByDocuments(@Param("tenantId") Long tenantId,
+                                                            @Param("documentIds") List<Long> documentIds);
+
     @Delete("""
             DELETE FROM kb_chunk
             WHERE tenant_id = #{tenantId}

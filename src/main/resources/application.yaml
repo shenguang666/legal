@@ -8,6 +8,48 @@ spring:
   profiles:
     # 当前激活的运行环境，默认使用 dev。
     active: ${LEGAL_PROFILE:dev}
+  # Spring Data Neo4j 连接配置（用于智能小法庭证据链知识图谱）。
+  neo4j:
+    # Neo4j Bolt 协议连接地址，生产建议通过环境变量注入。
+    uri: ${LEGAL_NEO4J_URI:bolt://159.75.84.229:7687}
+    # Neo4j 连接超时时间。
+    connection-timeout: ${LEGAL_NEO4J_CONNECTION_TIMEOUT:10s}
+    # Neo4j 驱动认证配置。
+    authentication:
+      # Neo4j 登录用户名，社区版默认 neo4j。
+      username: ${LEGAL_NEO4J_USERNAME:neo4j}
+      # Neo4j 登录密码，生产请通过环境变量注入。
+      password: ${LEGAL_NEO4J_PASSWORD:legalNeo4j2026!}
+  # Spring Data 数据访问配置。
+  data:
+    # Spring Data Neo4j 业务数据库配置。
+    neo4j:
+      # Neo4j 业务数据库名称，Community 版通常使用默认 neo4j。
+      database: ${LEGAL_NEO4J_DATABASE:neo4j}
+    # Redis 连接配置。
+    redis:
+      # Redis 主机地址。
+      host: ${LEGAL_REDIS_HOST:159.75.84.229}
+      # Redis 服务端口。
+      port: ${LEGAL_REDIS_PORT:6379}
+      # Redis 访问密码。
+      password: ${LEGAL_REDIS_PASSWORD:reidsnfturbo11}
+      # Redis 命令执行超时时间。
+      timeout: 3s
+  # dev 环境数据库连接配置。
+  datasource:
+    # MySQL JDBC 连接地址。
+    url: ${LEGAL_DB_URL:jdbc:mysql://159.75.84.229:3307/legal?useUnicode=true&characterEncoding=UTF-8&serverTimezone=Asia/Shanghai&allowPublicKeyRetrieval=true&useSSL=false}
+    # MySQL 登录用户名。
+    username: ${LEGAL_DB_USERNAME:legal}
+    # MySQL 登录密码，生产环境应通过环境变量注入。
+    password: ${LEGAL_DB_PASSWORD:c5S6sixmyYcS4xxX}
+    # MySQL JDBC 驱动类名。
+    driver-class-name: com.mysql.cj.jdbc.Driver
+    # HikariCP 数据库连接池配置。
+    hikari:
+      # 初始化失败超时时间，-1 表示启动时不因数据库暂不可用而失败。
+      initialization-fail-timeout: -1
   # Servlet 容器相关配置。
   servlet:
     # 文件上传大小限制配置。
@@ -329,7 +371,7 @@ legal:
         # 图生文模型 OpenAI 兼容接口地址。
         base-url: ${LEGAL_MINERU_IMAGE_CAPTION_BASE_URL:${LEGAL_LLM_BASE_URL:https://dashscope.aliyuncs.com/compatible-mode/v1}}
         # 图生文模型 API Key，默认复用在线问答模型 API Key。
-        api-key: ${LEGAL_MINERU_IMAGE_CAPTION_API_KEY:${LEGAL_LLM_API_KEY:}}
+        api-key: ${LEGAL_MINERU_IMAGE_CAPTION_API_KEY:${LEGAL_LLM_API_KEY:sk-8f14b342380c4e1ea5bbf457709c5f12}}
         # 图生文模型名称。
         model-name: ${LEGAL_MINERU_IMAGE_CAPTION_MODEL:qwen3.5-omni-plus}
         # 图生文模型调用超时时间。
@@ -407,6 +449,141 @@ legal:
       max-retries: ${LEGAL_MEMORY_WORKER_MAX_RETRIES:5}
       # 记忆任务失败后的重试延迟秒数。
       retry-delay-seconds: ${LEGAL_MEMORY_WORKER_RETRY_DELAY_SECONDS:30}
+
+  # 智能小法庭（合同纠纷模拟庭审 + 证据链图谱 + 补证建议）配置。
+  smart-court:
+    # 是否启用智能小法庭功能总开关，关闭后相关接口拒绝服务。
+    enabled: ${LEGAL_SMART_COURT_ENABLED:true}
+    # 单案件最大允许的庭审轮数，超过后阻止开启新轮并引导生成报告。
+    max-rounds: ${LEGAL_SMART_COURT_MAX_ROUNDS:8}
+    # 单轮庭审 LLM 累计 token 上限，超限后终止本轮剩余 LLM 调用并标记失败。
+    max-tokens-per-round: ${LEGAL_SMART_COURT_MAX_TOKENS_PER_ROUND:6000}
+    # 单案件累计 token 上限，超限后阻止开启新轮以控制成本。
+    max-tokens-per-case: ${LEGAL_SMART_COURT_MAX_TOKENS_PER_CASE:60000}
+    # AI 角色发言 schema 校验失败后的最大整轮重试次数。
+    evidence-ref-retry: ${LEGAL_SMART_COURT_EVIDENCE_REF_RETRY:2}
+    # AI 法官输出双向不利点缺失时的整体重生成最大次数。
+    judge-bilateral-retry: ${LEGAL_SMART_COURT_JUDGE_BILATERAL_RETRY:2}
+    # 模拟裁判报告导出时附加的合规水印文案。
+    report-watermark: ${LEGAL_SMART_COURT_REPORT_WATERMARK:仅供模拟参考、不构成法律意见}
+    # 庭审流程控制配置。
+    hearing:
+      # 默认庭审起始阶段，创建案件后首次进入的庭审阶段。
+      initial-stage: ${LEGAL_SMART_COURT_HEARING_INITIAL_STAGE:OPENING_PLAINTIFF}
+      # 是否允许用户手动推进庭审阶段，关闭后只能由系统状态机推进。
+      manual-stage-transition-enabled: ${LEGAL_SMART_COURT_HEARING_MANUAL_STAGE_TRANSITION_ENABLED:true}
+      # 单个庭审阶段允许的最大消息数量，超过后提示进入下一阶段。
+      max-messages-per-stage: ${LEGAL_SMART_COURT_HEARING_MAX_MESSAGES_PER_STAGE:20}
+      # 单轮庭审最大执行时长，超过后中断本轮并标记失败。
+      round-timeout: ${LEGAL_SMART_COURT_HEARING_ROUND_TIMEOUT:180s}
+      # 庭审轮次失败后的默认重试延迟时间。
+      retry-delay: ${LEGAL_SMART_COURT_HEARING_RETRY_DELAY:10s}
+    # 多角色 AI 模型与提示词配置。
+    agent:
+      # 法官角色使用的模型名称，留空时复用全局聊天模型。
+      judge-model: ${LEGAL_SMART_COURT_AGENT_JUDGE_MODEL:${LEGAL_LLM_MODEL:deepseek-v4-pro}}
+      # 对方代理人角色使用的模型名称，留空时复用全局聊天模型。
+      opponent-model: ${LEGAL_SMART_COURT_AGENT_OPPONENT_MODEL:${LEGAL_LLM_MODEL:deepseek-v4-pro}}
+      # 用户辅助律师角色使用的模型名称，留空时复用全局聊天模型。
+      user-advisor-model: ${LEGAL_SMART_COURT_AGENT_USER_ADVISOR_MODEL:${LEGAL_LLM_MODEL:deepseek-v4-pro}}
+      # 观众或旁听视角角色使用的模型名称，留空时复用全局聊天模型。
+      audience-model: ${LEGAL_SMART_COURT_AGENT_AUDIENCE_MODEL:${LEGAL_LLM_MODEL:deepseek-v4-pro}}
+      # 法官角色采样温度，建议低温以保证中立稳定。
+      judge-temperature: ${LEGAL_SMART_COURT_AGENT_JUDGE_TEMPERATURE:0.1}
+      # 对方代理人角色采样温度，允许略高以增强攻防变化。
+      opponent-temperature: ${LEGAL_SMART_COURT_AGENT_OPPONENT_TEMPERATURE:0.2}
+      # 用户辅助律师角色采样温度，建议偏低以保证建议可靠。
+      user-advisor-temperature: ${LEGAL_SMART_COURT_AGENT_USER_ADVISOR_TEMPERATURE:0.15}
+      # 观众视角采样温度，用于生成更通俗的旁听解释。
+      audience-temperature: ${LEGAL_SMART_COURT_AGENT_AUDIENCE_TEMPERATURE:0.3}
+      # 单次角色发言最大输出 token 数。
+      max-output-tokens: ${LEGAL_SMART_COURT_AGENT_MAX_OUTPUT_TOKENS:1800}
+      # 是否启用角色提示词隔离，开启后不同角色只接收允许范围内的上下文。
+      prompt-isolation-enabled: ${LEGAL_SMART_COURT_AGENT_PROMPT_ISOLATION_ENABLED:true}
+      # 是否强制法官输出原被告双方不利点，关闭后仅做普通总结。
+      judge-bilateral-adverse-points-required: ${LEGAL_SMART_COURT_AGENT_JUDGE_BILATERAL_ADVERSE_POINTS_REQUIRED:true}
+    # 庭审 RAG 检索上下文配置。
+    retrieval:
+      # 庭审上下文检索是否启用父级语义块扩展，命中子块后用父块发送给大模型。
+      parent-context-enabled: ${LEGAL_SMART_COURT_RETRIEVAL_PARENT_CONTEXT_ENABLED:true}
+      # 庭审每次检索返回给模型的最大上下文数量。
+      top-k: ${LEGAL_SMART_COURT_RETRIEVAL_TOP_K:8}
+      # 庭审检索向量召回的最小相似度阈值。
+      min-vector-similarity: ${LEGAL_SMART_COURT_RETRIEVAL_MIN_VECTOR_SIMILARITY:0.75}
+      # 单条证据上下文发送给模型前允许的最大字符数。
+      max-context-chars-per-evidence: ${LEGAL_SMART_COURT_RETRIEVAL_MAX_CONTEXT_CHARS_PER_EVIDENCE:3000}
+      # 单次角色发言允许携带的最大证据上下文总字符数。
+      max-total-context-chars: ${LEGAL_SMART_COURT_RETRIEVAL_MAX_TOTAL_CONTEXT_CHARS:12000}
+    # 证据引用真实性校验配置。
+    evidence-validation:
+      # 是否启用证据引用 schema 校验，检查 AI 输出是否符合 evidenceId/chunkId 等结构要求。
+      schema-check-enabled: ${LEGAL_SMART_COURT_EVIDENCE_VALIDATION_SCHEMA_CHECK_ENABLED:true}
+      # 是否启用案件证据白名单校验，防止引用未登记到案件的文档或证据。
+      whitelist-check-enabled: ${LEGAL_SMART_COURT_EVIDENCE_VALIDATION_WHITELIST_CHECK_ENABLED:true}
+      # 是否启用租户和用户归属校验，防止跨租户或跨用户引用证据。
+      ownership-check-enabled: ${LEGAL_SMART_COURT_EVIDENCE_VALIDATION_OWNERSHIP_CHECK_ENABLED:true}
+      # 是否丢弃未通过校验的证据引用，关闭后仅记录告警。
+      drop-invalid-references: ${LEGAL_SMART_COURT_EVIDENCE_VALIDATION_DROP_INVALID_REFERENCES:true}
+      # 单条观点允许引用的最大证据数量。
+      max-references-per-argument: ${LEGAL_SMART_COURT_EVIDENCE_VALIDATION_MAX_REFERENCES_PER_ARGUMENT:10}
+    # 补证建议配置。
+    supplement:
+      # 是否启用补证建议生成。
+      enabled: ${LEGAL_SMART_COURT_SUPPLEMENT_ENABLED:true}
+      # 是否允许 LLM 参与补证建议解释，规则识别仍以结构化图谱结果为准。
+      llm-explanation-enabled: ${LEGAL_SMART_COURT_SUPPLEMENT_LLM_EXPLANATION_ENABLED:true}
+      # 单案件最多保留的开放补证建议数量。
+      max-open-suggestions-per-case: ${LEGAL_SMART_COURT_SUPPLEMENT_MAX_OPEN_SUGGESTIONS_PER_CASE:30}
+      # 补证建议生成时默认最小严重等级，低于该等级的建议不展示。
+      min-visible-severity: ${LEGAL_SMART_COURT_SUPPLEMENT_MIN_VISIBLE_SEVERITY:LOW}
+      # 图谱更新后是否自动重新计算补证建议。
+      refresh-on-graph-update: ${LEGAL_SMART_COURT_SUPPLEMENT_REFRESH_ON_GRAPH_UPDATE:true}
+    # SSE 流式庭审输出配置。
+    stream:
+      # 是否启用庭审 SSE 流式输出。
+      enabled: ${LEGAL_SMART_COURT_STREAM_ENABLED:true}
+      # SSE 心跳发送间隔，避免长时间无输出被代理断开。
+      heartbeat-interval: ${LEGAL_SMART_COURT_STREAM_HEARTBEAT_INTERVAL:15s}
+      # SSE 连接最大保持时间，超过后由前端重新发起请求。
+      max-duration: ${LEGAL_SMART_COURT_STREAM_MAX_DURATION:5m}
+      # 用户停止流式输出后是否保存已生成的部分内容。
+      save-partial-on-cancel: ${LEGAL_SMART_COURT_STREAM_SAVE_PARTIAL_ON_CANCEL:true}
+    # 智能小法庭降级策略配置。
+    degrade:
+      # Neo4j 不可用时是否允许继续进行纯文本模拟庭审。
+      allow-hearing-without-graph: ${LEGAL_SMART_COURT_DEGRADE_ALLOW_HEARING_WITHOUT_GRAPH:true}
+      # LLM 调用失败时是否允许返回规则化兜底提示。
+      allow-rule-fallback-on-llm-error: ${LEGAL_SMART_COURT_DEGRADE_ALLOW_RULE_FALLBACK_ON_LLM_ERROR:true}
+      # RAG 检索无结果时是否允许继续生成程序性发言。
+      allow-hearing-without-rag-hit: ${LEGAL_SMART_COURT_DEGRADE_ALLOW_HEARING_WITHOUT_RAG_HIT:false}
+    # 智能小法庭审计与观测配置。
+    observability:
+      # 是否记录庭审角色调用摘要日志，不记录完整敏感原文。
+      audit-log-enabled: ${LEGAL_SMART_COURT_OBSERVABILITY_AUDIT_LOG_ENABLED:true}
+      # 是否记录图谱投影指标，用于后续接入 Actuator/Metrics。
+      graph-metrics-enabled: ${LEGAL_SMART_COURT_OBSERVABILITY_GRAPH_METRICS_ENABLED:true}
+      # 是否记录证据引用校验统计，用于排查 AI 幻觉引用。
+      evidence-validation-metrics-enabled: ${LEGAL_SMART_COURT_OBSERVABILITY_EVIDENCE_VALIDATION_METRICS_ENABLED:true}
+    # 证据链知识图谱相关配置。
+    graph:
+      # 是否启用 Neo4j 投影器，关闭后所有图谱事件保持 PENDING 状态等待人工启用。
+      projector-enabled: ${LEGAL_SMART_COURT_GRAPH_PROJECTOR_ENABLED:true}
+      # Cypher 多跳路径查询允许的最大跳数，硬性约束查询代价。
+      max-hops: ${LEGAL_SMART_COURT_GRAPH_MAX_HOPS:4}
+      # 单案件图谱节点数量上限，超过后拒绝写入新节点并告警。
+      max-nodes-per-case: ${LEGAL_SMART_COURT_GRAPH_MAX_NODES_PER_CASE:2000}
+      # 投影器单批消费 PENDING 事件的数量。
+      projector-batch-size: ${LEGAL_SMART_COURT_GRAPH_PROJECTOR_BATCH_SIZE:50}
+      # 投影器轮询间隔毫秒数。
+      projector-poll-interval-ms: ${LEGAL_SMART_COURT_GRAPH_PROJECTOR_POLL_INTERVAL_MS:2000}
+      # 投影器单事件最大重试次数，超过后置为 DEAD 并告警。
+      projector-max-retries: ${LEGAL_SMART_COURT_GRAPH_PROJECTOR_MAX_RETRIES:5}
+      # 案件级全量重建时按事件分页的页大小。
+      rebuild-page-size: ${LEGAL_SMART_COURT_GRAPH_REBUILD_PAGE_SIZE:200}
+      # 前端默认子图查询围绕争议焦点的跳数。
+      default-focus-hops: ${LEGAL_SMART_COURT_GRAPH_DEFAULT_FOCUS_HOPS:2}
+      # 前端默认子图查询返回节点数量上限。
+      default-focus-node-limit: ${LEGAL_SMART_COURT_GRAPH_DEFAULT_FOCUS_NODE_LIMIT:200}
 
   # 合同审阅与风险识别配置。
   contract-review:
@@ -492,39 +669,3 @@ elasticsearch:
     max-retries: ${LEGAL_ES_WORKER_MAX_RETRIES:5}
     # 索引任务失败后的重试延迟时间。
     retry-delay: ${LEGAL_ES_WORKER_RETRY_DELAY:30s}
-
----
-# dev Profile 专用配置。
-spring:
-  # Spring 配置激活条件。
-  config:
-    # Profile 激活配置。
-    activate:
-      # 当前配置块仅在 dev Profile 下生效。
-      on-profile: dev
-  # dev 环境数据库连接配置。
-  datasource:
-    # MySQL JDBC 连接地址。
-    url: ${LEGAL_DB_URL:jdbc:mysql://159.75.84.229:3307/legal?useUnicode=true&characterEncoding=UTF-8&serverTimezone=Asia/Shanghai&allowPublicKeyRetrieval=true&useSSL=false}
-    # MySQL 登录用户名。
-    username: ${LEGAL_DB_USERNAME:legal}
-    # MySQL 登录密码，生产环境应通过环境变量注入。
-    password: ${LEGAL_DB_PASSWORD:c5S6sixmyYcS4xxX}
-    # MySQL JDBC 驱动类名。
-    driver-class-name: com.mysql.cj.jdbc.Driver
-    # HikariCP 数据库连接池配置。
-    hikari:
-      # 初始化失败超时时间，-1 表示启动时不因数据库暂不可用而失败。
-      initialization-fail-timeout: -1
-  # Spring Data 组件配置。
-  data:
-    # Redis 连接配置。
-    redis:
-      # Redis 主机地址。
-      host: ${LEGAL_REDIS_HOST:159.75.84.229}
-      # Redis 服务端口。
-      port: ${LEGAL_REDIS_PORT:6379}
-      # Redis 访问密码。
-      password: ${LEGAL_REDIS_PASSWORD:reidsnfturbo11}
-      # Redis 命令执行超时时间。
-      timeout: 3s

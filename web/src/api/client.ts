@@ -15,7 +15,7 @@ export interface AuthUser {
 }
 
 export interface RequestOptions {
-  method?: 'GET' | 'POST' | 'DELETE';
+  method?: 'GET' | 'POST' | 'PUT' | 'DELETE';
   body?: unknown;
   auth?: boolean;
   formData?: boolean;
@@ -97,6 +97,10 @@ export function apiGet<T>(path: string): Promise<T> {
 
 export function apiPost<T>(path: string, body?: unknown, auth = true): Promise<T> {
   return request<T>(path, { method: 'POST', body, auth });
+}
+
+export function apiPut<T>(path: string, body?: unknown): Promise<T> {
+  return request<T>(path, { method: 'PUT', body });
 }
 
 export function apiPostForm<T>(path: string, formData: FormData, auth = true): Promise<T> {

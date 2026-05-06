@@ -10,6 +10,7 @@ import RagMetricsView from '../views/RagMetricsView.vue';
 import TokenUsageMetricsView from '../views/TokenUsageMetricsView.vue';
 import TianyanView from '../views/TianyanView.vue';
 import ContractReviewView from '../views/ContractReviewView.vue';
+import SmartCourtView from '../views/SmartCourtView.vue';
 
 const router = createRouter({
   history: createWebHistory(),
@@ -25,6 +26,7 @@ const router = createRouter({
     { path: '/token-usage-metrics', component: TokenUsageMetricsView, meta: { adminOnly: true } },
     { path: '/tianyan', component: TianyanView, meta: { adminOnly: true } },
     { path: '/tianyan/reviews/:documentId', component: ContractReviewView, meta: { adminOnly: true } },
+    { path: '/smart-court', component: SmartCourtView },
   ],
   scrollBehavior() {
     return { top: 0 };

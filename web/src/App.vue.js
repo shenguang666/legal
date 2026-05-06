@@ -157,31 +157,29 @@ const __VLS_6 = __VLS_5({
 }, ...__VLS_functionalComponentArgsRest(__VLS_5));
 __VLS_7.slots.default;
 var __VLS_7;
-if (__VLS_ctx.isAdmin) {
-    const __VLS_8 = {}.RouterLink;
-    /** @type {[typeof __VLS_components.RouterLink, typeof __VLS_components.RouterLink, ]} */ ;
-    // @ts-ignore
-    const __VLS_9 = __VLS_asFunctionalComponent(__VLS_8, new __VLS_8({
-        to: "/knowledge",
-        ...{ class: "menu-link" },
-    }));
-    const __VLS_10 = __VLS_9({
-        to: "/knowledge",
-        ...{ class: "menu-link" },
-    }, ...__VLS_functionalComponentArgsRest(__VLS_9));
-    __VLS_11.slots.default;
-    var __VLS_11;
-}
+const __VLS_8 = {}.RouterLink;
+/** @type {[typeof __VLS_components.RouterLink, typeof __VLS_components.RouterLink, ]} */ ;
+// @ts-ignore
+const __VLS_9 = __VLS_asFunctionalComponent(__VLS_8, new __VLS_8({
+    to: "/smart-court",
+    ...{ class: "menu-link" },
+}));
+const __VLS_10 = __VLS_9({
+    to: "/smart-court",
+    ...{ class: "menu-link" },
+}, ...__VLS_functionalComponentArgsRest(__VLS_9));
+__VLS_11.slots.default;
+var __VLS_11;
 if (__VLS_ctx.isAdmin) {
     const __VLS_12 = {}.RouterLink;
     /** @type {[typeof __VLS_components.RouterLink, typeof __VLS_components.RouterLink, ]} */ ;
     // @ts-ignore
     const __VLS_13 = __VLS_asFunctionalComponent(__VLS_12, new __VLS_12({
-        to: "/hotwords",
+        to: "/knowledge",
         ...{ class: "menu-link" },
     }));
     const __VLS_14 = __VLS_13({
-        to: "/hotwords",
+        to: "/knowledge",
         ...{ class: "menu-link" },
     }, ...__VLS_functionalComponentArgsRest(__VLS_13));
     __VLS_15.slots.default;
@@ -192,11 +190,11 @@ if (__VLS_ctx.isAdmin) {
     /** @type {[typeof __VLS_components.RouterLink, typeof __VLS_components.RouterLink, ]} */ ;
     // @ts-ignore
     const __VLS_17 = __VLS_asFunctionalComponent(__VLS_16, new __VLS_16({
-        to: "/risk-rules",
+        to: "/hotwords",
         ...{ class: "menu-link" },
     }));
     const __VLS_18 = __VLS_17({
-        to: "/risk-rules",
+        to: "/hotwords",
         ...{ class: "menu-link" },
     }, ...__VLS_functionalComponentArgsRest(__VLS_17));
     __VLS_19.slots.default;
@@ -207,11 +205,11 @@ if (__VLS_ctx.isAdmin) {
     /** @type {[typeof __VLS_components.RouterLink, typeof __VLS_components.RouterLink, ]} */ ;
     // @ts-ignore
     const __VLS_21 = __VLS_asFunctionalComponent(__VLS_20, new __VLS_20({
-        to: "/rag-metrics",
+        to: "/risk-rules",
         ...{ class: "menu-link" },
     }));
     const __VLS_22 = __VLS_21({
-        to: "/rag-metrics",
+        to: "/risk-rules",
         ...{ class: "menu-link" },
     }, ...__VLS_functionalComponentArgsRest(__VLS_21));
     __VLS_23.slots.default;
@@ -222,11 +220,11 @@ if (__VLS_ctx.isAdmin) {
     /** @type {[typeof __VLS_components.RouterLink, typeof __VLS_components.RouterLink, ]} */ ;
     // @ts-ignore
     const __VLS_25 = __VLS_asFunctionalComponent(__VLS_24, new __VLS_24({
-        to: "/token-usage-metrics",
+        to: "/rag-metrics",
         ...{ class: "menu-link" },
     }));
     const __VLS_26 = __VLS_25({
-        to: "/token-usage-metrics",
+        to: "/rag-metrics",
         ...{ class: "menu-link" },
     }, ...__VLS_functionalComponentArgsRest(__VLS_25));
     __VLS_27.slots.default;
@@ -237,15 +235,30 @@ if (__VLS_ctx.isAdmin) {
     /** @type {[typeof __VLS_components.RouterLink, typeof __VLS_components.RouterLink, ]} */ ;
     // @ts-ignore
     const __VLS_29 = __VLS_asFunctionalComponent(__VLS_28, new __VLS_28({
-        to: "/tianyan",
+        to: "/token-usage-metrics",
         ...{ class: "menu-link" },
     }));
     const __VLS_30 = __VLS_29({
-        to: "/tianyan",
+        to: "/token-usage-metrics",
         ...{ class: "menu-link" },
     }, ...__VLS_functionalComponentArgsRest(__VLS_29));
     __VLS_31.slots.default;
     var __VLS_31;
+}
+if (__VLS_ctx.isAdmin) {
+    const __VLS_32 = {}.RouterLink;
+    /** @type {[typeof __VLS_components.RouterLink, typeof __VLS_components.RouterLink, ]} */ ;
+    // @ts-ignore
+    const __VLS_33 = __VLS_asFunctionalComponent(__VLS_32, new __VLS_32({
+        to: "/tianyan",
+        ...{ class: "menu-link" },
+    }));
+    const __VLS_34 = __VLS_33({
+        to: "/tianyan",
+        ...{ class: "menu-link" },
+    }, ...__VLS_functionalComponentArgsRest(__VLS_33));
+    __VLS_35.slots.default;
+    var __VLS_35;
 }
 __VLS_asFunctionalElement(__VLS_intrinsicElements.button, __VLS_intrinsicElements.button)({
     ...{ onClick: (...[$event]) => {
@@ -280,11 +293,11 @@ __VLS_asFunctionalElement(__VLS_intrinsicElements.main, __VLS_intrinsicElements.
     id: "main-content",
     ...{ class: "page card" },
 });
-const __VLS_32 = {}.RouterView;
+const __VLS_36 = {}.RouterView;
 /** @type {[typeof __VLS_components.RouterView, ]} */ ;
 // @ts-ignore
-const __VLS_33 = __VLS_asFunctionalComponent(__VLS_32, new __VLS_32({}));
-const __VLS_34 = __VLS_33({}, ...__VLS_functionalComponentArgsRest(__VLS_33));
+const __VLS_37 = __VLS_asFunctionalComponent(__VLS_36, new __VLS_36({}));
+const __VLS_38 = __VLS_37({}, ...__VLS_functionalComponentArgsRest(__VLS_37));
 /** @type {__VLS_StyleScopedClasses['shell']} */ ;
 /** @type {__VLS_StyleScopedClasses['shell-glow']} */ ;
 /** @type {__VLS_StyleScopedClasses['skip-link']} */ ;
@@ -297,6 +310,7 @@ const __VLS_34 = __VLS_33({}, ...__VLS_functionalComponentArgsRest(__VLS_33));
 /** @type {__VLS_StyleScopedClasses['menu-shell']} */ ;
 /** @type {__VLS_StyleScopedClasses['menu-arrow']} */ ;
 /** @type {__VLS_StyleScopedClasses['menu']} */ ;
+/** @type {__VLS_StyleScopedClasses['menu-link']} */ ;
 /** @type {__VLS_StyleScopedClasses['menu-link']} */ ;
 /** @type {__VLS_StyleScopedClasses['menu-link']} */ ;
 /** @type {__VLS_StyleScopedClasses['menu-link']} */ ;

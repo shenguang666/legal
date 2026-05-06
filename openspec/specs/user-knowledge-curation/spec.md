@@ -57,3 +57,16 @@ The system SHALL return stable document or chunk identifiers in offline candidat
 #### Scenario: Candidate is compared with original hits
 - **WHEN** the evaluator receives TopN candidates and original hit documents
 - **THEN** the system SHALL compare them using stable identifiers instead of document text only
+
+### Requirement: 鏅鸿兘灏忔硶搴鐢ㄧ煡璇嗗簱涓庢枃妗ｈ祫浜т綋绯?绯荤粺 SHALL 澶嶇敤鐜版湁鐢ㄦ埛鐭ヨ瘑涓庢枃妗ｈ祫浜т綋绯讳负鏅鸿兘灏忔硶搴彁渚涘悎鍚屼笌璇佹嵁鏉愭枡锛孧UST NOT 淇敼鏃㈡湁 `KNOWLEDGE / RISK_RULE` 鏂囨。鐨?CRUD 琛屼负锛孧UST 閫氳繃鐜版湁绉佹湁璧勪骇璁块棶绔偣鍥炴函璇佹嵁鍘熸枃銆?
+#### Scenario: 妗堜欢璇佹嵁鏉ユ簮浠呴檺鏈鎴锋枃妗?- **WHEN** 鐢ㄦ埛鍦ㄥ垱寤哄皬娉曞涵妗堜欢鏃堕€夋嫨鍚堝悓涓庤瘉鎹枃妗?- **THEN** 绯荤粺 MUST 浠呭厑璁搁€夋嫨褰撳墠绉熸埛鍜屽綋鍓嶇敤鎴峰彲瑙佺殑 `KNOWLEDGE` 鎴?`RISK_RULE` 鏂囨。
+- **THEN** 绯荤粺 MUST 鍦?`court_case_evidence` 涓櫥璁拌寮曠敤锛屼絾涓嶄慨鏀瑰師鏂囨。琛?
+#### Scenario: 璇佹嵁鍘熸枃鍥炴函澶嶇敤绉佹湁璧勪骇绔偣
+- **WHEN** 鐢ㄦ埛鍦ㄥ涵瀹＄晫闈㈡垨璇佹嵁閾惧浘璋变腑鐐瑰嚮璇佹嵁鑺傜偣鏌ョ湅鍘熸枃
+- **THEN** 绯荤粺 MUST 閫氳繃鐜版湁 `GET /api/document-assets/{documentId}/{assetName}` 绔偣鎻愪緵璁块棶
+- **THEN** 绯荤粺 MUST 鏍￠獙璇ユ枃妗ｅ綊灞炲綋鍓嶇鎴蜂笌鐢ㄦ埛
+
+#### Scenario: 鐭ヨ瘑搴?CRUD 琛屼负涓嶅彉
+- **WHEN** 鐢ㄦ埛瀵瑰弬涓庢浠剁殑鏂囨。鎵ц淇敼銆侀噸鏂扮储寮曘€佸垹闄ょ瓑鎿嶄綔
+- **THEN** 绯荤粺 MUST 淇濇寔鐜版湁 `KNOWLEDGE / RISK_RULE` 琛屼负涓嶅彉
+- **THEN** 绯荤粺 MUST 鍦ㄦ枃妗ｈ杞垹闄ゆ椂鎶婄浉鍏宠瘉鎹妭鐐瑰湪 Neo4j 涓爣璁颁负 `INVALID` 鑰屼笉鏄洿鎺ョ骇鑱斿垹闄ゆ浠?
